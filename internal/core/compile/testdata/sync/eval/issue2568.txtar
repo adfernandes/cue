@@ -1,0 +1,103 @@
+# p1, p2, and p3 unify the closed definition #X & #Y, where #X embeds a field
+# that closed #Y does not allow. They are equivalent up to field order and
+# comprehension inlining, so "all" must fail with "field not allowed" on the
+# disallowed field x in all three. The "not_bottom" comprehension filters out
+# bottom list elements; whether it yields [] or propagates the error, and which
+# positions "all" reports the error at, both depend on field order. See
+# out/todo.txt.
+-- in.cue --
+// "all" evaluated before "not_bottom".
+p1: {
+	all: [#X & #Y]
+	not_bottom: [for x in all if x != _|_ {x}]
+	#X: {
+		{x: "r"}
+		...
+	}
+	#Y: k: "k"
+}
+
+// "not_bottom" evaluated before "all".
+p2: {
+	not_bottom: [for x in all if x != _|_ {x}]
+	all: [#X & #Y]
+	#X: {
+		{x: "r"}
+		...
+	}
+	#Y: k: "k"
+}
+
+// "not_bottom" references the comprehension via a sibling field.
+p3: {
+	not_bottom: ref
+	ref: [for x in all if x != _|_ {x}]
+	all: [#X & #Y]
+	#X: {
+		{x: "r"}
+		...
+	}
+	#Y: k: "k"
+}
+-- out/compile --
+--- in.cue
+{
+  p1: {
+    all: [
+      (〈1;#X〉 & 〈1;#Y〉),
+    ]
+    not_bottom: [
+      for _, x in 〈1;all〉 if (〈0;x〉 != _|_(explicit error (_|_ literal) in source)) {
+        〈1;x〉
+      },
+    ]
+    #X: {
+      {
+        x: "r"
+      }
+      ...
+    }
+    #Y: {
+      k: "k"
+    }
+  }
+  p2: {
+    not_bottom: [
+      for _, x in 〈1;all〉 if (〈0;x〉 != _|_(explicit error (_|_ literal) in source)) {
+        〈1;x〉
+      },
+    ]
+    all: [
+      (〈1;#X〉 & 〈1;#Y〉),
+    ]
+    #X: {
+      {
+        x: "r"
+      }
+      ...
+    }
+    #Y: {
+      k: "k"
+    }
+  }
+  p3: {
+    not_bottom: 〈0;ref〉
+    ref: [
+      for _, x in 〈1;all〉 if (〈0;x〉 != _|_(explicit error (_|_ literal) in source)) {
+        〈1;x〉
+      },
+    ]
+    all: [
+      (〈1;#X〉 & 〈1;#Y〉),
+    ]
+    #X: {
+      {
+        x: "r"
+      }
+      ...
+    }
+    #Y: {
+      k: "k"
+    }
+  }
+}
