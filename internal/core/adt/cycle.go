@@ -767,10 +767,13 @@ func (n *nodeContext) reportCycleError() {
 		// TODO: probably, this should have the referenced arc.
 	}
 	n.setBaseValue(CombineErrors(nil, n.node.Value(), b))
-	// TODO(mem): might still be processing, so only use this when we
-	// exclude processed nodes.
-	// n.node.clearArcs(n.ctx)
-	n.node.Arcs = nil
+	// Reclaim the node contexts of the arcs being discarded. clearArcs is
+	// safe even when some arcs are still being processed: reclaimRecursive
+	// skips any arc whose nodeContext is still referenced (refCount > 0),
+	// freeing only those that have fully unwound. Using a bare
+	// n.node.Arcs = nil here instead would orphan the arcs' node contexts,
+	// leaking them for the lifetime of the OpContext.
+	n.node.clearArcs(n.ctx)
 }
 
 // makeAnonymousConjunct creates a conjunct that tracks self-references when

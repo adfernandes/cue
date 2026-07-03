@@ -52,10 +52,10 @@ nestedClosed: passing: {
 	D: {id: {}} | {[string]: D}
 } @test(eq, {D: {id: {}} | {}})
 -- out/eval/stats --
-Leaks:  13889
-Freed:  10906
-Reused: 10802
-Allocs: 13993
+Leaks:  6817
+Freed:  17978
+Reused: 17867
+Allocs: 6928
 Retain: 0
 
 Unifications: 3175
