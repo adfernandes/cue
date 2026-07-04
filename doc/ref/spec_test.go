@@ -190,17 +190,14 @@ func checkBlock(t *testing.T, fcb *goldast.FencedCodeBlock, source []byte) (bloc
 	}
 
 	var buf bytes.Buffer
-	// Prepend newlines so the parser reports correct markdown line numbers.
-	for range mdLine {
-		buf.WriteByte('\n')
-	}
 	for i := 0; i < fcb.Lines().Len(); i++ {
 		line := fcb.Lines().At(i)
 		buf.Write(line.Value(source))
 	}
 	src := buf.String()
 
-	_, err := parser.ParseFile("spec.md", src, parser.ParseComments)
+	// Keep generated diagnostics relative to the example, not to spec.md.
+	_, err := parser.ParseFile("", src, parser.ParseComments)
 
 	if !wantError {
 		if err != nil {

@@ -516,9 +516,9 @@ the string value.
 ```
 <!-- error:
 illegal character U+0027 ''' in escape sequence:
-    spec.md:503:5
+    4:5
 escape sequence is invalid Unicode code point:
-    spec.md:512:3
+    13:3
 -->
 
 These examples all represent the same string:
@@ -567,7 +567,7 @@ To include it is suffices to escape one of the quotes.
 ```
 <!-- error:
 unknown escape sequence:
-    spec.md:563:14
+    7:14
 -->
 
 This represents the same string as:
@@ -1260,9 +1260,9 @@ b: a & {
 ```
 <!-- error:
 missing ',' in struct literal:
-    spec.md:1253:8
+    7:8
 expected '}', found 'EOF':
-    spec.md:1260:3
+    14:3
 -->
 
 <!--
