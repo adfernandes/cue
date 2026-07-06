@@ -1696,6 +1696,7 @@ func (p *parser) parseFuncParam() (param *ast.FuncParam) {
 				param.Constraint = p.tok
 				p.next()
 			}
+			p.checkFuncParamName(param)
 			param.TokenPos = p.expect(token.COLON)
 			param.Value = p.parseExpr()
 			p.checkFuncParamColon(param)
@@ -1710,24 +1711,53 @@ func (p *parser) parseFuncParam() (param *ast.FuncParam) {
 	return param
 }
 
+// checkFuncParamName reports a dedicated error for a parameter name that is a
+// syntactically valid identifier but not permitted as a parameter name: a
+// definition (#a), or a blank name carrying an optional or required marker
+// (_?, _!), which could never be bound.
+func (p *parser) checkFuncParamName(param *ast.FuncParam) {
+	ident, ok := param.Label.(*ast.Ident)
+	if !ok {
+		return
+	}
+	if internal.IsDef(ident.Name) {
+		p.errf(ident.Pos(), "definitions are not allowed in a parameter list")
+		return
+	}
+	if ident.Name == "_" && param.Constraint != token.ILLEGAL {
+		p.errf(ident.Pos(), "an anonymous parameter cannot be marked optional or required")
+	}
+}
+
 // checkFuncParamColon reports a dedicated error when a parameter declaration
 // is followed by another colon, which indicates a declaration form that is
-// not allowed in a parameter list, such as a multi-part label (a: b: int) or
-// a pattern constraint ([string]: int). It consumes the offending suffix so
-// that subsequent parameters can still be parsed.
+// not allowed in a parameter list, such as a multi-part label (a: b: int), a
+// pattern constraint ([string]: int), or a quoted or dynamic label. It
+// consumes the offending suffix so that subsequent parameters can still be
+// parsed.
 func (p *parser) checkFuncParamColon(param *ast.FuncParam) {
 	if p.tok != token.COLON {
 		return
 	}
-	if _, ok := param.Value.(*ast.ListLit); ok && param.Label == nil {
-		p.errf(p.pos, "pattern constraints are not allowed in a parameter list")
-	} else {
+	switch {
+	case param.Label != nil:
 		p.errf(p.pos, "multiple labels are not allowed in a parameter list")
+	case isFuncParamPattern(param.Value):
+		p.errf(p.pos, "pattern constraints are not allowed in a parameter list")
+	default:
+		// The expression parsed as the value was actually intended as a
+		// label, such as a quoted ("a-b":) or dynamic ((x):) label.
+		p.errf(p.pos, "a parameter name must be an identifier")
 	}
 	for p.tok == token.COLON {
 		p.next()
 		p.parseExpr() // recover: skip the remainder of the declaration
 	}
+}
+
+func isFuncParamPattern(v ast.Expr) bool {
+	_, ok := v.(*ast.ListLit)
+	return ok
 }
 
 // skipFuncParam skips the remainder of a malformed parameter declaration up

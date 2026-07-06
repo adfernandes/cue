@@ -1435,6 +1435,24 @@ bar: 2
 			out: "@experiment(functions), f: func([string]) -> int: 1\npattern constraints are not allowed in a parameter list",
 		},
 		{
+			desc: "definition in parameter list",
+			in: `@experiment(functions)
+			f: func(#a: int) -> int: 1`,
+			out: "@experiment(functions), f: func(#a: int) -> int: 1\ndefinitions are not allowed in a parameter list",
+		},
+		{
+			desc: "optional anonymous parameter",
+			in: `@experiment(functions)
+			f: func(_?: int) -> int: 1`,
+			out: "@experiment(functions), f: func(_?: int) -> int: 1\nan anonymous parameter cannot be marked optional or required",
+		},
+		{
+			desc: "quoted label in parameter list",
+			in: `@experiment(functions)
+			f: func("a-b": int) -> int: 1`,
+			out: "@experiment(functions), f: func(\"a-b\") -> int: 1\na parameter name must be an identifier",
+		},
+		{
 			desc: "func literal experiment missing",
 			in: `
 			sum: func(a: int, b: int) -> int: a + b
