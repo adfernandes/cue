@@ -1023,54 +1023,172 @@ func (t *trimmerV3) linkStructComprehension(childEnv *adt.Environment, compr *ad
 	}
 }
 
+// emptyFuncScope stands in for the parameter activation scope of a function
+// body when resolving its references: parameter references point into it and
+// fail to resolve, while references to outer features skip past it.
+var emptyFuncScope = func() *adt.Vertex {
+	v := &adt.Vertex{}
+	v.ForceDone()
+	return v
+}()
+
+// resolveElemAll finds the resolvers within the conjunct c and calls f for
+// each of them that resolves, together with its target vertex.
+//
+// Elements outside function literals resolve against the conjunct's own
+// environment, and struct and list literals are not descended into: their
+// fields surface as arcs of rooted vertices, whose conjuncts are linked
+// separately. Neither holds inside a function literal — nothing in a
+// literal surfaces as an arc of a rooted vertex, and its body is compiled
+// against additional scope levels — so there elements are traversed deeply,
+// with one empty scope level pushed per level of nesting, mirroring
+// compilation. References to features outside the literal thus keep
+// resolving to their targets, while parameter and other function-local
+// references point into the empty levels, fail to resolve, and are skipped.
 func (t *trimmerV3) resolveElemAll(c adt.Conjunct, f func(adt.Resolver, *adt.Vertex)) {
-	worklist := []adt.Elem{c.Elem()}
+	type item struct {
+		elem adt.Elem
+		env  *adt.Environment
+		// inFunc marks elements inside a function literal, which are
+		// traversed deeply; see above.
+		inFunc bool
+	}
+	push := func(env *adt.Environment) *adt.Environment {
+		return &adt.Environment{Up: env, Vertex: emptyFuncScope}
+	}
+	worklist := []item{{c.Elem(), c.Env, false}}
 	for len(worklist) != 0 {
-		elem := worklist[0]
+		w := worklist[0]
 		worklist = worklist[1:]
+		elem, env := w.elem, w.env
+		child := func(elems ...adt.Elem) {
+			for _, e := range elems {
+				worklist = append(worklist, item{e, env, w.inFunc})
+			}
+		}
 
 		switch elemT := elem.(type) {
 		case *adt.UnaryExpr:
-			worklist = append(worklist, elemT.X)
+			child(elemT.X)
 		case *adt.BinaryExpr:
-			worklist = append(worklist, elemT.X, elemT.Y)
+			child(elemT.X, elemT.Y)
 		case *adt.DisjunctionExpr:
 			for _, disjunct := range elemT.Values {
-				worklist = append(worklist, disjunct.Val)
+				child(disjunct.Val)
 			}
 		case *adt.Disjunction:
 			for _, disjunct := range elemT.Values {
-				worklist = append(worklist, disjunct)
+				child(disjunct)
 			}
 		case *adt.Ellipsis:
-			worklist = append(worklist, elemT.Value)
+			child(elemT.Value)
 		case *adt.BoundExpr:
-			worklist = append(worklist, elemT.Expr)
+			child(elemT.Expr)
 		case *adt.BoundValue:
-			worklist = append(worklist, elemT.Value)
+			child(elemT.Value)
 		case *adt.Interpolation:
 			for _, part := range elemT.Parts {
-				worklist = append(worklist, part)
+				child(part)
 			}
 		case *adt.Conjunction:
 			for _, val := range elemT.Values {
-				worklist = append(worklist, val)
+				child(val)
 			}
 		case *adt.CallExpr:
-			worklist = append(worklist, elemT.Fun)
+			child(elemT.Fun)
 			for _, arg := range elemT.Args {
-				worklist = append(worklist, arg)
+				child(arg)
 			}
 		case *adt.Comprehension:
+			if !w.inFunc {
+				for _, y := range elemT.Clauses {
+					switch y := y.(type) {
+					case *adt.IfClause:
+						child(y.Condition)
+					case *adt.LetClause:
+						child(y.Expr)
+					case *adt.ForClause:
+						child(y.Src)
+					}
+				}
+				break
+			}
+			// Deep traversal: each for, let, and try clause introduces a
+			// scope level for the subsequent clauses and the body value; the
+			// fallback resolves in the scope the comprehension appears in.
+			cenv := env
 			for _, y := range elemT.Clauses {
 				switch y := y.(type) {
-				case *adt.IfClause:
-					worklist = append(worklist, y.Condition)
-				case *adt.LetClause:
-					worklist = append(worklist, y.Expr)
 				case *adt.ForClause:
-					worklist = append(worklist, y.Src)
+					worklist = append(worklist, item{y.Src, cenv, true})
+					cenv = push(cenv)
+				case *adt.LetClause:
+					worklist = append(worklist, item{y.Expr, cenv, true})
+					cenv = push(cenv)
+				case *adt.IfClause:
+					worklist = append(worklist, item{y.Condition, cenv, true})
+				case *adt.TryClause:
+					if y.Expr != nil {
+						worklist = append(worklist, item{y.Expr, cenv, true})
+						cenv = push(cenv)
+					}
+				case *adt.ValueClause:
+					cenv = push(cenv)
 				}
+			}
+			worklist = append(worklist, item{adt.ToExpr(elemT.Value), cenv, true})
+			if elemT.Fallback != nil {
+				worklist = append(worklist, item{elemT.Fallback, env, true})
+			}
+		case *adt.Function:
+			// Parameter constraints and the return type are compiled in
+			// the closure scope of the literal and resolve against the
+			// current environment; the body assumes one additional scope
+			// level for the parameter activation (see the compilation of
+			// ast.Func in internal/core/compile).
+			for i := range elemT.Params {
+				if v := elemT.Params[i].Value; v != nil {
+					worklist = append(worklist, item{v, env, true})
+				}
+			}
+			if elemT.Ret != nil {
+				worklist = append(worklist, item{elemT.Ret, env, true})
+			}
+			if elemT.Body != nil {
+				worklist = append(worklist, item{elemT.Body, push(env), true})
+			}
+		case *adt.StructLit:
+			if !w.inFunc {
+				break
+			}
+			senv := push(env)
+			for _, d := range elemT.Decls {
+				switch d := d.(type) {
+				case *adt.Field:
+					worklist = append(worklist, item{d.Value, senv, true})
+				case *adt.LetField:
+					worklist = append(worklist, item{d.Value, senv, true})
+				case *adt.BulkOptionalField:
+					worklist = append(worklist,
+						item{d.Filter, senv, true}, item{d.Value, senv, true})
+				case *adt.DynamicField:
+					worklist = append(worklist,
+						item{d.Key, senv, true}, item{d.Value, senv, true})
+				case *adt.Ellipsis:
+					if d.Value != nil {
+						worklist = append(worklist, item{d.Value, senv, true})
+					}
+				case adt.Elem:
+					worklist = append(worklist, item{d, senv, true})
+				}
+			}
+		case *adt.ListLit:
+			if !w.inFunc {
+				break
+			}
+			lenv := push(env)
+			for _, e := range elemT.Elems {
+				worklist = append(worklist, item{e, lenv, true})
 			}
 		case *adt.LabelReference:
 			elem = &adt.ValueReference{UpCount: elemT.UpCount, Src: elemT.Src}
@@ -1078,7 +1196,11 @@ func (t *trimmerV3) resolveElemAll(c adt.Conjunct, f func(adt.Resolver, *adt.Ver
 		}
 
 		if r, ok := elem.(adt.Resolver); ok && elem.Source() != nil {
-			resolvedTo, bot := t.ctx.Resolve(c, r)
+			rc := c
+			if env != c.Env {
+				rc = adt.MakeConjunct(env, elem, c.CloseInfo)
+			}
+			resolvedTo, bot := t.ctx.Resolve(rc, r)
 			if bot != nil {
 				continue
 			}

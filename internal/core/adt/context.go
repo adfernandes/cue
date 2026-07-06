@@ -164,21 +164,50 @@ type OpContext struct {
 	e  *Environment
 	ci CloseInfo
 
-	// funcTemplates caches the stable struct template vertex for each native
-	// CUE function literal, keyed by literal and closure environment. Reusing
-	// it across (recursive) calls lets the regular structural cycle detector
-	// observe recursion. See [OpContext.funcTemplate].
-	funcTemplates map[funcTemplateKey]*Vertex
+	// funcTemplates caches the canonical slot layout for each CUE function
+	// literal and closure environment. See [OpContext.funcTemplate].
+	funcTemplates map[funcTemplateKey]*StructLit
 
-	// funcTemplateRefs caches the stable reference to a template vertex for
-	// each call site, keyed by call expression and closure environment. A
+	// funcAnchors caches the stable conjunct-less cycle anchor for each
+	// function literal and closure environment. See [OpContext.funcAnchor].
+	funcAnchors map[funcAnchorKey]*Vertex
+
+	// funcCallRefs caches the stable result-field reference for each
+	// call site, keyed by call expression and closure environment. A
 	// per-call-site reference keeps the (vertex, source-reference) distinction
 	// the structural cycle detector relies on, so that recursion (same call
-	// site) is a cycle while nesting (distinct call sites) is not. See
-	// [OpContext.funcTemplateRef].
-	funcTemplateRefs map[funcTemplateRefKey]Resolver
+	// site) is a cycle while nesting (distinct call sites) is not. Each entry
+	// holds one reference per set of signature constraints of the called
+	// value. See [OpContext.funcCallRef].
+	funcCallRefs map[funcCallRefKey][]*FuncCallRef
 
-	// probingDefaults tracks the native CUE function literals whose parameter
+	// funcCallResults memoizes the finalized, error-free result vertices of
+	// CUE function calls, keyed by call site and the caller
+	// environment in which its arguments resolve. A call's result is fully
+	// determined by that pair and the callee, so a parameter used N times in
+	// a body — or a call nested as an argument and consumed once per use of
+	// the enclosing parameter — re-dispatches the same call instead of
+	// rebuilding the struct frame and re-finalizing the body each time.
+	// Without this the work of deeply nested calls (e.g. twice(twice(...)))
+	// grows exponentially in the nesting depth.
+	//
+	// Only finalized, error-free results are stored: a call still in progress
+	// (in particular one re-entered through recursion, which the structural
+	// cycle detector must observe on the shared anchor) has no entry, so
+	// memoization never short-circuits cycle detection. The map is keyed by
+	// the AST call node and the *Environment pointer; overlay cloning shares
+	// environment pointers across disjunct branches (see
+	// [overlayContext.cloneTask]), so the entries under a key additionally
+	// record the callee that produced them and are matched on that identity.
+	// See [FuncValue.call] and [funcCallResult].
+	funcCallResults map[funcCallResultKey][]funcCallResult
+
+	// anonParamLabels caches the labels of synthetic struct-frame fields
+	// that bind the arguments of anonymous positional function parameters,
+	// indexed by parameter position. See [anonParamLabel].
+	anonParamLabels []Feature
+
+	// probingDefaults tracks the CUE function literals whose parameter
 	// defaults are currently being probed for arity checking. Unlike a call
 	// body (which the structural cycle detector handles through the shared
 	// template), the default probe runs outside any vertex, so a recursive or
@@ -642,10 +671,25 @@ func (c *OpContext) concrete(env *Environment, x Expr, msg interface{}) (result 
 // error and return false. In all other cases it will return true, even if
 // v is already an error. v may be nil, in which case it will also return nil.
 func (c *OpContext) getDefault(v Value) (result Value, ok bool) {
+	w, d := resolveDefault(v)
+	if d != nil {
+		c.addErrf(IncompleteError, c.pos(),
+			"unresolved disjunction %v (type %s)", d, d.Kind())
+		return nil, false
+	}
+	return w, true
+}
+
+// resolveDefault resolves a disjunction to a single value, following default
+// values through nested disjunctions and vertices. If v does not resolve to a
+// single value, it returns the unresolved disjunction instead. It implements
+// both [OpContext.getDefault] and [unresolvedDisjunction], which must agree
+// on this traversal.
+func resolveDefault(v Value) (result Value, unresolved *Disjunction) {
 	var d *Disjunction
 	switch x := v.(type) {
 	default:
-		return v, true
+		return v, nil
 
 	case *Vertex:
 		// TODO: return vertex if not disjunction.
@@ -654,10 +698,10 @@ func (c *OpContext) getDefault(v Value) (result Value, ok bool) {
 			d = t
 
 		case *Vertex:
-			return c.getDefault(t)
+			return resolveDefault(t)
 
 		default:
-			return x, true
+			return x, nil
 		}
 
 	case *Disjunction:
@@ -665,11 +709,9 @@ func (c *OpContext) getDefault(v Value) (result Value, ok bool) {
 	}
 
 	if d.NumDefaults != 1 {
-		c.addErrf(IncompleteError, c.pos(),
-			"unresolved disjunction %v (type %s)", d, d.Kind())
-		return nil, false
+		return nil, d
 	}
-	return c.getDefault(d.Values[0])
+	return resolveDefault(d.Values[0])
 }
 
 // Evaluate evaluates an expression within the given environment and indicates

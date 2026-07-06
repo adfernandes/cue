@@ -1,0 +1,30 @@
+# Guards against a performance regression in deeply nested native function
+# calls. The body of twice consumes its parameter twice (sum(n, n)), so a
+# naive evaluator re-expands each argument once per use and the cost of an
+# n-deep nesting grows exponentially in n. Memoizing finalized, error-free
+# call results collapses this to linear growth. A regression toward the old
+# behavior balloons the unification count in the stats section below, well
+# beyond what the shallow (depth <= 4) cases in functions/native.txtar can
+# detect.
+-- in.cue --
+@experiment(functions)
+
+sum:   func(a: int, b: int) -> int: a + b
+twice: func(n: int) -> int: sum(n, n)
+
+// twice^k(2) == 2^(k+1). The chain is a stack of distinct call sites, which
+// nest freely without a structural cycle; only result memoization keeps its
+// evaluation cost linear rather than exponential in the depth.
+deep: twice(twice(twice(twice(twice(twice(twice(twice(2)))))))) @test(eq, 512)
+-- out/eval/stats --
+Leaks:  8
+Freed:  60
+Reused: 15
+Allocs: 53
+Retain: 0
+
+Unifications: 68
+Conjuncts:    288
+Disjuncts:    0
+
+NumCloseIDs: 68

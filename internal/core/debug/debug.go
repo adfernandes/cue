@@ -306,6 +306,68 @@ func (w *printer) interpolation(x *adt.Interpolation) {
 	w.string(quote)
 }
 
+// fn prints a function literal: its signature and, for a function value,
+// its body.
+func (w *printer) fn(x *adt.Function) {
+	if x == nil {
+		w.string("func")
+		return
+	}
+	w.string("func(")
+	for i, p := range x.Params {
+		if i > 0 {
+			w.string(", ")
+		}
+		if p.Label != adt.InvalidLabel {
+			w.label(p.Label)
+			switch p.ArcType {
+			case adt.ArcRequired:
+				w.string("!")
+			case adt.ArcOptional:
+				w.string("?")
+			}
+			w.string(": ")
+		}
+		if p.Value != nil {
+			w.node(p.Value)
+		} else {
+			w.string("_")
+		}
+	}
+	if x.Open {
+		if len(x.Params) > 0 {
+			w.string(", ")
+		}
+		w.string("...")
+	}
+	w.string(")")
+	if x.Ret != nil {
+		w.string(" -> ")
+		w.node(x.Ret)
+	}
+	if x.Body != nil {
+		// In compact mode — used, among others, for rendering error message
+		// arguments — the body is elided: it can be arbitrarily large and
+		// the signature identifies the function.
+		if w.compact {
+			w.string(": ...")
+		} else {
+			w.string(": ")
+			w.node(x.Body)
+		}
+	}
+}
+
+// funcValue prints a function value or type together with the function
+// types it was unified with, as a conjunction of all recorded signatures.
+func (w *printer) funcValue(x *adt.FuncValue) {
+	w.fn(x.Fn)
+	for _, t := range x.Types {
+		w.string(" & ")
+		w.fn(t.Fn)
+	}
+}
+
 func (w *printer) arg(n adt.Node) {
 	if x, ok := n.(*adt.Vertex); ok {
 		if x.Label != adt.InvalidLabel {
@@ -668,10 +730,13 @@ func (w *printer) node(n adt.Node) {
 		w.string("...")
 
 	case *adt.Function:
-		w.string("func")
+		w.fn(x)
 
 	case *adt.FuncValue:
-		w.string("func")
+		w.funcValue(x)
+
+	case *adt.FuncCallRef:
+		w.string("call")
 
 	case *adt.CallExpr:
 		w.node(x.Fun)

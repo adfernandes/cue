@@ -589,7 +589,14 @@ func DebugStr(x interface{}) (out string) {
 		return out
 
 	case *ast.Func:
-		out := fmt.Sprintf("func(%v)", DebugStr(v.Parameters()))
+		params := DebugStr(v.Parameters())
+		if v.Ellipsis != token.NoPos {
+			if params != "" {
+				params += ", "
+			}
+			params += "..."
+		}
+		out := fmt.Sprintf("func(%v)", params)
 		if v.Ret != nil {
 			out += fmt.Sprintf(" -> %v", DebugStr(v.Ret))
 		}
@@ -620,6 +627,10 @@ func DebugStr(x interface{}) (out string) {
 			out += ": "
 		}
 		out += DebugStr(v.Value)
+		for _, a := range v.Attrs {
+			out += " "
+			out += DebugStr(a)
+		}
 		return out
 
 	case []*ast.FuncParam:

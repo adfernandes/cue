@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/core/compile"
@@ -78,6 +79,36 @@ func TestCompile(t *testing.T) {
 			}))
 		}
 	})
+}
+
+func TestOpenFunctionBodyRejected(t *testing.T) {
+	file, err := parser.ParseFile("test.cue", `
+@experiment(functions)
+f: func(a: int) -> int: a
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fn *ast.Func
+	ast.Walk(file, func(n ast.Node) bool {
+		if x, ok := n.(*ast.Func); ok {
+			fn = x
+			return false
+		}
+		return true
+	}, nil)
+	if fn == nil {
+		t.Fatal("function literal not found")
+	}
+	// Mutate the parsed AST to exercise the compiler's defensive check without
+	// asking the parser to accept the invalid source form.
+	fn.Ellipsis = fn.Rparen
+
+	r := runtime.New()
+	_, err = compile.Files(nil, r, "", file)
+	if err == nil || !strings.Contains(err.Error(), "open function signature cannot have a body") {
+		t.Fatalf("compile error = %v; want open-body rejection", err)
+	}
 }
 
 func syncTestdataInputsCUE(t *testing.T) {

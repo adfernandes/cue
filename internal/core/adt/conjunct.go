@@ -59,6 +59,19 @@ func (n *nodeContext) scheduleConjunct(c Conjunct, id CloseInfo) {
 
 	env := c.Env
 
+	// A function-call argument pins the caller's cycle-reference chain: when
+	// the stored conjunct is re-scheduled from within the callee's body (an
+	// argument is evaluated lazily, on first use of the parameter), the
+	// body's ambient chain must not leak into the argument's evaluation. See
+	// the [CycleInfo.IsFuncArg] documentation. The ambient CycleType is
+	// deliberately kept: whether the consuming context is cyclic governs
+	// evidence bookkeeping (markNonCyclic) and thus the bounding of genuine
+	// recursion.
+	if c.CloseInfo.IsFuncArg {
+		id.Refs = c.CloseInfo.Refs
+		id.IsFuncArg = true
+	}
+
 	n.markNonCyclic(id)
 
 	switch x := c.Elem().(type) {
@@ -355,6 +368,15 @@ loop1:
 // scheduleVertexConjuncts injects the conjuncst of src n. If src was not fully
 // evaluated, it subscribes dst for future updates.
 func (n *nodeContext) scheduleVertexConjuncts(c Conjunct, arc *Vertex, closeInfo CloseInfo) {
+	// A function result resolves through a conjunct-less stable anchor so cycle
+	// detection runs before the body and result constraints are scheduled.
+	// Parameter slots and arguments already coexist on the surrounding struct
+	// frame; scheduleFuncCall adds their anchored constraints there as well.
+	if ref, ok := c.Elem().(*FuncCallRef); ok {
+		n.scheduleFuncCall(ref, c.Env, closeInfo)
+		return
+	}
+
 	// We should not "activate" an enclosing struct for typo checking if it is
 	// derived from an embedded, inlined value:
 	//
@@ -738,7 +760,99 @@ func (n *nodeContext) insertValueConjunct(env *Environment, v Value, id CloseInf
 	case *Vertex:
 	// handled above.
 
-	case Value: // *NullLit, *BoolLit, *NumLit, *StringLit, *BytesLit, *Builtin
+	case *FuncValue:
+		n.unshare()
+		n.updateCyclicStatus(id)
+
+		if y, ok := n.scalar.(*FuncValue); ok {
+			z, b := mergeFuncValues(ctx, y, x)
+			if b != nil {
+				if err, ok := b.Err.(*ValueError); ok {
+					err.AddPosition(y)
+					err.AddPosition(x)
+				}
+				n.addBottom(b)
+				break
+			}
+			if z == nil {
+				// Two distinct function values conflict, like any scalars.
+				n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+				break
+			}
+			n.scalar = z
+			break
+		}
+		if y, ok := n.scalar.(*Builtin); ok {
+			// A builtin satisfies a compatible function type.
+			z, b := mergeBuiltinFunc(ctx, y, x)
+			if b != nil {
+				if err, ok := b.Err.(*ValueError); ok {
+					err.AddPosition(y)
+					err.AddPosition(x)
+				}
+				n.addBottom(b)
+				break
+			}
+			if z == nil {
+				// A builtin conflicts with a proper function value.
+				n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+				break
+			}
+			n.scalar = z
+			break
+		}
+		if y := n.scalar; y != nil {
+			// A function cannot unify with a scalar of any other kind.
+			n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+			break
+		}
+		n.scalar = x
+		n.scalarID = id.posInfo
+		n.signal(scalarKnown)
+
+	case *Builtin:
+		n.unshare()
+		n.updateCyclicStatus(id)
+
+		switch y := n.scalar.(type) {
+		case *FuncValue:
+			// A builtin satisfies a compatible function type.
+			z, b := mergeBuiltinFunc(ctx, x, y)
+			if b != nil {
+				if err, ok := b.Err.(*ValueError); ok {
+					err.AddPosition(y)
+					err.AddPosition(x)
+				}
+				n.addBottom(b)
+				break
+			}
+			if z == nil {
+				// A builtin conflicts with a proper function value.
+				n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+				break
+			}
+			n.scalar = z
+
+		case *Builtin:
+			z := mergeBuiltins(x, y)
+			if z == nil {
+				// Two distinct builtins conflict, like any scalars.
+				n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+				break
+			}
+			n.scalar = z
+
+		case nil:
+			n.scalar = x
+			n.scalarID = id.posInfo
+			n.signal(scalarKnown)
+
+		default:
+			// A builtin cannot unify with a scalar of any other kind.
+			n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)
+		}
+
+	case Value: // *NullLit, *BoolLit, *NumLit, *StringLit, *BytesLit
 		n.unshare()
 		if p, isData := Pos(v).Priority(); isData {
 			id.Priority = p

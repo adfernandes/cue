@@ -873,6 +873,31 @@ x: {
 }`[1:],
 		},
 		{
+			// A Func that sets the legacy Args field instead of Params
+			// renders the same as positional parameters. Only
+			// programmatic construction produces this shape; the parser
+			// always fills Params.
+			name: "func_legacy_args",
+			node: &ast.File{Decls: []ast.Decl{
+				&ast.Attribute{Text: "@experiment(functions)"},
+				&ast.Field{
+					Label:    &ast.Ident{NamePos: token.Newline.Pos(), Name: "f"},
+					TokenPos: token.Blank.Pos(),
+					Value: &ast.Func{
+						Args: []ast.Expr{
+							&ast.Ident{Name: "int"},
+							&ast.Ident{Name: "string"},
+						},
+						Ret: &ast.Ident{Name: "bool"},
+					},
+				},
+			}},
+			cfg: &pretty.Config{Width: 80, Indent: "\t"},
+			want: `
+@experiment(functions)
+f: func(int, string) -> bool`[1:],
+		},
+		{
 			// A programmatically built Func may hold nil entries in
 			// Params; the printer must skip them rather than panic. The
 			// parser never produces this shape.

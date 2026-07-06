@@ -217,7 +217,16 @@ func equalTerminal(ctx *OpContext, v, w Value, flags Flag) bool {
 
 	case *FuncValue:
 		if y, ok := w.(*FuncValue); ok {
-			return x.Fn == y.Fn && x.Env.Equal(ctx, y.Env)
+			return x.Fn == y.Fn && x.Env.Equal(ctx, y.Env) &&
+				equalFuncTypes(x.Types, y.Types)
+		}
+
+	case *Builtin:
+		// Identical builtins were already handled by the v == w comparison
+		// above; this identifies tightened clones of the same builtin
+		// carrying equal type constraints.
+		if y, ok := w.(*Builtin); ok {
+			return x.self() == y.self() && equalFuncTypes(x.Types, y.Types)
 		}
 	}
 

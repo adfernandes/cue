@@ -325,6 +325,94 @@ out: func("foo")
 	}
 }
 
+// TestCallUnresolvedDisjunction checks that calling a disjunction that has
+// not resolved to a single callee reports a graceful incomplete error. This
+// used to panic with a nil-pointer dereference when the callee evaluated to
+// no single value.
+func TestCallUnresolvedDisjunction(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   string
+		err  string
+	}{
+		{
+			name: "functions",
+			in: `
+@experiment(functions)
+
+f: func(a: int) -> int: a
+g: func(a: int) -> int: a + 1
+h: f | g
+out: h(1)
+`,
+			err: "unresolved disjunction",
+		},
+		{
+			name: "builtins",
+			in: `
+import "strings"
+
+h: strings.ToUpper | strings.ToLower
+out: h("Hello")
+`,
+			err: "unresolved disjunction",
+		},
+		{
+			name: "mixed function and non-function",
+			in: `
+@experiment(functions)
+
+f: func(a: int) -> int: a
+h: f | 1
+out: h(1)
+`,
+			err: "unresolved disjunction",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := cuecontext.New()
+			v := ctx.CompileString(tc.in)
+			out := v.LookupPath(cue.ParsePath("out"))
+			err := out.Err()
+			if err == nil {
+				// An unresolved disjunction is an incomplete error, which
+				// Err may not report; validating concreteness must.
+				err = out.Validate(cue.Concrete(true))
+			}
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if got := err.Error(); !strings.Contains(got, tc.err) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+
+	// A disjunction with a default of function kind resolves to its
+	// default and the call proceeds.
+	t.Run("default resolves", func(t *testing.T) {
+		ctx := cuecontext.New()
+		v := ctx.CompileString(`
+@experiment(functions)
+
+f: func(a: int) -> int: a
+g: func(a: int) -> int: a + 1
+h: *f | g
+out: h(1)
+`)
+		if err := v.Err(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := v.LookupPath(cue.ParsePath("out")).Int64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != 1 {
+			t.Fatalf("got %d; want 1", got)
+		}
+	})
+}
+
 // TestNativeFunctionRecursionIsCycle checks that recursive and mutually
 // recursive function calls terminate as structural cycles rather than looping.
 // Native function application is sugar over the `(f & {...}).out` struct
@@ -382,26 +470,73 @@ out: fib(5)
 // TestNativeFunctionNestingIsNotCycle ensures non-recursive nesting of calls to
 // the same function is not misflagged as a cycle by the structural cycle
 // detector. This is the false-positive guard for collapsing all calls to a
-// single identity: twice(twice(2)) must equal 8.
+// single identity: twice(twice(2)) must equal 8. The deeper variants guard
+// against the callee's cycle-reference chain leaking into the lazily
+// evaluated arguments, which made a single call site inside a helper falsely
+// re-appear in one reference chain at nesting depth >= 3.
 func TestNativeFunctionNestingIsNotCycle(t *testing.T) {
-	ctx := cuecontext.New()
-	v := ctx.CompileString(`
+	const prelude = `
 @experiment(functions)
 
 sum:   func(a: int, b: int) -> int: a + b
 twice: func(n: int) -> int: sum(n, n)
-out:   twice(twice(2))
+h:     func(n: int) -> int: twice(n)
+f:     func(v: int) -> int: v
+`
+	for _, tc := range []struct {
+		name string
+		expr string
+		want int64
+	}{
+		{"depth2", "twice(twice(2))", 8},
+		{"depth3", "twice(twice(twice(2)))", 16},
+		{"depth4", "twice(twice(twice(twice(2))))", 32},
+		{"helper", "h(h(h(1)))", 8},
+		{"identity", "f(f(f(3)))", 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := cuecontext.New()
+			v := ctx.CompileString(prelude + "out: " + tc.expr + "\n")
+			if err := v.Err(); err != nil {
+				t.Fatal(err)
+			}
+			got, err := v.LookupPath(cue.ParsePath("out")).Int64()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("%s: got %d; want %d", tc.expr, got, tc.want)
+			}
+		})
+	}
+
+	// A cycle must not be misattributed to an unrelated intermediate field
+	// that is consumed as an argument.
+	t.Run("intermediate", func(t *testing.T) {
+		ctx := cuecontext.New()
+		v := ctx.CompileString(prelude + `
+mid:   twice(2)
+outer: twice(twice(mid))
 `)
-	if err := v.Err(); err != nil {
-		t.Fatal(err)
-	}
-	got, err := v.LookupPath(cue.ParsePath("out")).Int64()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != 8 {
-		t.Fatalf("twice(twice(2)): got %d; want 8", got)
-	}
+		if err := v.Err(); err != nil {
+			t.Fatal(err)
+		}
+		for _, e := range []struct {
+			path string
+			want int64
+		}{
+			{"mid", 4},
+			{"outer", 16},
+		} {
+			got, err := v.LookupPath(cue.ParsePath(e.path)).Int64()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != e.want {
+				t.Fatalf("%s: got %d; want %d", e.path, got, e.want)
+			}
+		}
+	})
 }
 
 // TestNativeFunctionsInDisjunction ensures function calls inside disjunction
@@ -411,6 +546,26 @@ out:   twice(twice(2))
 // template instead, so skipping the conjunct used to drop the call's result
 // (losing the field) or loop forever (recursion re-afforded each level).
 func TestNativeFunctionsInDisjunction(t *testing.T) {
+	t.Run("recursive body disjunct is eliminated", func(t *testing.T) {
+		ctx := cuecontext.New()
+		v := ctx.CompileString(`
+@experiment(functions)
+
+f:   func(n: int) -> int: n | f(n)
+out: f(1)
+`)
+		if err := v.Err(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := v.LookupPath(cue.ParsePath("out")).Int64()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != 1 {
+			t.Fatalf("recursive disjunct should be eliminated: got %d; want 1", got)
+		}
+	})
+
 	t.Run("recursion fails the branch", func(t *testing.T) {
 		ctx := cuecontext.New()
 		v := ctx.CompileString(`

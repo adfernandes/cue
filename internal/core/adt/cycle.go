@@ -382,6 +382,18 @@ type CycleInfo struct {
 	// a cycle is detected and of which type.
 	CycleType CyclicType
 
+	// IsFuncArg marks a conjunct created as an argument of a CUE function
+	// call. Argument conjuncts are created with the caller's CloseInfo and
+	// must never inherit the callee's cycle references: an argument that
+	// calls the same function (twice(twice(2))) is nesting, not recursion.
+	// Arguments are evaluated lazily, typically triggered from within the
+	// callee's body, so without this mark the re-scheduling of the stored
+	// conjunct would adopt the body's ambient reference chain, and a call in
+	// the argument would falsely collide with the same call site in the
+	// body. [nodeContext.scheduleConjunct] restores the stored (caller)
+	// chain for marked conjuncts.
+	IsFuncArg bool
+
 	// TODO(perf): pack this in with CloseInfo. Make an uint32 pointing into
 	// a buffer maintained in OpContext, using a mark-release mechanism.
 	Refs *RefNode
@@ -483,7 +495,7 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 	// (vertex, reference) cycle rules below, which already distinguish
 	// same-call-site recursion (a structural cycle) from distinct-call-site
 	// nesting such as twice(twice(2)).
-	_, isFuncCall := x.(*funcTemplateRef)
+	_, isFuncCall := x.(*FuncCallRef)
 
 	// As long as a node-wide cycle has not yet been detected, we allow cycles
 	// in optional fields to proceed unchecked.
@@ -498,8 +510,26 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 	for r := ci.Refs; r != nil; r = r.Next {
 		if equalDeref(r.Arc, arc) {
 			if equalDeref(r.Node, n.node) {
-				// reference cycle
-				return ci, true
+				// A reference cycle: the same reference reoccurring on the
+				// same node signals equality (x: x) and is skipped as it
+				// adds no information.
+				//
+				// A function-call reference is exempt: its arc is the
+				// conjunct-less anchor vertex, never the referencing node
+				// itself, so a match here only means that this node reached
+				// the same function again — recursion or nesting, to be
+				// classified by the rules below. The node match arises
+				// artificially when a disjunct re-schedules a recursive call
+				// of its host node: doDisjunct forwards the host's BaseValue
+				// to the disjunct clone, making the node recorded with the
+				// anchor's RefNode dereference to the disjunct. Skipping
+				// would silently drop the call's payload, letting the
+				// disjunct absorb the structural cycle of a recursive
+				// disjunct and survive as the call's return type instead of
+				// being eliminated.
+				if !isFuncCall {
+					return ci, true
+				}
 			}
 
 			// If there are still any non-cyclic conjuncts, and if this conjunct

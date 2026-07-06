@@ -79,8 +79,12 @@ func Walk(node Node, before func(Node) bool, after func(Node)) {
 		walkIfNotNil(n.Label, before, after)
 		walkIfNotNil(n.Alias, before, after)
 		walkIfNotNil(n.Value, before, after)
+		walkList(n.Attrs, before, after)
 
 	case *Func:
+		// Walk the nodes actually present in the AST rather than the
+		// synthesized view of [Func.Parameters], whose discriminator
+		// between the two signature styles this condition mirrors.
 		if len(n.Params) > 0 || len(n.Args) == 0 {
 			walkList(n.Params, before, after)
 		} else {

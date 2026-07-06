@@ -1,6 +1,8 @@
 -- in.cue --
 @experiment(functions)
 
+import "strings"
+
 arguments: {
 	sum: {
 		fn: func(a: int, b: int) -> int: a + b
@@ -121,12 +123,147 @@ cycles: {
 		out: fn(2, 2) @test(err, code=structural_cycle, contains="structural cycle")
 	}
 
+	// A recursive call in a disjunct of the function body is a structural
+	// cycle and is eliminated from the disjunction, like any other erroring
+	// disjunct. It must not be absorbed and survive as the function's
+	// return type (this used to yield 1 | int).
+	disjunct: {
+		f:   func(n: int) -> int: n | f(n)
+		out: f(1) @test(eq, 1)
+
+		// If every disjunct recurses, the call fails as a structural cycle.
+		g:   func(n: int) -> int: g(n+1) | g(n)
+		bad: g(1) @test(err, code=structural_cycle, contains="empty disjunction")
+
+		// A non-recursive call in a disjunct evaluates normally: the
+		// disjunction of both branches survives.
+		inc:  func(n: int) -> int: n + 1
+		h:    func(n: int) -> int: n | inc(n)
+		both: h(1) @test(eq, 1 | 2)
+
+		// Mutual recursion through a disjunct is eliminated as well.
+		ma:   func(n: int) -> int: mb(n)
+		mb:   func(n: int) -> int: n | ma(n)
+		out2: mb(1) @test(eq, 1)
+	}
+
 	// Non-recursive nesting of calls to the same function must NOT be flagged
 	// as a cycle. This guards against collapsing all calls to one identity.
 	nesting: {
 		sum:   func(a: int, b: int) -> int: a + b
 		twice: func(n: int) -> int: sum(n, n)
 		out:   twice(twice(2)) @test(eq, 8)
+
+		// Deeper nesting: the argument of each call is itself a call whose
+		// body re-enters the same call site (sum inside twice). The
+		// argument's evaluation must keep the caller's cycle-reference
+		// context rather than adopt the enclosing body's chain, or the
+		// sum call site falsely re-appears in one chain at depth >= 3.
+		deep: twice(twice(twice(2))) @test(eq, 16)
+		d4:   twice(twice(twice(twice(2)))) @test(eq, 32)
+
+		// A helper whose body merely forwards to another function: nesting
+		// the helper re-enters the twice call site inside h's body through
+		// the lazily evaluated arguments.
+		h:     func(n: int) -> int: twice(n)
+		alias: h(h(h(1))) @test(eq, 8)
+
+		// A cycle must not be misattributed to an unrelated intermediate
+		// field consumed as an argument.
+		mid:   twice(2) @test(eq, 4)
+		outer: twice(twice(mid)) @test(eq, 16)
+
+		// An identity body returns its parameter: the result structure-shares
+		// the argument, which in a nested call is again a call to the same
+		// function.
+		f:     func(v: int) -> int: v
+		ident: f(f(f(3))) @test(eq, 3)
+	}
+}
+
+// Calling a disjunction is only possible once it has resolved to a single
+// callee: an unresolved disjunction is ambiguous, and, since further
+// unification may still resolve it, calling one is an incomplete error
+// rather than a permanent one. This guards against the crash class where
+// the callee evaluates to no single value at all.
+disjunction: {
+	f: func(a: int) -> int: a
+	g: func(a: int) -> int: a + 1
+
+	// It is unknown which disjunct to call.
+	ambiguous: {
+		h:   f | g
+		out: h(1) @test(err, code=incomplete, contains="unresolved disjunction")
+	}
+
+	// A disjunction with a single default of function kind resolves to
+	// its default and the call proceeds.
+	defaulted: {
+		h:   *f | g
+		out: h(1) @test(eq, 1)
+	}
+
+	// Disjuncts that dedup to a single value remain callable.
+	dedup: {
+		h:   f | f
+		out: h(1) @test(eq, 1)
+	}
+
+	// The same crash class applies to other callee kinds: builtins and
+	// disjunctions mixing a function with a non-function.
+	builtins: {
+		h:   strings.ToUpper | strings.ToLower
+		out: h("Hello") @test(err, code=incomplete, contains="unresolved disjunction")
+	}
+	mixed: {
+		h:   f | 1
+		out: h(1) @test(err, code=incomplete, contains="unresolved disjunction")
+	}
+
+	// Callees that are themselves errors or incomplete fail gracefully.
+	callee: {
+		bottom: (1 & 2)(1) @test(err, code=eval, contains="conflicting values")
+		incomplete: {
+			x:   _
+			out: x(1) @test(err, code=incomplete, contains="cannot call non-concrete value")
+		}
+	}
+}
+
+// Memoized call results must be matched on the callee, not just on the call
+// site: overlay cloning shares environment pointers across disjunct branches,
+// so the same call site may be dispatched to different callees per branch.
+memoization: {
+	f: func(a: int) -> int: a + 1
+	g: func(a: int) -> int: a + 2
+
+	x: {h: _, out: h(10)}
+	x: {h: f} | {h: g}
+
+	// Unifying with out: 12 eliminates the f branch and keeps the g branch.
+	// A memoized result leaking from the f branch would empty the
+	// disjunction instead.
+	y: x & {out: 12}
+	check: y.out @test(eq, 12)
+}
+
+// An argument that is not yet defined makes the call incomplete, exactly like
+// len(y.q): the result may still become known when more information arrives,
+// and until then the result must not be used, let alone be memoized.
+incompleteArgs: {
+	f: func(a: int) -> string: "ok"
+	y: {}
+	x: f(y.q) @test(err, code=incomplete, contains="undefined field: q")
+
+	// The equivalent builtin call behaves the same way.
+	z: len(y.q) @test(err, code=incomplete, contains="undefined field: q")
+
+	// A later conjunct may still supply the field, in which case the call
+	// completes.
+	resolved: {
+		w: {}
+		out: f(w.q) @test(eq, "ok")
+		w: q: 1
 	}
 }
 
@@ -140,58 +277,107 @@ paramNamedOut: {
 	g: func(_~out: int) -> int: out * 2
 	y: g(5) @test(eq, 10)
 }
+
+// Parameter lists are a restricted form of struct declarations. Parameters
+// may carry field-style attributes, which do not affect evaluation. A
+// trailing "..." marks a bodyless signature as open (a partial signature).
+declarations: {
+	attrs: {
+		f:   func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+		out: f(1, 2) @test(eq, 3)
+	}
+
+	open: {
+		// An open signature admits further parameters supplied by the closed
+		// implementation with which it is unified.
+		T:   func(a: int, ...) -> number
+		f:   T & (func(a: int, b: int) -> int: a + b)
+		out: f(3, 4) @test(eq, 7)
+
+		// A bodyless signature remains a type and cannot be called directly.
+		bad: T(1) @test(err, code=eval, contains="cannot call function without implementation")
+	}
+}
 -- out/errors.txt --
 [eval] arguments.sum.tooMany: too many positional arguments in function call:
-    ./in.cue:11:19
-[eval] arguments.sum.unknownLabeled: unknown argument c:
-    ./in.cue:12:19
-[eval] arguments.sum.duplicateArg: argument a provided by position and label:
     ./in.cue:13:19
+[eval] arguments.sum.unknownLabeled: unknown argument c:
+    ./in.cue:14:19
+[eval] arguments.sum.duplicateArg: argument a provided by position and label:
+    ./in.cue:15:19
 [eval] arguments.sum.duplicateLabeled: duplicate argument a:
-    ./in.cue:14:21
+    ./in.cue:16:21
 [eval] arguments.keyword.positional: missing required argument a:
-    ./in.cue:30:15
+    ./in.cue:32:15
 [eval] arguments.missing.positional: not enough arguments in function call:
-    ./in.cue:43:15
+    ./in.cue:45:15
 [eval] arguments.missing.named: missing argument a:
-    ./in.cue:44:15
+    ./in.cue:46:15
 [eval] arguments.builtin.labeled: labeled arguments are not supported for builtin len:
-    ./in.cue:48:12
+    ./in.cue:50:12
 [eval] defaults.ambiguous: missing argument a:
-    ./in.cue:63:13
+    ./in.cue:65:13
 [eval] defaults.recursive: missing argument a:
-    ./in.cue:64:13
+    ./in.cue:66:13
 [eval] defaults.mutualRecursive: missing argument a:
-    ./in.cue:65:19
+    ./in.cue:67:19
 [eval] conflicting values 1 and string (mismatched types int and string):
-    ./in.cue:93:6
-    ./in.cue:94:23
-    ./in.cue:94:26
-    ./in.cue:95:8
-    ./in.cue:95:11
+    ./in.cue:95:6
+    ./in.cue:96:23
+    ./in.cue:96:26
+    ./in.cue:97:11
 [eval] conflicting values 1 and string (mismatched types int and string):
-    ./in.cue:98:20
-    ./in.cue:98:31
-    ./in.cue:98:39
+    ./in.cue:100:31
+    ./in.cue:100:39
 [structural_cycle] structural cycle:
-    ./in.cue:103:29
+    ./in.cue:105:29
 [structural_cycle] structural cycle:
-    ./in.cue:108:29
+    ./in.cue:110:29
 [structural_cycle] structural cycle:
-    ./in.cue:114:29
+    ./in.cue:116:29
 structural cycle:
-    ./in.cue:114:40
+    ./in.cue:116:40
 [structural_cycle] structural cycle:
-    ./in.cue:119:45
+    ./in.cue:121:37
+[structural_cycle] 2 errors in empty disjunction::
+    ./in.cue:134:29
+structural cycle:
+    ./in.cue:134:29
+2 errors in empty disjunction::
+    ./in.cue:134:38
+structural cycle:
+    ./in.cue:134:38
+4 errors in empty disjunction::
+    ./in.cue:135:8
+[incomplete] disjunction.ambiguous.out: cannot call h: unresolved disjunction func(a: int) -> int: ... | func(a: int) -> int: ... (type func):
+    ./in.cue:195:8
+[incomplete] disjunction.builtins.out: cannot call h: unresolved disjunction strings.ToUpper | strings.ToLower (type func):
+    ./in.cue:215:8
+[incomplete] disjunction.mixed.out: cannot call h: unresolved disjunction func(a: int) -> int: ... | 1 (type (int|func)):
+    ./in.cue:219:8
+[eval] conflicting values 2 and 1:
+    ./in.cue:224:12
+    ./in.cue:224:16
+[incomplete] disjunction.callee.incomplete.out: cannot call non-concrete value x (type _):
+    ./in.cue:227:9
+[incomplete] a: undefined field: q:
+    ./in.cue:255:9
+[incomplete] incompleteArgs.z: undefined field: q:
+    ./in.cue:258:11
+[eval] declarations.open.bad: cannot call function without implementation:
+    ./in.cue:297:8
 -- out/eval/stats --
-Leaks:  3
-Freed:  424
-Reused: 386
-Allocs: 41
+Leaks:  21
+Freed:  604
+Reused: 551
+Allocs: 74
 Retain: 0
 
-Unifications: 335
-Conjuncts:    1234
-Disjuncts:    33
+Unifications: 528
+Conjuncts:    2512
+Disjuncts:    89
 
-NumCloseIDs: 162
+NumCloseIDs: 337
+
+ConjunctInfos:       814
+MaxConjunctInfos:    8

@@ -1,0 +1,97 @@
+Fields referenced only from inside a function literal — from a parameter
+constraint, the return type, or the body — must survive trimming, just as
+they would if referenced by a plain expression. This includes references
+nested inside struct and list literals and comprehensions in the body,
+whose fields never surface as arcs of rooted vertices.
+
+-- in.cue --
+@experiment(functions)
+
+retref: {
+	x: int
+	f: func() -> x
+}
+retref: x: 5
+
+bodyref: {
+	x: int
+	f: func() -> int: x
+}
+bodyref: x: 5
+
+paramref: {
+	T: int
+	f: func(a: T) -> T: a
+}
+paramref: T: 7
+
+inlinecall: {
+	x: int
+	y: (func(a: int) -> int: a + x)(1)
+}
+inlinecall: x: 5
+
+structbody: {
+	x: int
+	f: func() -> {out: int}: {out: x}
+	y: f().out
+}
+structbody: x: 5
+
+listbody: {
+	x: int
+	f: func() -> [...int]: [x]
+}
+listbody: x: 5
+
+comprbody: {
+	x: int
+	f: func() -> {...}: {if x > 0 {out: x}}
+}
+comprbody: x: 5
+-- out/trim --
+== in.cue
+@experiment(functions)
+
+retref: {
+	x: int
+	f: func() -> x
+}
+retref: x: 5
+
+bodyref: {
+	x: int
+	f: func() -> int: x
+}
+bodyref: x: 5
+
+paramref: {
+	T: int
+	f: func(a: T) -> T: a
+}
+paramref: T: 7
+
+inlinecall: {
+	x: int
+	y: (func(a: int) -> int: a + x)(1)
+}
+inlinecall: x: 5
+
+structbody: {
+	x: int
+	f: func() -> {out: int}: {out: x}
+	y: f().out
+}
+structbody: x: 5
+
+listbody: {
+	x: int
+	f: func() -> [...int]: [x]
+}
+listbody: x: 5
+
+comprbody: {
+	x: int
+	f: func() -> {...}: {if x > 0 {out: x}}
+}
+comprbody: x: 5

@@ -152,6 +152,17 @@ func (w *Visitor) node(n adt.Node) {
 			w.node(x.Body)
 		}
 
+	case *adt.FuncCallRef:
+		// A call reference schedules the referenced function's expressions,
+		// so features used by those expressions are reachable through it.
+		// The signatures the called value was tightened with contribute
+		// their parameter and result constraints to every call as well, so
+		// their expressions are equally reachable.
+		w.node(x.Func())
+		for _, t := range x.Types() {
+			w.node(t.Fn)
+		}
+
 	case *adt.DisjunctionExpr:
 		for _, d := range x.Values {
 			w.node(d.Val)

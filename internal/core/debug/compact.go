@@ -295,10 +295,13 @@ func (w *printer) compactNode(n adt.Node) {
 		w.string("...")
 
 	case *adt.Function:
-		w.string("func")
+		w.fn(x)
 
 	case *adt.FuncValue:
-		w.string("func")
+		w.funcValue(x)
+
+	case *adt.FuncCallRef:
+		w.string("call")
 
 	case *adt.CallExpr:
 		w.node(x.Fun)

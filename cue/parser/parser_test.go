@@ -1367,6 +1367,74 @@ bar: 2
 			out: "@experiment(functions), sum: func(a: int, b: int) -> int: a+b, add1: func(_~x: int) -> int: x+1, pick: func(a: int|*5) -> int: a, keyword: func(a!: int, b?: int) -> int: a, pos: sum(1, 2), mixed: sum(1, b: 2), named: sum(a: 1, b: 2)",
 		},
 		{
+			desc: "open function signatures",
+			in: `@experiment(functions)
+			t0: func(...) -> int
+			t1: func(a: int, ...) -> number
+			t2: func(int, ...) -> int`,
+			out: "@experiment(functions), t0: func(...) -> int, t1: func(a: int, ...) -> number, t2: func(int, ...) -> int",
+		},
+		{
+			desc: "open function signature with body",
+			in: `@experiment(functions)
+			f: func(a: int, ...) -> int: a`,
+			out: "@experiment(functions), f: func(a: int, ...) -> int: a\nopen function signature cannot have a body",
+		},
+		{
+			desc: "parameter attributes",
+			in: `@experiment(functions)
+			f: func(a: int @tag(x), b: int @foo() @bar(), c: int @baz()) -> int: a + b`,
+			out: "@experiment(functions), f: func(a: int @tag(x), b: int @foo() @bar(), c: int @baz()) -> int: a+b",
+		},
+		{
+			desc: "variadic parameter",
+			in: `@experiment(functions)
+			f: func(a: int, ...int) -> int`,
+			out: "@experiment(functions), f: func(a: int, ...) -> int\nvariadic parameters are not supported",
+		},
+		{
+			desc: "parameter after ellipsis",
+			in: `@experiment(functions)
+			f: func(..., a: int) -> int`,
+			out: "@experiment(functions), f: func(a: int, ...) -> int\nparameter after ... in parameter list",
+		},
+		{
+			desc: "duplicate ellipsis parameter",
+			in: `@experiment(functions)
+			t: func(a: int, ..., ...) -> int`,
+			out: "@experiment(functions), t: func(a: int, ...) -> int\nduplicate ... in parameter list",
+		},
+		{
+			desc: "attribute after ellipsis parameter",
+			in: `@experiment(functions)
+			f: func(a: int, ... @x()) -> int`,
+			out: "@experiment(functions), f: func(a: int, ...) -> int\nattributes are not allowed after ... in a parameter list",
+		},
+		{
+			desc: "let in parameter list",
+			in: `@experiment(functions)
+			f: func(let x = 1, a: int) -> int: a`,
+			out: "@experiment(functions), f: func(<*ast.BadExpr>, a: int) -> int: a\nlet declarations are not allowed in a parameter list",
+		},
+		{
+			desc: "attribute declaration in parameter list",
+			in: `@experiment(functions)
+			f: func(@tag(x), a: int) -> int: a`,
+			out: "@experiment(functions), f: func(<*ast.BadExpr>, a: int) -> int: a\nattribute declarations are not allowed in a parameter list",
+		},
+		{
+			desc: "multi-part label in parameter list",
+			in: `@experiment(functions)
+			f: func(a: b: int) -> int: 1`,
+			out: "@experiment(functions), f: func(a: b) -> int: 1\nmultiple labels are not allowed in a parameter list",
+		},
+		{
+			desc: "pattern constraint in parameter list",
+			in: `@experiment(functions)
+			f: func([string]: int) -> int: 1`,
+			out: "@experiment(functions), f: func([string]) -> int: 1\npattern constraints are not allowed in a parameter list",
+		},
+		{
 			desc: "func literal experiment missing",
 			in: `
 			sum: func(a: int, b: int) -> int: a + b

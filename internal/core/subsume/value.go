@@ -99,7 +99,17 @@ func (s *subsumer) values(a, b adt.Value) (result bool) {
 		return s.bound(x, b)
 
 	case *adt.Builtin:
-		return x == b
+		y, ok := b.(*adt.Builtin)
+		return ok && adt.BuiltinSubsumes(x, y)
+
+	case *adt.FuncValue:
+		switch y := b.(type) {
+		case *adt.FuncValue:
+			return s.funcValues(x, y)
+		case *adt.Builtin:
+			return s.funcBuiltin(x, y)
+		}
+		return false
 
 	case *adt.BuiltinValidator:
 		env := x.Env

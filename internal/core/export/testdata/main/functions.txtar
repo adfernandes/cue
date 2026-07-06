@@ -1,0 +1,196 @@
+# Functions whose expressions capture fields of enclosing structs must
+# export with their references intact: the literal is re-anchored at the
+# position where it is emitted, rather than rewritten through synthetic
+# top-level lets that dangle when the captured field is nested.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.18.0"
+-- in.cue --
+@experiment(functions)
+
+import "strings"
+
+a: {
+	off: 3
+	g:   func(n: int) -> int: n + off
+}
+b: inner: {
+	pre: "p-"
+	h:   func(s: string) -> string: strings.ToUpper(pre + s)
+}
+T:    func(n: int, ...) -> number
+tight: T & a.g
+out:  a.g(1)
+out2: b.inner.h("x")
+out3: tight(2)
+k: {
+	off: 1
+	g:   func(x: int): x + off
+}
+out4: k.g(1)
+-- out/value-v3 --
+== Simplified
+{
+	a: {
+		off: 3
+		g:   func(n: int) -> int: n + off
+	}
+	b: inner: {
+		pre: "p-"
+		h:   func(s: string) -> string: strings.ToUpper(pre + s)
+	}
+	T:     func(n: int, ...) -> number
+	tight: (func(n: int) -> int: n + off) & (func(n: int, ...) -> number)
+	out:   4
+	out2:  "P-X"
+	out3:  5
+	k: {
+		off: 1
+		g:   func(x: int): x + off
+	}
+	out4: 2
+}
+== Raw
+{
+	a: {
+		off: 3
+		g:   func(n: int) -> int: n + off
+	}
+	b: inner: {
+		pre: "p-"
+		h:   func(s: string) -> string: strings.ToUpper(pre + s)
+	}
+	T:     func(n: int, ...) -> number
+	tight: (func(n: int) -> int: n + off) & (func(n: int, ...) -> number)
+	out:   4
+	out2:  "P-X"
+	out3:  5
+	k: {
+		off: 1
+		g:   func(x: int): x + off
+	}
+	out4: 2
+}
+== Final
+{
+	a: {
+		off: 3
+		g:   func(n: int) -> int: n + off
+	}
+	b: inner: {
+		pre: "p-"
+		h:   func(s: string) -> string: strings.ToUpper(pre + s)
+	}
+	T:     func(n: int, ...) -> number
+	tight: (func(n: int) -> int: n + off) & (func(n: int, ...) -> number)
+	out:   4
+	out2:  "P-X"
+	out3:  5
+	k: {
+		off: 1
+		g:   func(x: int): x + off
+	}
+	out4: 2
+}
+== All
+{
+	a: {
+		off: 3
+		g:   func(n: int) -> int: n + off
+	}
+	b: inner: {
+		pre: "p-"
+		h:   func(s: string) -> string: strings.ToUpper(pre + s)
+	}
+	T:     func(n: int, ...) -> number
+	tight: (func(n: int) -> int: n + off) & (func(n: int, ...) -> number)
+	out:   4
+	out2:  "P-X"
+	out3:  5
+	k: {
+		off: 1
+		g:   func(x: int): x + off
+	}
+	out4: 2
+}
+== Eval
+{
+	a: {
+		off: 3
+		g:   func(n: int) -> int: n + off
+	}
+	b: inner: {
+		pre: "p-"
+		h:   func(s: string) -> string: strings.ToUpper(pre + s)
+	}
+	T:     func(n: int, ...) -> number
+	tight: (func(n: int) -> int: n + off) & (func(n: int, ...) -> number)
+	out:   4
+	out2:  "P-X"
+	out3:  5
+	k: {
+		off: 1
+		g:   func(x: int): x + off
+	}
+	out4: 2
+}
+-- out/definition-v3-noshare --
+import "strings"
+
+a: {
+	off: 3
+	g:   func(n: int) -> int: n + off
+}
+b: inner: {
+	pre: "p-"
+	h:   func(s: string) -> string: strings.ToUpper(pre + s)
+}
+T:     func(n: int, ...) -> number
+tight: T & a.g
+out:   a.g(1)
+out2:  b.inner.h("x")
+out3:  tight(2)
+k: {
+	off: 1
+	g:   func(x: int): x + off
+}
+out4: k.g(1)
+-- out/doc-v3 --
+[]
+[a]
+[a off]
+[a g]
+[b]
+[b inner]
+[b inner pre]
+[b inner h]
+[T]
+[tight]
+[out]
+[out2]
+[out3]
+[k]
+[k off]
+[k g]
+[out4]
+-- out/definition-v3 --
+import "strings"
+
+a: {
+	off: 3
+	g:   func(n: int) -> int: n + off
+}
+b: inner: {
+	pre: "p-"
+	h:   func(s: string) -> string: strings.ToUpper(pre + s)
+}
+T:     func(n: int, ...) -> number
+tight: T & a.g
+out:   a.g(1)
+out2:  b.inner.h("x")
+out3:  tight(2)
+k: {
+	off: 1
+	g:   func(x: int): x + off
+}
+out4: k.g(1)

@@ -1528,7 +1528,7 @@ func (p *parser) parseFunc() (expr ast.Expr) {
 	}
 
 	lparen := p.expect(token.LPAREN)
-	params := p.parseFuncParams()
+	params, ellipsis := p.parseFuncParams()
 	rparen := p.expectClosing(token.RPAREN, "function parameter list")
 
 	var arrow token.Pos
@@ -1554,17 +1554,21 @@ func (p *parser) parseFunc() (expr ast.Expr) {
 			ret = p.parseExpr()
 		}
 	}
+	if ellipsis != token.NoPos && body != nil {
+		p.errf(ellipsis, "open function signature cannot have a body")
+	}
 
 	return &ast.Func{
-		Func:   fun,
-		Lparen: lparen,
-		Params: params,
-		Rparen: rparen,
-		Arrow:  arrow,
-		Ret:    ret,
-		Colon:  colon,
-		Body:   body,
-		Args:   funcParamArgs(params),
+		Func:     fun,
+		Lparen:   lparen,
+		Params:   params,
+		Ellipsis: ellipsis,
+		Rparen:   rparen,
+		Arrow:    arrow,
+		Ret:      ret,
+		Colon:    colon,
+		Body:     body,
+		Args:     funcParamArgs(params),
 	}
 }
 
@@ -1579,7 +1583,7 @@ func funcParamArgs(params []*ast.FuncParam) []ast.Expr {
 	return args
 }
 
-func (p *parser) parseFuncParams() (list []*ast.FuncParam) {
+func (p *parser) parseFuncParams() (list []*ast.FuncParam, ellipsis token.Pos) {
 	if p.trace {
 		defer un(trace(p, "FuncParams"))
 	}
@@ -1589,7 +1593,30 @@ func (p *parser) parseFuncParams() (list []*ast.FuncParam) {
 	seenNamed := false
 	seenNameOnly := false
 	for p.tok != token.RPAREN && p.tok != token.EOF {
+		if p.tok == token.ELLIPSIS {
+			pos := p.pos
+			p.next()
+			switch p.tok {
+			case token.COMMA, token.RPAREN, token.EOF:
+			case token.ATTRIBUTE:
+				p.errf(p.pos, "attributes are not allowed after ... in a parameter list")
+				p.parseAttributes() // recover: skip the attributes
+			default:
+				p.errf(p.pos, "variadic parameters are not supported")
+				p.parseExpr() // recover: skip the variadic type expression
+			}
+			if ellipsis == token.NoPos {
+				ellipsis = pos
+			} else {
+				p.errf(pos, "duplicate ... in parameter list")
+			}
+			p.expectComma() // skip over a trailing comma or newline
+			continue
+		}
 		param := p.parseFuncParam()
+		if ellipsis != token.NoPos {
+			p.errf(param.Pos(), "parameter after ... in parameter list")
+		}
 		if (seenNamed && isPositionalOnlyFuncParam(param)) ||
 			(seenNameOnly && isPositionalFuncParam(param)) {
 			p.errf(param.Pos(), "positional parameter after named parameter")
@@ -1604,7 +1631,7 @@ func (p *parser) parseFuncParams() (list []*ast.FuncParam) {
 		p.expectComma() // skip over a trailing comma or newline
 	}
 
-	return list
+	return list, ellipsis
 }
 
 func isNamedFuncParam(param *ast.FuncParam) bool {
@@ -1642,6 +1669,22 @@ func (p *parser) parseFuncParam() (param *ast.FuncParam) {
 	defer func() { c.closeNode(p, param) }()
 
 	param = &ast.FuncParam{Constraint: token.ILLEGAL}
+
+	// Parameter lists are a restricted form of struct declarations: only
+	// simple (possibly anonymous) parameter declarations are allowed. Report
+	// dedicated errors for the more common declaration forms.
+	switch p.tok {
+	case token.LET:
+		p.errf(p.pos, "let declarations are not allowed in a parameter list")
+		param.Value = p.skipFuncParam(p.pos)
+		return param
+
+	case token.ATTRIBUTE:
+		p.errf(p.pos, "attribute declarations are not allowed in a parameter list")
+		param.Value = p.skipFuncParam(p.pos)
+		return param
+	}
+
 	if p.tok == token.IDENT {
 		p.peek()
 		switch p.peekToken.tok {
@@ -1655,12 +1698,46 @@ func (p *parser) parseFuncParam() (param *ast.FuncParam) {
 			}
 			param.TokenPos = p.expect(token.COLON)
 			param.Value = p.parseExpr()
+			p.checkFuncParamColon(param)
+			param.Attrs = p.parseAttributes()
 			return param
 		}
 	}
 
 	param.Value = p.parseExpr()
+	p.checkFuncParamColon(param)
+	param.Attrs = p.parseAttributes()
 	return param
+}
+
+// checkFuncParamColon reports a dedicated error when a parameter declaration
+// is followed by another colon, which indicates a declaration form that is
+// not allowed in a parameter list, such as a multi-part label (a: b: int) or
+// a pattern constraint ([string]: int). It consumes the offending suffix so
+// that subsequent parameters can still be parsed.
+func (p *parser) checkFuncParamColon(param *ast.FuncParam) {
+	if p.tok != token.COLON {
+		return
+	}
+	if _, ok := param.Value.(*ast.ListLit); ok && param.Label == nil {
+		p.errf(p.pos, "pattern constraints are not allowed in a parameter list")
+	} else {
+		p.errf(p.pos, "multiple labels are not allowed in a parameter list")
+	}
+	for p.tok == token.COLON {
+		p.next()
+		p.parseExpr() // recover: skip the remainder of the declaration
+	}
+}
+
+// skipFuncParam skips the remainder of a malformed parameter declaration up
+// to the next comma or closing parenthesis, returning a BadExpr covering the
+// skipped range.
+func (p *parser) skipFuncParam(from token.Pos) ast.Expr {
+	for p.tok != token.COMMA && p.tok != token.RPAREN && p.tok != token.EOF {
+		p.next()
+	}
+	return &ast.BadExpr{From: from, To: p.pos}
 }
 
 func (p *parser) parseList() (expr ast.Expr) {

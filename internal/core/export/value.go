@@ -22,7 +22,9 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/literal"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/core/adt"
 )
@@ -190,11 +192,7 @@ func (e *exporter) value(n adt.Value, a ...adt.Conjunct) (result ast.Expr) {
 		result = e.builtinValidator(x)
 
 	case *adt.FuncValue:
-		if x.Src != nil {
-			result = x.Src
-		} else {
-			result = ast.NewIdent("_")
-		}
+		result = e.withFuncTypes(e.funcSrc(x.Src), x.Types)
 
 	case *adt.Vertex:
 		result = e.vertex(x)
@@ -345,14 +343,125 @@ func (e *exporter) boundValue(n *adt.BoundValue) ast.Expr {
 }
 
 func (e *exporter) builtin(x *adt.Builtin) ast.Expr {
+	var result ast.Expr
 	if x.Package == 0 {
-		return ast.NewPredeclared(x.Name)
+		result = ast.NewPredeclared(x.Name)
+	} else {
+		spec := ast.NewImport(nil, x.Package.StringValue(e.index))
+		info, _ := astutil.ParseImportSpec(spec)
+		ident := ast.NewIdent(info.Ident)
+		ident.Node = spec
+		result = ast.NewSel(ident, x.Name)
 	}
-	spec := ast.NewImport(nil, x.Package.StringValue(e.index))
-	info, _ := astutil.ParseImportSpec(spec)
-	ident := ast.NewIdent(info.Ident)
-	ident.Node = spec
-	return ast.NewSel(ident, x.Name)
+	return e.withFuncTypes(result, x.Types)
+}
+
+// withFuncTypes renders the function types a function value, function type,
+// or builtin has been unified with: the conjunction of the value itself and
+// every recorded signature, so that the exported expression carries the same
+// constraints as the value it represents. Each function literal is
+// parenthesized: an unparenthesized signature would otherwise absorb the &
+// operand into its result or body expression when parsed back.
+func (e *exporter) withFuncTypes(x ast.Expr, types []adt.FuncType) ast.Expr {
+	if len(types) == 0 {
+		return x
+	}
+	if _, ok := x.(*ast.Func); ok {
+		x = &ast.ParenExpr{X: x}
+	}
+	for _, t := range types {
+		var fn *ast.Func
+		if t.Fn != nil {
+			fn = t.Fn.Src
+		}
+		y := e.funcSrc(fn)
+		if _, ok := y.(*ast.Func); ok {
+			y = &ast.ParenExpr{X: y}
+		}
+		x = &ast.BinaryExpr{Op: token.AND, X: x, Y: y}
+	}
+	return x
+}
+
+// funcSrc returns the syntax with which to render a function literal in
+// exported output. The compiled literal's source carries resolution links
+// into the input syntax tree: the references its expressions capture point
+// at nodes that do not occur in the output file, so sanitization would
+// treat them as shadowed and rewrite them through top-level lets — lets
+// that dangle whenever the captured field is not itself a top-level field.
+// The literal is therefore re-parsed from its formatted source, anchoring
+// its references lexically at the position where the literal is emitted,
+// which is where equivalent struct-embedded references resolve. Only
+// import references keep their binding, matched by name after local
+// resolution, so that sanitization re-adds the corresponding import specs.
+//
+// Note that a function literal emitted in a structural position different
+// from its source — for example when a subtree is exported self-contained —
+// may still carry references that do not resolve in the output; hoisting
+// the dependencies of function bodies is not yet supported.
+func (e *exporter) funcSrc(src *ast.Func) ast.Expr {
+	if src == nil {
+		return ast.NewIdent("_")
+	}
+
+	// Collect the import bindings of the original literal by name.
+	var imports map[string]*ast.ImportSpec
+	ast.Walk(src, func(n ast.Node) bool {
+		if x, ok := n.(*ast.Ident); ok {
+			if spec, ok := x.Node.(*ast.ImportSpec); ok {
+				if imports == nil {
+					imports = map[string]*ast.ImportSpec{}
+				}
+				imports[x.Name] = spec
+			}
+		}
+		return true
+	}, nil)
+
+	b, err := format.Node(src)
+	if err != nil {
+		return src
+	}
+	// The re-parse must have the functions experiment active: without it,
+	// the expression after the colon of a literal written without "->" is
+	// read as a return type, in which parameter references are rejected.
+	// ParseExpr offers no way to enable an experiment, so the literal is
+	// parsed as the sole embedding of a synthetic file carrying the
+	// experiment attribute.
+	f, err := parser.ParseFile("",
+		fmt.Sprintf("@experiment(functions)\n\n%s", b),
+		parser.ParseComments)
+	if err != nil {
+		return src
+	}
+	// ParseFile resolves the copy internally, binding parameters and other
+	// local declarations within the literal; what remains unresolved is
+	// either an import reference, restored below, or a capture that must
+	// resolve lexically in the output.
+	var expr ast.Expr
+	for _, d := range f.Decls {
+		if embed, ok := d.(*ast.EmbedDecl); ok {
+			expr = embed.Expr
+			break
+		}
+	}
+	if expr == nil {
+		return src
+	}
+	// The blank line following the attribute leaves the literal positioned
+	// at a section start, which would render it on its own line.
+	ast.SetRelPos(expr, token.NoRelPos)
+	if imports != nil {
+		ast.Walk(expr, func(n ast.Node) bool {
+			if x, ok := n.(*ast.Ident); ok && x.Node == nil {
+				if spec, ok := imports[x.Name]; ok {
+					x.Node = spec
+				}
+			}
+			return true
+		}, nil)
+	}
+	return expr
 }
 
 func (e *exporter) builtinValidator(n *adt.BuiltinValidator) ast.Expr {

@@ -595,6 +595,8 @@ func (x *Interpolation) Quotes() (first, last *BasicLit) {
 //
 // If Label is nil, the parameter is anonymous and positional-only. Otherwise
 // Label, Alias, Constraint, and TokenPos have the same meaning as in Field.
+// Attrs holds field-style attributes following the parameter; like field
+// attributes, they do not affect evaluation.
 // FuncParam has Field's underlying representation so that their field-shaped
 // syntax stays in sync, but remains a distinct node type and is not a Decl.
 type FuncParam Field
@@ -618,6 +620,9 @@ func (p *FuncParam) pos() *token.Pos {
 	return nil
 }
 func (p *FuncParam) End() token.Pos {
+	if len(p.Attrs) > 0 {
+		return p.Attrs[len(p.Attrs)-1].End()
+	}
 	if p.Value != nil {
 		return p.Value.End()
 	}
@@ -634,14 +639,15 @@ func (p *FuncParam) End() token.Pos {
 //
 // This is an experimental type and the contents will change without notice.
 type Func struct {
-	Func   token.Pos    // position of "func"
-	Lparen token.Pos    // position of "("
-	Params []*FuncParam // list of parameters; or nil
-	Rparen token.Pos    // position of ")"
-	Arrow  token.Pos    // position of "->"
-	Ret    Expr         // return type; nil means _
-	Colon  token.Pos    // position of ":" before Body
-	Body   Expr         // implementation body; or nil
+	Func     token.Pos    // position of "func"
+	Lparen   token.Pos    // position of "("
+	Params   []*FuncParam // list of parameters; or nil
+	Ellipsis token.Pos    // position of "...", if any; open signatures are bodyless
+	Rparen   token.Pos    // position of ")"
+	Arrow    token.Pos    // position of "->"
+	Ret      Expr         // return type; nil means _
+	Colon    token.Pos    // position of ":" before Body
+	Body     Expr         // implementation body; or nil
 
 	// Args is kept for compatibility with older experimental users.
 	//

@@ -10,6 +10,17 @@ sum: func(
 ) -> int: call(x, a: a, req: req)
 
 mixed: sum(1, req: "x")
+
+tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+
+open:      func(a: int, ...) -> number
+openOnly:  func(...) -> int
+openMulti: func(
+    // first operand
+    a: int,
+    b?: string,
+    ...
+) -> int
 -- out/format/functions.golden --
 @experiment(functions)
 
@@ -22,3 +33,14 @@ sum: func(
 ) -> int: call(x, a: a, req: req)
 
 mixed: sum(1, req: "x")
+
+tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+
+open:     func(a: int, ...) -> number
+openOnly: func(...) -> int
+openMulti: func(
+	// first operand
+	a: int,
+	b?: string,
+	...
+) -> int

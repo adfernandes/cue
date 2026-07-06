@@ -2188,14 +2188,13 @@ func (c *converter) armDoc(a chainArm, outerPrec int) doc {
 }
 
 // armExpr renders e as a chain arm under a chain whose operator has
-// precedence outerPrec. A nested BinaryExpr at lower precedence is
-// wrapped in parens so the chain shape `a OP_outer arm` re-parses
-// to the same tree on round-trip. See [converter.armDoc].
+// precedence outerPrec. A nested BinaryExpr at lower precedence, or a
+// function literal whose result or body would absorb the following
+// operator, is wrapped in parens so the chain shape `a OP_outer arm`
+// re-parses to the same tree on round-trip; see [wrapForPrecedence]
+// and [converter.armDoc].
 func (c *converter) armExpr(e ast.Expr, outerPrec int) doc {
-	if bin, ok := e.(*ast.BinaryExpr); ok && bin.Op.Precedence() < outerPrec {
-		return cats(lParenLit, c.expr(e), rParenLit)
-	}
-	return c.expr(e)
+	return wrapForPrecedence(c.expr(e), e, outerPrec)
 }
 
 // injectInteriorComments renders a braced StructLit or bracketed
@@ -2844,50 +2843,50 @@ func (c *converter) multiLineInterpolation(x *ast.Interpolation) doc {
 
 // funcExpr converts a Func node.
 func (c *converter) funcExpr(x *ast.Func) doc {
-	var args []doc
-	if len(x.Params) > 0 || len(x.Args) == 0 {
-		if len(x.Params) == 0 {
-			return c.funcResult(cats(stringLit("func"), lParenLit, rParenLit), x)
+	open := x.Ellipsis != token.NoPos
+	// Parameters synthesizes positional parameters from the legacy Args
+	// field; those carry no label, attributes, or comments, so they
+	// render as their bare values below.
+	params := x.Parameters()
+	if len(params) == 0 && !open {
+		return c.funcResult(cats(stringLit("func"), lParenLit, rParenLit), x)
+	}
+	// params may contain nil entries when the AST is constructed
+	// programmatically; skip them, as funcParamRows does.
+	hasParamDoc := false
+	for _, p := range params {
+		if p != nil && HasDocComment(p) {
+			hasParamDoc = true
+			break
 		}
-		// Params may contain nil entries when the AST is constructed
-		// programmatically; skip them, as funcParamRows does.
-		hasParamDoc := false
-		for _, p := range x.Params {
-			if p != nil && HasDocComment(p) {
-				hasParamDoc = true
-				break
-			}
+	}
+	if hasParamDoc {
+		layout := bracketedLayout{
+			node:                x,
+			openPrefix:          stringLit("func"),
+			open:                lParenLit,
+			close:               rParenLit,
+			openerRel:           x.Lparen.RelPos(),
+			closerRel:           x.Rparen.RelPos(),
+			firstElem:           firstFuncParam(params),
+			lastElem:            lastFuncParam(params),
+			numElems:            len(params),
+			anyDoc:              hasParamDoc,
+			lineHeader:          hasLineLeadingComment(commentSlots{}, firstFuncParam(params)),
+			allowsTrailingComma: true,
+			inner:               table(c.funcParamRows(params, x.Ellipsis, true)),
 		}
-		if hasParamDoc {
-			layout := bracketedLayout{
-				node:                x,
-				openPrefix:          stringLit("func"),
-				open:                lParenLit,
-				close:               rParenLit,
-				openerRel:           x.Lparen.RelPos(),
-				closerRel:           x.Rparen.RelPos(),
-				firstElem:           firstFuncParam(x.Params),
-				lastElem:            lastFuncParam(x.Params),
-				numElems:            len(x.Params),
-				anyDoc:              hasParamDoc,
-				lineHeader:          hasLineLeadingComment(commentSlots{}, firstFuncParam(x.Params)),
-				allowsTrailingComma: true,
-				inner:               table(c.funcParamRows(x.Params, true)),
-			}
-			return c.funcResult(c.applyBracketed(layout, c.computeBracketedPolicy(layout)), x)
+		return c.funcResult(c.applyBracketed(layout, c.computeBracketedPolicy(layout)), x)
+	}
+	args := make([]doc, 0, len(params)+1)
+	for _, p := range params {
+		if p == nil {
+			continue
 		}
-		args = make([]doc, 0, len(x.Params))
-		for _, p := range x.Params {
-			if p == nil {
-				continue
-			}
-			args = append(args, c.funcParam(p))
-		}
-	} else {
-		args = make([]doc, len(x.Args))
-		for i, a := range x.Args {
-			args[i] = c.expr(a)
-		}
+		args = append(args, c.funcParam(p))
+	}
+	if open {
+		args = append(args, ellipsisLit)
 	}
 	argDoc := sep(commaSpaceLit, args...)
 	d := cats(stringLit("func"), lParenLit, argDoc, rParenLit)
@@ -2912,7 +2911,7 @@ func (c *converter) funcParamCore(p *ast.FuncParam) doc {
 	if p == nil {
 		return nil
 	}
-	d := c.expr(p.Value)
+	d := appendAttrs(c.expr(p.Value), p.Attrs)
 	if p.Label == nil {
 		return d
 	}
@@ -2926,9 +2925,13 @@ func (c *converter) funcParamCore(p *ast.FuncParam) doc {
 	return cats(label, colonLit, spaceLit, d)
 }
 
-func (c *converter) funcParamRows(params []*ast.FuncParam, trailingComma bool) []row {
-	rows := make([]row, 0, len(params))
+func (c *converter) funcParamRows(params []*ast.FuncParam, ellipsis token.Pos, trailingComma bool) []row {
+	open := ellipsis != token.NoPos
+	rows := make([]row, 0, len(params)+1)
 	lastIdx := len(params) - 1
+	if open {
+		lastIdx = len(params) // the "..." row is last
+	}
 	for i, p := range params {
 		if p == nil {
 			continue
@@ -2958,6 +2961,13 @@ func (c *converter) funcParamRows(params []*ast.FuncParam, trailingComma bool) [
 		}
 		if len(rows) > 0 {
 			r.sep = relBreakOr(LeadingRelPos(p), lineBreakOrSpace)
+		}
+		rows = append(rows, r)
+	}
+	if open {
+		r := row{cells: []doc{ellipsisLit}}
+		if len(rows) > 0 {
+			r.sep = relBreakOr(ellipsis.RelPos(), lineBreakOrSpace)
 		}
 		rows = append(rows, r)
 	}
@@ -4591,12 +4601,23 @@ func isLeafLitValue(v ast.Expr) bool {
 // tighter than some binary operator must materialise the parens itself
 // or the output would re-parse to a differently-grouped tree.
 //
-// Only [*ast.BinaryExpr] needs the wrap: every other expression type
-// either is itself bracketed, produces a single token, or binds at
-// least as tightly as the postfix / unary contexts.
+// Besides [*ast.BinaryExpr], an [*ast.Func] with a result constraint or
+// a body needs the wrap: both extend to the end of the expression and
+// would absorb a following operator or selector when parsed back (e.g.
+// func() -> int & T parses the conjunction as part of the result).
+// Every other expression type either is itself bracketed, produces a
+// single token, or binds at least as tightly as the postfix / unary
+// contexts.
 func wrapForPrecedence(doc doc, e ast.Expr, prec int) doc {
-	if bin, ok := e.(*ast.BinaryExpr); ok && bin.Op.Precedence() < prec {
-		return cats(lParenLit, doc, rParenLit)
+	switch x := e.(type) {
+	case *ast.BinaryExpr:
+		if x.Op.Precedence() < prec {
+			return cats(lParenLit, doc, rParenLit)
+		}
+	case *ast.Func:
+		if x.Ret != nil || x.Body != nil {
+			return cats(lParenLit, doc, rParenLit)
+		}
 	}
 	return doc
 }

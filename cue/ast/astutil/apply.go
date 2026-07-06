@@ -404,6 +404,7 @@ func applyCursor(v applyVisitor, c Cursor) {
 		applyIfNotNil(v, c, &n.Label)
 		applyIfNotNil(v, c, &n.Alias)
 		applyIfNotNil(v, c, &n.Value)
+		applyList(v, c, n.Attrs)
 
 	case *ast.StructLit:
 		n.Elts = applyDeclList(v, c, n.Elts)
@@ -422,6 +423,9 @@ func applyCursor(v applyVisitor, c Cursor) {
 		applyIfNotNil(v, c, &n.Type)
 
 	case *ast.Func:
+		// Rewrite the nodes actually present in the AST rather than the
+		// synthesized view of [ast.Func.Parameters], whose discriminator
+		// between the two signature styles this condition mirrors.
 		if len(n.Params) > 0 || len(n.Args) == 0 {
 			applyList(v, c, n.Params)
 		} else {

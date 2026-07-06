@@ -1,0 +1,191 @@
+# Tests that builtins satisfy function types: unifying a builtin with a
+# compatible function type succeeds and yields the builtin, with the type's
+# parameter and result constraints additionally enforced on every call.
+# Builtins accept no labeled arguments, so a type's anonymous parameters
+# match the builtin's parameters positionally and a type's named parameters
+# are rejected. Statically checked at unification time are parameter
+# matching, arity, and kind-level compatibility where the constraint is
+# literally a basic type; all other constraints surface when the tightened
+# builtin is called.
+-- in.cue --
+@experiment(functions)
+
+import "strings"
+
+tighten: {
+	T:  func(string, ...) -> string
+	up: T & strings.ToUpper
+	x:  up("hi")
+
+	// Order of unification does not matter.
+	upRev: strings.ToUpper & T
+	xRev:  upRev("hi")
+
+	// An open type with no parameters is satisfied by any builtin.
+	O:  func(...) -> string
+	o:  O & strings.ToUpper
+	ox: o("hi")
+}
+
+static: {
+	// A named type parameter cannot be satisfied by a builtin: builtins
+	// accept no labeled arguments.
+	named: (func(s: string) -> string) & strings.ToUpper
+
+	// Arity is checked statically in both directions: the type must not
+	// declare more positional parameters than the builtin accepts, and a
+	// closed type must cover every defaultless parameter of the builtin.
+	tooMany: (func(string, string, ...) -> string) & strings.ToUpper
+	tooFew:  (func() -> string) & strings.ToUpper
+
+	// Kind-level conflicts that are decidable from the compiled signature
+	// (the constraint is literally a basic type) are rejected statically.
+	badParam:  (func(int, ...) -> string) & strings.ToUpper
+	badResult: (func(string, ...) -> int) & strings.ToUpper
+
+	// A builtin never unifies with a proper function value.
+	f:        func(a: string) -> string: a
+	conflict: f & strings.ToUpper
+}
+
+// Constraints that are not decidable from the signatures alone are enforced
+// dynamically, on every call through the tightened builtin.
+dynamic: {
+	// The type narrows the parameter to a bound.
+	P:  func(<="m", ...) -> string
+	up: P & strings.ToUpper
+
+	ok:  up("hi")
+	oob: up("zz")
+
+	// The type narrows the result.
+	R:   func(string, ...) -> "HI"
+	up2: R & strings.ToUpper
+
+	good: up2("hi")
+	bad:  up2("no")
+
+	// Narrowing stacks across a chain of tightenings.
+	A:   func(string, ...) -> string
+	B:   func(<="m", ...) -> _
+	up3: A & B & strings.ToUpper
+
+	mid: up3("hi")
+	hi:  up3("zz")
+}
+
+// An extra parameter is admitted against a closed signature iff it is
+// optional. For builtins this cuts both ways: an extra optional named
+// parameter of the type can never be bound by a call through the builtin,
+// but no call needs it either; the builtin's own parameters carry no
+// optional markers, so only a parameter with a default may exceed a closed
+// type's count (defaults of builtins are static metadata, unlike function
+// value defaults, which are dynamic and never probed).
+optionalExtra: {
+	O:  func(string, sep?: string) -> string
+	up: O & strings.ToUpper
+	x:  up("hi")
+
+	// A plain named parameter remains rejected (see static.named), and so
+	// does a required one.
+	bad: (func(string, sep!: string) -> string) & strings.ToUpper
+}
+
+// Tightened builtins are equal when derived from the same builtin with the
+// same type constraints: disjunction deduplication collapses them to a
+// single callable value.
+disjunction: {
+	T:    func(string, ...) -> string
+	t1:   T & strings.ToUpper
+	t2:   T & strings.ToUpper
+	pick: t1 | t2
+	x:    pick("hi")
+}
+
+// len is polymorphic over strings, bytes, lists, and structs; its kind-level
+// signature is compatible with a type over any of these.
+polymorphic: {
+	L: func(_, ...) -> int
+	l: L & len
+
+	str:  l("foo")
+	list: l([1, 2])
+
+	// The type may narrow the accepted arguments to a subset of the kinds
+	// the builtin accepts; the narrowing applies per call.
+	S:    func(string, ...) -> int
+	ls:   S & len
+	sOk:  ls("foo")
+	sBad: ls([1, 2])
+
+	// A statically incompatible result kind is rejected.
+	bad: (func(_, ...) -> string) & len
+}
+-- out/compile --
+--- in.cue
+{
+  tighten: {
+    T: func(string, ...) -> string
+    up: (〈0;T〉 & 〈import;strings〉.ToUpper)
+    x: 〈0;up〉("hi")
+    upRev: (〈import;strings〉.ToUpper & 〈0;T〉)
+    xRev: 〈0;upRev〉("hi")
+    O: func(...) -> string
+    o: (〈0;O〉 & 〈import;strings〉.ToUpper)
+    ox: 〈0;o〉("hi")
+  }
+  static: {
+    named: (func(s: string) -> string & 〈import;strings〉.ToUpper)
+    tooMany: (func(string, string, ...) -> string & 〈import;strings〉.ToUpper)
+    tooFew: (func() -> string & 〈import;strings〉.ToUpper)
+    badParam: (func(int, ...) -> string & 〈import;strings〉.ToUpper)
+    badResult: (func(string, ...) -> int & 〈import;strings〉.ToUpper)
+    f: func(a: string) -> string: 〈0;a〉
+    conflict: (〈0;f〉 & 〈import;strings〉.ToUpper)
+  }
+  dynamic: {
+    P: func(<="m", ...) -> string
+    up: (〈0;P〉 & 〈import;strings〉.ToUpper)
+    ok: 〈0;up〉("hi")
+    oob: 〈0;up〉("zz")
+    R: func(string, ...) -> "HI"
+    up2: (〈0;R〉 & 〈import;strings〉.ToUpper)
+    good: 〈0;up2〉("hi")
+    bad: 〈0;up2〉("no")
+    A: func(string, ...) -> string
+    B: func(<="m", ...) -> _
+    up3: ((〈0;A〉 & 〈0;B〉) & 〈import;strings〉.ToUpper)
+    mid: 〈0;up3〉("hi")
+    hi: 〈0;up3〉("zz")
+  }
+  optionalExtra: {
+    O: func(string, sep?: string) -> string
+    up: (〈0;O〉 & 〈import;strings〉.ToUpper)
+    x: 〈0;up〉("hi")
+    bad: (func(string, sep!: string) -> string & 〈import;strings〉.ToUpper)
+  }
+  disjunction: {
+    T: func(string, ...) -> string
+    t1: (〈0;T〉 & 〈import;strings〉.ToUpper)
+    t2: (〈0;T〉 & 〈import;strings〉.ToUpper)
+    pick: (〈0;t1〉|〈0;t2〉)
+    x: 〈0;pick〉("hi")
+  }
+  polymorphic: {
+    L: func(_, ...) -> int
+    l: (〈0;L〉 & len)
+    str: 〈0;l〉("foo")
+    list: 〈0;l〉([
+      1,
+      2,
+    ])
+    S: func(string, ...) -> int
+    ls: (〈0;S〉 & len)
+    sOk: 〈0;ls〉("foo")
+    sBad: 〈0;ls〉([
+      1,
+      2,
+    ])
+    bad: (func(_, ...) -> string & len)
+  }
+}

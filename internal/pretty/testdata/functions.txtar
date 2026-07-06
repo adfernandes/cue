@@ -1,0 +1,40 @@
+# Function expressions: parameter attributes render after the parameter
+# value, and a trailing "..." marks an open signature. A parameter list
+# with doc comments breaks into a table with the "..." on its own row.
+-- in --
+@experiment(functions)
+
+tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+
+open:      func(a: int, ...) -> number
+openOnly:  func(...) -> int
+openMulti: func(
+	// first operand
+	a: int,
+	b?: string,
+	...
+) -> int
+-- out/relpos --
+@experiment(functions)
+
+tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+
+open:     func(a: int, ...) -> number
+openOnly: func(...) -> int
+openMulti: func(
+	// first operand
+	a: int,
+	b?: string,
+	...
+) -> int
+-- out/norelpos --
+@experiment(functions)
+tagged:   func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
+open:     func(a: int, ...) -> number
+openOnly: func(...) -> int
+openMulti: func(
+	// first operand
+	a: int,
+	b?: string,
+	...
+) -> int

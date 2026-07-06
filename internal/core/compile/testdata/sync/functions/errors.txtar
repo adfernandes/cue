@@ -1,0 +1,26 @@
+# Tests that duplicate callable parameter names are rejected even when the
+# parameters carry distinct local aliases: a labeled argument would otherwise
+# bind to multiple parameters at once. Repeated anonymous parameters and
+# repeated alias-only parameters carry no callable name and remain valid.
+#inlinetest:exclude skip: compile errors.
+-- in.cue --
+@experiment(functions)
+
+aliased: func(a~x: int, a~y: int) -> int: x + y
+mixed:   func(a~x: int, a: int) -> int: x
+
+// These must not be rejected: the repeated parameters have no callable name.
+anon:  func(int, int) -> int: 1
+blank: func(_~x: int, _~y: int) -> int: x + y
+-- out/compile --
+aliased: parameter a redeclared in same scope:
+    ./in.cue:3:25
+mixed: parameter a redeclared in same scope:
+    ./in.cue:4:25
+--- in.cue
+{
+  aliased: _|_(parameter a redeclared in same scope)
+  mixed: _|_(parameter a redeclared in same scope)
+  anon: func(int, int) -> int: 1
+  blank: func(int, int) -> int: (〈0;x〉 + 〈0;y〉)
+}

@@ -221,7 +221,7 @@ func (*FuncValue) expr()        {}
 // Expr and Resolver
 
 func (*NodeLink) expr()         {}
-func (*funcTemplateRef) expr()  {}
+func (*FuncCallRef) expr()      {}
 func (*FieldReference) expr()   {}
 func (*ValueReference) expr()   {}
 func (*LabelReference) expr()   {}
@@ -315,8 +315,8 @@ func (*FuncValue) declNode()        {}
 func (*FuncValue) elemNode()        {}
 func (*NodeLink) declNode()         {}
 func (*NodeLink) elemNode()         {}
-func (*funcTemplateRef) declNode()  {}
-func (*funcTemplateRef) elemNode()  {}
+func (*FuncCallRef) declNode()      {}
+func (*FuncCallRef) elemNode()      {}
 func (*FieldReference) declNode()   {}
 func (*FieldReference) elemNode()   {}
 func (*ValueReference) declNode()   {}
@@ -379,7 +379,7 @@ func (*StructLit) node()         {}
 func (*ListLit) node()           {}
 func (*BoundExpr) node()         {}
 func (*NodeLink) node()          {}
-func (*funcTemplateRef) node()   {}
+func (*FuncCallRef) node()       {}
 func (*FieldReference) node()    {}
 func (*ValueReference) node()    {}
 func (*LabelReference) node()    {}

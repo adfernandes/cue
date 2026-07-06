@@ -625,20 +625,19 @@ func (f *formatter) nextNeedsFormfeed(n ast.Expr) bool {
 			return true
 		}
 	case *ast.Func:
-		if len(x.Params) > 0 || len(x.Args) == 0 {
-			for _, p := range x.Params {
-				if p == nil {
-					continue
-				}
-				if len(ast.Comments(p)) > 0 || (p.Label != nil && len(ast.Comments(p.Label)) > 0) {
-					return true
-				}
-				if f.nextNeedsFormfeed(p.Value) {
-					return true
-				}
+		// Parameters synthesized from the legacy Args field carry no
+		// label or comments and have Value set to the argument, so this
+		// inspects the same information for both signature styles.
+		for _, p := range x.Parameters() {
+			if p == nil {
+				continue
 			}
-		} else if slices.ContainsFunc(x.Args, f.nextNeedsFormfeed) {
-			return true
+			if len(ast.Comments(p)) > 0 || (p.Label != nil && len(ast.Comments(p.Label)) > 0) {
+				return true
+			}
+			if f.nextNeedsFormfeed(p.Value) {
+				return true
+			}
 		}
 		return (x.Ret != nil && f.nextNeedsFormfeed(x.Ret)) ||
 			(x.Body != nil && f.nextNeedsFormfeed(x.Body))
@@ -786,9 +785,22 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		f.after(nil)
 
 	case *ast.Func:
+		// A function type's result constraint and a function's body extend
+		// to the end of the expression. In an operand position they would
+		// absorb a following operator when parsed back — for example,
+		// func() -> int & T parses the conjunction as part of the result —
+		// so the function literal needs parentheses to preserve the tree.
+		parens := prec1 > token.LowestPrec && (x.Ret != nil || x.Body != nil)
+		if parens {
+			f.print(token.LPAREN, nooverride)
+		}
 		f.print(x.Func, token.FUNC)
 		f.print(x.Lparen, token.LPAREN)
 		f.before(nil)
+		// Print the nodes actually present in the AST rather than the
+		// synthesized view of [ast.Func.Parameters] (whose discriminator
+		// between the two signature styles this condition mirrors), so
+		// that f.before/f.after visit the nodes carrying the comments.
 		if len(x.Params) > 0 || len(x.Args) == 0 {
 			for _, p := range x.Params {
 				if p == nil {
@@ -805,6 +817,12 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 					f.visitComments(f.current.pos)
 				}
 				f.exprRaw(p.Value, token.LowestPrec, depth)
+				for _, a := range p.Attrs {
+					if f.before(a) {
+						f.print(blank, a.At, a)
+					}
+					f.after(a)
+				}
 				f.print(comma, blank)
 				f.after(p)
 			}
@@ -816,6 +834,10 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 				f.after(arg)
 			}
 		}
+		if x.Ellipsis != token.NoPos {
+			f.print(x.Ellipsis, token.ELLIPSIS)
+			f.print(comma, blank)
+		}
 		f.after(nil)
 		f.print(trailcomma, noblank, x.Rparen, token.RPAREN)
 		if x.Ret != nil {
@@ -825,6 +847,9 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		if x.Body != nil {
 			f.print(x.Colon, token.COLON, blank)
 			f.expr(x.Body)
+		}
+		if parens {
+			f.print(token.RPAREN)
 		}
 
 	case *ast.ParenExpr:

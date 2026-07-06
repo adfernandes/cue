@@ -228,10 +228,7 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 		}
 
 	case *adt.Function:
-		if x.Src != nil {
-			return x.Src
-		}
-		return ast.NewIdent("_")
+		return e.funcSrc(x.Src)
 
 	case *adt.BinaryExpr:
 		if x.Op == adt.AndOp || x.Op == adt.OrOp {
@@ -491,6 +488,17 @@ func (e *exporter) resolve(env *adt.Environment, r adt.Resolver) ast.Expr {
 
 	case *adt.LetReference:
 		return e.resolveLet(env, x)
+
+	case *adt.FuncCallRef:
+		// A call reference is a pure resolver to the called function's
+		// anchor vertex; the call it schedules is described by its source,
+		// the original call expression. Note that the generic adt.Resolver
+		// case dispatches here before the type switch in adt reaches any
+		// more specific case.
+		if src, ok := x.Source().(ast.Expr); ok {
+			return src
+		}
+		return ast.NewIdent("_")
 
 	case *adt.SelectorExpr:
 		sel := &ast.SelectorExpr{

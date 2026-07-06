@@ -1181,10 +1181,14 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 		if !c.experiments.Functions {
 			return c.errf(n, "function syntax requires @experiment(functions)")
 		}
-		fn := &adt.Function{Src: n}
+		if n.Ellipsis != token.NoPos && n.Body != nil {
+			return c.errf(n, "open function signature cannot have a body")
+		}
+		fn := &adt.Function{Src: n, Open: n.Ellipsis != token.NoPos}
 		seenCallableName := false
 		params := n.Parameters()
 		seenParamName := map[adt.Feature]ast.Node{}
+		seenCallName := map[adt.Feature]ast.Node{}
 		seenNameOnly := false
 		for _, p := range params {
 			param := c.funcParam(p)
@@ -1197,6 +1201,13 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 				if !param.Positional {
 					seenNameOnly = true
 				}
+				// The callable name must be unique even when the parameters
+				// declare distinct local aliases: a labeled argument would
+				// otherwise bind to multiple parameters.
+				if prev := seenCallName[param.Label]; prev != nil {
+					return c.errf(p, "parameter %s redeclared in same scope", param.Label.SelectorString(c.index))
+				}
+				seenCallName[param.Label] = p
 			}
 			if param.Local != adt.InvalidLabel {
 				if prev := seenParamName[param.Local]; prev != nil {
