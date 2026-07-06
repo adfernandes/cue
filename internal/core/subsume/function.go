@@ -62,8 +62,10 @@ func (s *subsumer) funcValues(a, b *adt.FuncValue) bool {
 
 	// A function value subsumes itself and a tightening of itself:
 	// tightening only adds constraints, so every type constraint of a must
-	// also constrain b.
-	if adt.IsFuncType(b) || a.Fn != b.Fn || !a.Env.Equal(s.ctx, b.Env) {
+	// also constrain b. Distinct partial applications differ on every call
+	// and never subsume one another: a and b must have bound the same
+	// arguments.
+	if adt.IsFuncType(b) || a.Fn != b.Fn || !a.Env.Equal(s.ctx, b.Env) || !a.EqualArgs(b) {
 		return false
 	}
 	for _, t := range a.Types {

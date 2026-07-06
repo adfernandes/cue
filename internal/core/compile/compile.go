@@ -1339,7 +1339,7 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 		return c.expr(n.X)
 
 	case *ast.CallExpr:
-		call := &adt.CallExpr{Src: n, Fun: c.expr(n.Fun)}
+		call := &adt.CallExpr{Src: n, Fun: c.expr(n.Fun), Partial: n.Ellipsis != token.NoPos}
 		seenLabel := false
 		for i, a := range n.Args {
 			call.Args = append(call.Args, c.expr(a))

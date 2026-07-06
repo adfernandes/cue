@@ -189,6 +189,34 @@ func TestFunctions(t *testing.T) {
 			err: "value not an instance",
 		},
 
+		// A partial application subsumes itself, but distinct partial
+		// applications differ on every call and never subsume one another.
+		// Bound arguments are compared conservatively by identity, so even
+		// two separately written applications of the same argument are not
+		// treated as equal.
+		{
+			in:  `f: func(n: int, m: int) -> int: n+m, g: f(5, ...), a: g, b: g`,
+			err: "",
+		},
+		{
+			in:  `f: func(n: int, m: int) -> int: n+m, a: f(5, ...), b: f(10, ...)`,
+			err: "value not an instance",
+		},
+		{
+			in:  `f: func(n: int, m: int) -> int: n+m, a: f(5, ...), b: f(5, ...)`,
+			err: "value not an instance",
+		},
+		{
+			// A plain function value does not subsume a partial application
+			// of itself, nor the other way around.
+			in:  `f: func(n: int, m: int) -> int: n+m, a: f, b: f(5, ...)`,
+			err: "value not an instance",
+		},
+		{
+			in:  `f: func(n: int, m: int) -> int: n+m, a: f(5, ...), b: f`,
+			err: "value not an instance",
+		},
+
 		// A builtin subsumes itself and a tightening of itself; the
 		// tightened builtin does not subsume the plain one.
 		{

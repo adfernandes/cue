@@ -28,6 +28,9 @@ k: {
 	g:   func(x: int): x + off
 }
 out4: k.g(1)
+add:  func(x: int, y: int) -> int: x + y
+padd: add(1, ...)
+out5: padd(2)
 -- out/value-v3 --
 == Simplified
 {
@@ -49,6 +52,9 @@ out4: k.g(1)
 		g:   func(x: int): x + off
 	}
 	out4: 2
+	add:  func(x: int, y: int) -> int: x + y
+	padd: func(x: int, y: int) -> int: x + y
+	out5: 3
 }
 == Raw
 {
@@ -70,6 +76,9 @@ out4: k.g(1)
 		g:   func(x: int): x + off
 	}
 	out4: 2
+	add:  func(x: int, y: int) -> int: x + y
+	padd: func(x: int, y: int) -> int: x + y
+	out5: 3
 }
 == Final
 {
@@ -91,6 +100,9 @@ out4: k.g(1)
 		g:   func(x: int): x + off
 	}
 	out4: 2
+	add:  func(x: int, y: int) -> int: x + y
+	padd: func(x: int, y: int) -> int: x + y
+	out5: 3
 }
 == All
 {
@@ -112,6 +124,9 @@ out4: k.g(1)
 		g:   func(x: int): x + off
 	}
 	out4: 2
+	add:  func(x: int, y: int) -> int: x + y
+	padd: func(x: int, y: int) -> int: x + y
+	out5: 3
 }
 == Eval
 {
@@ -133,6 +148,9 @@ out4: k.g(1)
 		g:   func(x: int): x + off
 	}
 	out4: 2
+	add:  func(x: int, y: int) -> int: x + y
+	padd: func(x: int, y: int) -> int: x + y
+	out5: 3
 }
 -- out/definition-v3-noshare --
 import "strings"
@@ -155,6 +173,9 @@ k: {
 	g:   func(x: int): x + off
 }
 out4: k.g(1)
+add:  func(x: int, y: int) -> int: x + y
+padd: add(1, ...)
+out5: padd(2)
 -- out/doc-v3 --
 []
 [a]
@@ -173,6 +194,9 @@ out4: k.g(1)
 [k off]
 [k g]
 [out4]
+[add]
+[padd]
+[out5]
 -- out/definition-v3 --
 import "strings"
 
@@ -194,3 +218,6 @@ k: {
 	g:   func(x: int): x + off
 }
 out4: k.g(1)
+add:  func(x: int, y: int) -> int: x + y
+padd: add(1, ...)
+out5: padd(2)

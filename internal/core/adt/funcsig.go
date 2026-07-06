@@ -403,8 +403,11 @@ func BuiltinSubsumes(a, b *Builtin) bool {
 // scalars.
 func mergeFuncValues(c *OpContext, a, b *FuncValue) (*FuncValue, *Bottom) {
 	if !IsFuncType(a) && !IsFuncType(b) {
-		// VALUE & VALUE: a function value unifies only with itself.
-		if a.Fn != b.Fn || !a.Env.Equal(c, b.Env) {
+		// VALUE & VALUE: a function value unifies only with itself. Two
+		// partial applications are equal only when they bound the same
+		// arguments, and a plain function differs from any partial
+		// application of itself, mirroring [equalTerminal].
+		if a.Fn != b.Fn || !a.Env.Equal(c, b.Env) || !equalFuncArgs(a.args, b.args) {
 			return nil, nil
 		}
 		merged := *a
@@ -475,6 +478,32 @@ func equalFuncTypes(a, b []FuncType) bool {
 		}
 	}
 	return true
+}
+
+// equalFuncArgs reports whether two partial applications bound the same
+// arguments to the same parameters. Arguments are compared conservatively by
+// identity of their expression and environment: distinct bindings such as
+// Add(5, ...) and Add(10, ...) are never treated as equal, while an expression
+// evaluated in different environments is not assumed equal.
+func equalFuncArgs(a, b []funcArg) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i, x := range a {
+		if x.expr != b[i].expr || x.env != b[i].env {
+			return false
+		}
+	}
+	return true
+}
+
+// EqualArgs reports whether the function values x and y bound the same
+// arguments to the same parameters by partial application (see
+// [equalFuncArgs]). It is exported for use by internal/core/subsume:
+// distinct partial applications differ on every call and never subsume one
+// another.
+func (x *FuncValue) EqualArgs(y *FuncValue) bool {
+	return equalFuncArgs(x.args, y.args)
 }
 
 // mergeFuncTypes returns the union of two lists of function type

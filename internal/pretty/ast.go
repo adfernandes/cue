@@ -2460,9 +2460,12 @@ func (c *converter) callExpr(x *ast.CallExpr) doc {
 	fun := wrapForPrecedence(c.expr(x.Fun), x.Fun, token.HighestPrec)
 
 	if len(x.Args) == 0 {
+		if x.Ellipsis != token.NoPos {
+			return cats(fun, stringLit("(...)"))
+		}
 		return cats(fun, stringLit("()"))
 	}
-	if arg := x.Args[0]; len(x.Args) == 1 && c.shouldHug(arg) {
+	if arg := x.Args[0]; len(x.Args) == 1 && c.shouldHug(arg) && x.Ellipsis == token.NoPos {
 		return cats(fun, lParenLit, c.callArg(x, 0), rParenLit)
 	}
 
@@ -2509,11 +2512,20 @@ func (c *converter) callArg(x *ast.CallExpr, i int) doc {
 }
 
 func (c *converter) callArgRows(x *ast.CallExpr, trailingComma, wrapLinked bool) []row {
+	open := x.Ellipsis != token.NoPos
 	if len(x.Args) == 0 {
+		if open {
+			return []row{{cells: []doc{ellipsisLit}}}
+		}
 		return nil
 	}
-	rows := make([]row, 0, len(x.Args))
+	rows := make([]row, 0, len(x.Args)+1)
 	lastIdx := len(x.Args) - 1
+	if open {
+		// The trailing "..." is the last element, so every real argument
+		// gets a comma.
+		lastIdx = len(x.Args)
+	}
 	prevLackRelPos := false
 	prevHasComment := false
 	for i, e := range x.Args {
@@ -2537,6 +2549,13 @@ func (c *converter) callArgRows(x *ast.CallExpr, trailingComma, wrapLinked bool)
 		prevHasComment = row.hasComment || len(postCgs) > 0
 		rows = append(rows, row)
 		rows = append(rows, c.postCommentRows(postCgs)...)
+	}
+	if open {
+		r := row{cells: []doc{ellipsisLit}}
+		if len(rows) > 0 {
+			r.sep = relBreakOr(x.Ellipsis.RelPos(), lineBreakOrSpace)
+		}
+		rows = append(rows, r)
 	}
 	return rows
 }

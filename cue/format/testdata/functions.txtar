@@ -11,6 +11,11 @@ sum: func(
 
 mixed: sum(1, req: "x")
 
+partialLabel: add(a: 1, ...)
+partialPos:   add(1, ...)
+partialNone:  add(...)
+partialMany:  add(1, 2, ...)
+
 tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
 
 open:      func(a: int, ...) -> number
@@ -33,6 +38,11 @@ sum: func(
 ) -> int: call(x, a: a, req: req)
 
 mixed: sum(1, req: "x")
+
+partialLabel: add(a: 1, ...)
+partialPos:   add(1, ...)
+partialNone:  add(...)
+partialMany:  add(1, 2, ...)
 
 tagged: func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
 

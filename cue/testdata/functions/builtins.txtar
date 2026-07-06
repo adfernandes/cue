@@ -102,6 +102,14 @@ disjunction: {
 	x:    pick("hi") @test(eq, "HI")
 }
 
+// Partial application of builtins is not supported: a call with a trailing
+// "..." reports a clear error instead of silently dropping the "..." (len)
+// or morphing into a validator (strings.Contains).
+partial: {
+	contains: strings.Contains("abcd", ...) @test(err, code=eval, contains="partial application of builtin")
+	length:   len([1, 2], ...) @test(err, code=eval, contains="partial application of builtin")
+}
+
 // len is polymorphic over strings, bytes, lists, and structs; its kind-level
 // signature is compatible with a type over any of these.
 polymorphic: {
@@ -153,11 +161,15 @@ polymorphic: {
 [eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: builtins accept no labeled arguments:
     ./in.cue:81:48
     ./in.cue:81:8
+[eval] partial.contains: partial application of builtin strings.Contains is not supported:
+    ./in.cue:99:12
+[eval] partial.length: partial application of builtin len is not supported:
+    ./in.cue:100:12
 [eval] conflicting values string and [1,2] (mismatched types string and list):
-    ./in.cue:106:13
-    ./in.cue:109:11
+    ./in.cue:114:13
+    ./in.cue:117:11
 [eval] polymorphic.bad: result of function type has kind string, conflicting with result kind int of builtin len:
-    ./in.cue:112:8
+    ./in.cue:120:8
 -- out/eval/stats --
 Leaks:  1
 Freed:  85

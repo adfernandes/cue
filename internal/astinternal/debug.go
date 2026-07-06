@@ -516,6 +516,12 @@ func DebugStr(x interface{}) (out string) {
 			}
 			out += DebugStr(arg)
 		}
+		if v.Ellipsis != token.NoPos {
+			if len(v.Args) > 0 {
+				out += sep
+			}
+			out += "..."
+		}
 		out += ")"
 		return out
 

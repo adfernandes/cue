@@ -285,6 +285,18 @@ memoization: {
 	// disjunction instead.
 	y: x & {out: 12}
 	check: y.out
+
+	// The callee identity includes the arguments bound by partial
+	// application.
+	partialArgs: {
+		add: func(a: int, b: int) -> int: a + b
+
+		x: {h: _, out: h(10)}
+		x: {h: add(1, ...)} | {h: add(2, ...)}
+
+		y: x & {out: 12}
+		check: y.out
+	}
 }
 
 // An argument that is not yet defined makes the call incomplete, exactly like
@@ -337,6 +349,69 @@ declarations: {
 		// A bodyless signature remains a type and cannot be called directly.
 		bad: T(1)
 	}
+}
+
+// A call written with a trailing "..." is a partial application: it binds the
+// given arguments and yields a function over the remaining parameters, rather
+// than evaluating the body.
+partial: {
+	add: func(a: int, b: int, c: int) -> int: a + b + c
+
+	// Bind by label or by position; the result is a function of the rest.
+	byLabel:    add(a: 1, ...)
+	byPosition: add(1, ...)
+	labelOut:   byLabel(2, 3)
+	posOut:     byPosition(2, 3)
+
+	// Binding no arguments yields an equivalent function.
+	none: add(...)
+	noneOut: none(1, 2, 3)
+
+	// Binding every argument still yields a function; call it with no
+	// arguments to evaluate the body.
+	all:    add(1, 2, 3, ...)
+	allOut: all()
+
+	// Partial applications chain, accumulating bound arguments.
+	step1:   add(1, ...)
+	step2:   step1(2, ...)
+	chainOut: step2(3)
+
+	// Completing a partial application by label binds the remaining
+	// parameter.
+	half:     add(1, 2, ...)
+	halfOut:  half(c: 3)
+
+	// A parameter left unbound after a non-partial call is still required.
+	missing: byPosition(2)
+
+	// Parameter constraints are enforced across a partial application.
+	bounded: func(a: int, b: <10) -> int: a + b
+	pinned:  bounded(1, ...)
+	oob:     pinned(50)
+
+	// A surplus argument to a partial application is rejected, as for a
+	// complete call.
+	tooMany: add(1, 2, 3, 4, ...)
+
+	// Recursion through a partial application is still bounded by the
+	// structural cycle detector.
+	rec:    func(n: int) -> int: rec(n)
+	recP:   rec(...)
+	recOut: recP(1)
+
+	// Two partial applications are equal only when they bound the same
+	// arguments: different bindings conflict like any other distinct
+	// function values, and must not silently merge into one of the two.
+	conflictArgs: add(1, ...) & add(2, ...)
+
+	// A plain function and a partial application of itself differ the same
+	// way.
+	conflictPlain: add & add(1, ...)
+
+	// A partial application does unify with itself.
+	same:    step1 & step1
+	sameOut: same(2, 3)
 }
 -- out/compile --
 --- in.cue
@@ -532,6 +607,22 @@ declarations: {
       out: 12
     })
     check: 〈0;y〉.out
+    partialArgs: {
+      add: func(a: int, b: int) -> int: (〈0;a〉 + 〈0;b〉)
+      x: {
+        h: _
+        out: 〈0;h〉(10)
+      }
+      x: ({
+        h: 〈1;add〉(1)
+      }|{
+        h: 〈1;add〉(2)
+      })
+      y: (〈0;x〉 & {
+        out: 12
+      })
+      check: 〈0;y〉.out
+    }
   }
   incompleteArgs: {
     f: func(a: int) -> string: "ok"
@@ -563,5 +654,33 @@ declarations: {
       out: 〈0;f〉(3, 4)
       bad: 〈0;T〉(1)
     }
+  }
+  partial: {
+    add: func(a: int, b: int, c: int) -> int: ((〈0;a〉 + 〈0;b〉) + 〈0;c〉)
+    byLabel: 〈0;add〉(a: 1)
+    byPosition: 〈0;add〉(1)
+    labelOut: 〈0;byLabel〉(2, 3)
+    posOut: 〈0;byPosition〉(2, 3)
+    none: 〈0;add〉()
+    noneOut: 〈0;none〉(1, 2, 3)
+    all: 〈0;add〉(1, 2, 3)
+    allOut: 〈0;all〉()
+    step1: 〈0;add〉(1)
+    step2: 〈0;step1〉(2)
+    chainOut: 〈0;step2〉(3)
+    half: 〈0;add〉(1, 2)
+    halfOut: 〈0;half〉(c: 3)
+    missing: 〈0;byPosition〉(2)
+    bounded: func(a: int, b: <10) -> int: (〈0;a〉 + 〈0;b〉)
+    pinned: 〈0;bounded〉(1)
+    oob: 〈0;pinned〉(50)
+    tooMany: 〈0;add〉(1, 2, 3, 4)
+    rec: func(n: int) -> int: 〈1;rec〉(〈0;n〉)
+    recP: 〈0;rec〉()
+    recOut: 〈0;recP〉(1)
+    conflictArgs: (〈0;add〉(1) & 〈0;add〉(2))
+    conflictPlain: (〈0;add〉 & 〈0;add〉(1))
+    same: (〈0;step1〉 & 〈0;step1〉)
+    sameOut: 〈0;same〉(2, 3)
   }
 }

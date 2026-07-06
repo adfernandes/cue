@@ -260,7 +260,14 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			}
 		}
 		fun := e.innerExpr(env, x.Fun)
-		return &ast.CallExpr{Fun: fun, Args: a, ArgLabels: labels}
+		call := &ast.CallExpr{Fun: fun, Args: a, ArgLabels: labels}
+		if x.Partial {
+			// The position is synthetic, but must be set for the
+			// formatter to render the "..." marking the partial
+			// application.
+			call.Ellipsis = token.Blank.Pos()
+		}
+		return call
 
 	case *adt.DisjunctionExpr:
 		a := []ast.Expr{}

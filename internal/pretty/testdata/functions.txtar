@@ -1,6 +1,7 @@
 # Function expressions: parameter attributes render after the parameter
 # value, and a trailing "..." marks an open signature. A parameter list
-# with doc comments breaks into a table with the "..." on its own row.
+# with doc comments breaks into a table with the "..." on its own row. A
+# call whose argument list ends in "..." is a partial application.
 -- in --
 @experiment(functions)
 
@@ -14,6 +15,11 @@ openMulti: func(
 	b?: string,
 	...
 ) -> int
+
+partialLabel: add(a: 1, ...)
+partialPos:   add(1, ...)
+partialNone:  add(...)
+partialMany:  add(1, 2, ...)
 -- out/relpos --
 @experiment(functions)
 
@@ -27,6 +33,11 @@ openMulti: func(
 	b?: string,
 	...
 ) -> int
+
+partialLabel: add(a: 1, ...)
+partialPos:   add(1, ...)
+partialNone:  add(...)
+partialMany:  add(1, 2, ...)
 -- out/norelpos --
 @experiment(functions)
 tagged:   func(a: int @tag(x), b: int @foo() @bar()) -> int: a + b
@@ -38,3 +49,7 @@ openMulti: func(
 	b?: string,
 	...
 ) -> int
+partialLabel: add(a: 1, ...)
+partialPos:   add(1, ...)
+partialNone:  add(...)
+partialMany:  add(1, 2, ...)

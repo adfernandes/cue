@@ -1381,6 +1381,14 @@ bar: 2
 			out: "@experiment(functions), f: func(a: int, ...) -> int: a\nopen function signature cannot have a body",
 		},
 		{
+			desc: "partial application call",
+			in: `@experiment(functions)
+			a: add(1, ...)
+			b: add(x: 1, ...)
+			c: add(...)`,
+			out: "@experiment(functions), a: add(1, ...), b: add(x: 1, ...), c: add(...)",
+		},
+		{
 			desc: "parameter attributes",
 			in: `@experiment(functions)
 			f: func(a: int @tag(x), b: int @foo() @bar(), c: int @baz()) -> int: a + b`,
@@ -1511,6 +1519,13 @@ bar: 2
 			x: f(_: 1)
 			`,
 			out: "@experiment(functions), x: f(_: 1)\n_ is not allowed as an argument label",
+		},
+		{
+			desc: "partial application without experiment",
+			in: `
+			x: add(1, ...)
+			`,
+			out: "x: add(1, ...)\npartial application requires @experiment(functions)",
 		},
 		{
 			desc: "positional argument after labeled argument",

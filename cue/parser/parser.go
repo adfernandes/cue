@@ -808,8 +808,22 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) (expr *ast.CallExpr) {
 	p.exprLev++
 	var list []ast.Expr
 	var labels []ast.Label
+	var ellipsis token.Pos
 	seenLabel := false
 	for p.tok != token.RPAREN && p.tok != token.EOF {
+		if p.tok == token.ELLIPSIS {
+			// A trailing "..." marks a partial application and must be the
+			// last element of the argument list.
+			if !p.functionsEnabled() {
+				p.errf(p.pos, "partial application requires @experiment(functions)")
+			}
+			ellipsis = p.pos
+			p.next()
+			if p.tok == token.COMMA {
+				p.next()
+			}
+			break
+		}
 		label := p.parseCallArgLabel()
 		if label != nil {
 			seenLabel = true
@@ -836,6 +850,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) (expr *ast.CallExpr) {
 		Lparen:    lparen,
 		Args:      list,
 		ArgLabels: labels,
+		Ellipsis:  ellipsis,
 		Rparen:    rparen,
 	}
 }

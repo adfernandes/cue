@@ -923,7 +923,12 @@ type CallExpr struct {
 	// Args [1, 2] and ArgLabels [nil, b]. ArgLabels may be nil when all
 	// arguments are positional.
 	ArgLabels []Label
-	Rparen    token.Pos // position of ")"
+	// Ellipsis records the position of a trailing "..." marking a partial
+	// application, as in f(a: 1, ...); it is [token.NoPos] otherwise. A
+	// partial application binds the given arguments and yields a function
+	// over the remaining parameters.
+	Ellipsis token.Pos
+	Rparen   token.Pos // position of ")"
 
 	comments
 	expr

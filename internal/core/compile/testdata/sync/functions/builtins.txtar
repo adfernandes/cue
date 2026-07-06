@@ -102,6 +102,14 @@ disjunction: {
 	x:    pick("hi")
 }
 
+// Partial application of builtins is not supported: a call with a trailing
+// "..." reports a clear error instead of silently dropping the "..." (len)
+// or morphing into a validator (strings.Contains).
+partial: {
+	contains: strings.Contains("abcd", ...)
+	length:   len([1, 2], ...)
+}
+
 // len is polymorphic over strings, bytes, lists, and structs; its kind-level
 // signature is compatible with a type over any of these.
 polymorphic: {
@@ -170,6 +178,13 @@ polymorphic: {
     t2: (〈0;T〉 & 〈import;strings〉.ToUpper)
     pick: (〈0;t1〉|〈0;t2〉)
     x: 〈0;pick〉("hi")
+  }
+  partial: {
+    contains: 〈import;strings〉.Contains("abcd")
+    length: len([
+      1,
+      2,
+    ])
   }
   polymorphic: {
     L: func(_, ...) -> int

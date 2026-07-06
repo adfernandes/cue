@@ -899,6 +899,12 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		wasIndented := f.possibleSelectorExpr(x.Fun, token.HighestPrec, depth)
 		f.print(x.Lparen, token.LPAREN)
 		f.walkCallArgsList(x.Args, x.ArgLabels, depth)
+		if x.Ellipsis != token.NoPos {
+			if len(x.Args) > 0 {
+				f.print(token.COMMA, blank)
+			}
+			f.print(x.Ellipsis, token.ELLIPSIS)
+		}
 		f.print(trailcomma, noblank, x.Rparen, token.RPAREN)
 		if wasIndented {
 			f.print(unindent)

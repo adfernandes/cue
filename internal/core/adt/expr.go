@@ -1478,6 +1478,21 @@ type FuncValue struct {
 	Fn    *Function
 	Env   *Environment
 	Types []FuncType
+
+	// args holds arguments bound by partial application, indexed by parameter;
+	// a nil expr marks an unbound parameter. When any entry is set this is a
+	// partially applied function: calling it binds the remaining parameters
+	// and, once none are unbound, evaluates the body. Each argument retains
+	// the environment it was bound in, which may differ from the environment
+	// of a later completing call.
+	args []funcArg
+}
+
+// A funcArg is an argument bound to a function parameter by a partial
+// application, together with the environment in which it resolves.
+type funcArg struct {
+	expr Expr
+	env  *Environment
 }
 
 func (x *Function) Source() ast.Node {
@@ -1539,11 +1554,13 @@ type funcCallResultKey struct {
 // A funcCallResult memoizes the finalized result of a completed function
 // call together with the identity of the callee that produced it. The callee
 // is matched the way [equalTerminal] compares function values: the function
-// literal, its closure environment, and its recorded type constraints.
+// literal, its closure environment, its recorded type constraints, and the
+// arguments bound by partial application.
 type funcCallResult struct {
 	fn     *Function
 	env    *Environment
 	types  []FuncType
+	args   []funcArg
 	result *Vertex
 }
 
@@ -1552,7 +1569,8 @@ type funcCallResult struct {
 func (r *funcCallResult) matches(c *OpContext, x *FuncValue) bool {
 	return r.fn == x.Fn &&
 		(r.env == x.Env || r.env.Equal(c, x.Env)) &&
-		equalFuncTypes(r.types, x.Types)
+		equalFuncTypes(r.types, x.Types) &&
+		equalFuncArgs(r.args, x.args)
 }
 
 // A FuncCallRef is the stable resolver on a call frame's result field. The
@@ -1742,11 +1760,20 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 		}
 	}
 
+	// Phase 1: bind arguments to parameters. bindings[i] is the argument bound
+	// to parameter i — by an earlier partial application (x.args) or by this
+	// call — with the environment it resolves in; a nil expr marks an unbound
+	// parameter.
+	bindings := make([]funcArg, len(x.Fn.Params))
+	copy(bindings, x.args)
 	used := make([]bool, len(call.Args))
 	argFields := make([]Decl, 0, len(x.Fn.Params))
 
 	nextPos := 0
 	for i, p := range x.Fn.Params {
+		if bindings[i].expr != nil {
+			continue // already bound by an earlier partial application
+		}
 		var arg Expr
 
 		if p.Positional {
@@ -1780,23 +1807,65 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 			}
 		}
 
-		if p.ArcType == ArcRequired && arg == nil {
-			c.AddErrf("missing required argument %s", p.Label.SelectorString(c))
+		if arg != nil {
+			bindings[i] = funcArg{expr: arg, env: callEnv}
+		}
+	}
+
+	// reportUnusedArg reports an argument that bound no parameter. A missing
+	// required or non-defaulted argument (checked below in phase 2) takes
+	// precedence for a completing call, so this runs after that check there,
+	// but before returning a partial application.
+	reportUnusedArg := func() bool {
+		for i := range call.Args {
+			if !used[i] {
+				if i < len(call.ArgLabels) && call.ArgLabels[i] != InvalidLabel {
+					c.AddErrf("unknown argument %s", call.ArgLabels[i].SelectorString(c))
+				} else {
+					c.AddErrf("too many positional arguments in function call")
+				}
+				return true
+			}
+		}
+		return false
+	}
+
+	// A partial application binds the given arguments and yields a function
+	// over the remaining parameters, rather than evaluating the body. The
+	// bound arguments are carried on the returned value and combined with a
+	// later call's arguments when the function is called to completion.
+	if call.Partial {
+		if reportUnusedArg() {
 			return nil
 		}
-		if arg == nil && p.ArcType != ArcOptional {
-			hasDefault, b := x.paramHasDefault(c, x.Env, p, state)
-			if b != nil {
-				c.AddBottom(b)
-				return b
-			}
-			if !hasDefault {
-				if p.Label != InvalidLabel {
-					c.AddErrf("missing argument %s", p.Label.SelectorString(c))
-				} else {
-					c.AddErrf("not enough arguments in function call")
-				}
+		return &FuncValue{Src: x.Src, Fn: x.Fn, Env: x.Env, Types: x.Types, args: bindings}
+	}
+
+	// Phase 2: complete the call. Validate arity/default requirements and
+	// lower every supplied argument into its canonical frame field.
+	for i, p := range x.Fn.Params {
+		arg := bindings[i].expr
+		argEnv := bindings[i].env
+
+		if arg == nil {
+			if p.ArcType == ArcRequired {
+				c.AddErrf("missing required argument %s", p.Label.SelectorString(c))
 				return nil
+			}
+			if p.ArcType != ArcOptional {
+				hasDefault, b := x.paramHasDefault(c, x.Env, p, state)
+				if b != nil {
+					c.AddBottom(b)
+					return b
+				}
+				if !hasDefault {
+					if p.Label != InvalidLabel {
+						c.AddErrf("missing argument %s", p.Label.SelectorString(c))
+					} else {
+						c.AddErrf("not enough arguments in function call")
+					}
+					return nil
+				}
 			}
 		}
 		local := funcParamSlotLabel(c, i, p)
@@ -1812,7 +1881,7 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 			// callee body's chain; see [CycleInfo.IsFuncArg].
 			ci := c.ci
 			ci.IsFuncArg = true
-			group := ConjunctGroup{MakeConjunct(callEnv, arg, ci)}
+			group := ConjunctGroup{MakeConjunct(argEnv, arg, ci)}
 			argFields = append(argFields, &Field{
 				Label:   local,
 				ArcType: ArcMember,
@@ -1821,15 +1890,8 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 		}
 	}
 
-	for i := range call.Args {
-		if !used[i] {
-			if i < len(call.ArgLabels) && call.ArgLabels[i] != InvalidLabel {
-				c.AddErrf("unknown argument %s", call.ArgLabels[i].SelectorString(c))
-			} else {
-				c.AddErrf("too many positional arguments in function call")
-			}
-			return nil
-		}
+	if reportUnusedArg() {
+		return nil
 	}
 
 	// Build one fresh call frame containing the normalized parameter template,
@@ -1904,7 +1966,7 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 			c.funcCallResults = map[funcCallResultKey][]funcCallResult{}
 		}
 		c.funcCallResults[resultKey] = append(c.funcCallResults[resultKey],
-			funcCallResult{fn: x.Fn, env: x.Env, types: x.Types, result: result})
+			funcCallResult{fn: x.Fn, env: x.Env, types: x.Types, args: x.args, result: result})
 	}
 
 	return result
@@ -1939,8 +2001,8 @@ func (x *FuncValue) template(c *OpContext) *StructLit {
 }
 
 // funcTemplate returns the stable canonical slot layout for x. Attached
-// signatures contribute constraints and aliases to these existing slots; they
-// do not change the frame's fields.
+// signatures contribute constraints to these existing slots; they do not
+// change the frame's fields.
 func (c *OpContext) funcTemplate(x *FuncValue) *StructLit {
 	if c.funcTemplates == nil {
 		c.funcTemplates = map[funcTemplateKey]*StructLit{}
@@ -2162,6 +2224,11 @@ type CallExpr struct {
 	Fun       Expr
 	Args      []Expr
 	ArgLabels []Feature
+
+	// Partial marks a call written with a trailing "..." (f(a: 1, ...)). Such
+	// a call binds the given arguments and yields a function over the
+	// remaining parameters instead of evaluating the body.
+	Partial bool
 }
 
 func (x *CallExpr) Source() ast.Node {
@@ -2204,6 +2271,10 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
 			return nil
 		}
+		if x.Partial {
+			c.AddErrf("partial application of builtin %s is not supported", x.Fun)
+			return nil
+		}
 		return f.rawCall(c, x, state)
 
 	case *FuncValue:
@@ -2212,6 +2283,10 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 	case *BuiltinValidator:
 		if x.hasArgLabels() {
 			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
+			return nil
+		}
+		if x.Partial {
+			c.AddErrf("partial application of builtin %s is not supported", x.Fun)
 			return nil
 		}
 		// We allow a validator that takes no arguments except the validated
