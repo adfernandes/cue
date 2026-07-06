@@ -109,6 +109,17 @@ func (f *File) LanguageVersion() string {
 	return f.version
 }
 
+// Experiments returns the names of the experiments that were
+// explicitly enabled for the file, in sorted order. It does not
+// include experiments that are enabled by default for the file's
+// language version.
+func (f *File) Experiments() []string {
+	if f.experiments == "" {
+		return nil
+	}
+	return strings.Split(f.experiments, ",")
+}
+
 // NewFile parses the given comma-separated list of experiments for
 // the given version and returns a PerFile struct with the experiments enabled.
 // A empty version indicates the default version.
