@@ -404,6 +404,11 @@ func (c *visitor) markResolver(env *adt.Environment, r adt.Resolver) {
 
 	case *adt.SelectorExpr:
 		c.markExpr(env, x.X)
+
+	case *adt.LetReference:
+		// export.resolveLet renders x.X inline for an unresolved let, and
+		// the self-contained exporter matches references by identity.
+		c.markExpr(env, x.X)
 	}
 }
 
