@@ -81,21 +81,64 @@ scoping: {
 	}
 
 	parameter: {
-		a: int | *7
-		fn: func(a: string, b: a) -> int: b
-		out: fn("shadow")
+		// A parameter constraint resolves in the scope enclosing the function,
+		// so it may refer to an outer field (but not to another parameter; see
+		// TestFunctionParameterScope).
+		base: int | *7
+		fn:   func(a: string, b: base) -> int: b
+		out:  fn("shadow")
 		selected: {
 			out: fn("shadow")
 		}
 	}
 
 	returnType: {
-		a: string
-		fn: func(a: int) -> a: a
-		out: fn(1)
+		// The return type also resolves in the enclosing scope and is enforced
+		// on the result of a call.
+		bound: <10
+		fn:    func(a: int) -> bound: a
+		ok:    fn(5)
+		bad:   fn(50)
 	}
 
 	returnConstraint: (func() -> string: 1)()
+
+	// The reserved-parameter rule applies one signature at a time: a function
+	// literal nested within another function's signature or body resolves its
+	// own parameters in its own body as usual.
+	nested: {
+		// A function-typed result: the body closes over the outer parameter
+		// (currying).
+		curry: {
+			adder: func(x: int) -> (func(y: int) -> int): func(y: int) -> int: x + y
+			add3:  adder(3)
+			out:   add3(4)
+		}
+
+		// A function literal with a body in a parameter constraint refers to
+		// its own parameter.
+		paramDefault: {
+			f:   func(g: int | *(func(a: int) -> int: a + 1)) -> int: 1
+			out: f(2)
+		}
+
+		// The same, in a return-type disjunction.
+		returnDisjunct: {
+			f:   func(x: int) -> (int | (func(a: int) -> int: a)): x
+			out: f(3)
+		}
+
+		// A function nested in the outer function's body may refer to the
+		// outer parameter from its own signature: it is not one of its own
+		// parameters.
+		outerParam: {
+			f: func(x: int) -> int: {
+				g:   func(y: x) -> int: y
+				out: g(x)
+			}.out
+			out: f(5)
+		}
+	}
 }
 
 cycles: {
@@ -361,19 +404,42 @@ declarations: {
       }
     }
     parameter: {
-      a: (int|*7)
-      fn: func(a: string, b: 〈0;a〉) -> int: 〈0;b〉
+      base: (int|*7)
+      fn: func(a: string, b: 〈0;base〉) -> int: 〈0;b〉
       out: 〈0;fn〉("shadow")
       selected: {
         out: 〈1;fn〉("shadow")
       }
     }
     returnType: {
-      a: string
-      fn: func(a: int) -> 〈0;a〉: 〈0;a〉
-      out: 〈0;fn〉(1)
+      bound: <10
+      fn: func(a: int) -> 〈0;bound〉: 〈0;a〉
+      ok: 〈0;fn〉(5)
+      bad: 〈0;fn〉(50)
     }
     returnConstraint: func() -> string: 1()
+    nested: {
+      curry: {
+        adder: func(x: int) -> func(y: int) -> int: func(y: int) -> int: (〈1;x〉 + 〈0;y〉)
+        add3: 〈0;adder〉(3)
+        out: 〈0;add3〉(4)
+      }
+      paramDefault: {
+        f: func(g: (int|*func(a: int) -> int: (〈0;a〉 + 1))) -> int: 1
+        out: 〈0;f〉(2)
+      }
+      returnDisjunct: {
+        f: func(x: int) -> (int|func(a: int) -> int: 〈0;a〉): 〈0;x〉
+        out: 〈0;f〉(3)
+      }
+      outerParam: {
+        f: func(x: int) -> int: {
+          g: func(y: 〈1;x〉) -> int: 〈0;y〉
+          out: 〈0;g〉(〈1;x〉)
+        }.out
+        out: 〈0;f〉(5)
+      }
+    }
   }
   cycles: {
     direct: {

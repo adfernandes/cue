@@ -41,8 +41,8 @@ keyword: func(a!: int, b?: int) -> int: a
 base: 10
 capture: func(a: int) -> int: a + base
 paramScope: {
-	a: int | *7
-	f: func(a: string, b: a) -> int: b
+	base: int | *7
+	f: func(a: string, b: base) -> int: b
 	out: f("shadow")
 }
 
@@ -167,7 +167,7 @@ out: sum(1, a: 2)
 			err: "argument a provided by position and label",
 		},
 		{
-			name: "return scope",
+			name: "return type refers to parameter",
 			in: `
 @experiment(functions)
 
@@ -175,7 +175,28 @@ a: string
 f: func(a: int) -> a: a
 out: f(1)
 `,
-			err: "conflicting values",
+			err: `cannot refer to parameter "a"`,
+		},
+		{
+			name: "parameter constraint refers to parameter",
+			in: `
+@experiment(functions)
+
+a: int | *7
+f: func(a: string, b: a) -> int: b
+out: f("x")
+`,
+			err: `cannot refer to parameter "a"`,
+		},
+		{
+			name: "dependent parameter reserved",
+			in: `
+@experiment(functions)
+
+f: func(x: int, y: >x) -> int: x
+out: f(5, 10)
+`,
+			err: `cannot refer to parameter "x"`,
 		},
 		{
 			name: "anonymous after named",

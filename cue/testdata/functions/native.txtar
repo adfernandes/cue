@@ -81,9 +81,12 @@ scoping: {
 	}
 
 	parameter: {
-		a: int | *7
-		fn: func(a: string, b: a) -> int: b
-		out: fn("shadow") @test(eq, int | *7)
+		// A parameter constraint resolves in the scope enclosing the function,
+		// so it may refer to an outer field (but not to another parameter; see
+		// TestFunctionParameterScope).
+		base: int | *7
+		fn:   func(a: string, b: base) -> int: b
+		out:  fn("shadow") @test(eq, int | *7)
 		selected: {
 			out: fn("shadow")
 			@test(eq, {
@@ -93,12 +96,52 @@ scoping: {
 	}
 
 	returnType: {
-		a: string
-		fn: func(a: int) -> a: a
-		out: fn(1) @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[int, string, int, string])
+		// The return type also resolves in the enclosing scope and is enforced
+		// on the result of a call.
+		bound: <10
+		fn:    func(a: int) -> bound: a
+		ok:    fn(5) @test(eq, 5)
+		bad:   fn(50) @test(err, code=eval, contains="out of bound")
 	}
 
 	returnConstraint: (func() -> string: 1)() @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[1, string, int, string])
+
+	// The reserved-parameter rule applies one signature at a time: a function
+	// literal nested within another function's signature or body resolves its
+	// own parameters in its own body as usual.
+	nested: {
+		// A function-typed result: the body closes over the outer parameter
+		// (currying).
+		curry: {
+			adder: func(x: int) -> (func(y: int) -> int): func(y: int) -> int: x + y
+			add3:  adder(3)
+			out:   add3(4) @test(eq, 7)
+		}
+
+		// A function literal with a body in a parameter constraint refers to
+		// its own parameter.
+		paramDefault: {
+			f:   func(g: int | *(func(a: int) -> int: a + 1)) -> int: 1
+			out: f(2) @test(eq, 1)
+		}
+
+		// The same, in a return-type disjunction.
+		returnDisjunct: {
+			f:   func(x: int) -> (int | (func(a: int) -> int: a)): x
+			out: f(3) @test(eq, 3)
+		}
+
+		// A function nested in the outer function's body may refer to the
+		// outer parameter from its own signature: it is not one of its own
+		// parameters.
+		outerParam: {
+			f: func(x: int) -> int: {
+				g:   func(y: x) -> int: y
+				out: g(x)
+			}.out
+			out: f(5) @test(eq, 5)
+		}
+	}
 }
 
 cycles: {
@@ -321,63 +364,61 @@ declarations: {
     ./in.cue:66:13
 [eval] defaults.mutualRecursive: missing argument a:
     ./in.cue:67:19
+[eval] invalid value 50 (out of bound <10):
+    ./in.cue:100:10
+    ./in.cue:103:13
 [eval] conflicting values 1 and string (mismatched types int and string):
-    ./in.cue:95:6
-    ./in.cue:96:23
-    ./in.cue:96:26
-    ./in.cue:97:11
-[eval] conflicting values 1 and string (mismatched types int and string):
-    ./in.cue:100:31
-    ./in.cue:100:39
+    ./in.cue:106:31
+    ./in.cue:106:39
 [structural_cycle] structural cycle:
-    ./in.cue:105:29
+    ./in.cue:148:29
 [structural_cycle] structural cycle:
-    ./in.cue:110:29
+    ./in.cue:153:29
 [structural_cycle] structural cycle:
-    ./in.cue:116:29
+    ./in.cue:159:29
 structural cycle:
-    ./in.cue:116:40
+    ./in.cue:159:40
 [structural_cycle] structural cycle:
-    ./in.cue:121:37
+    ./in.cue:164:37
 [structural_cycle] 2 errors in empty disjunction::
-    ./in.cue:134:29
+    ./in.cue:177:29
 structural cycle:
-    ./in.cue:134:29
+    ./in.cue:177:29
 2 errors in empty disjunction::
-    ./in.cue:134:38
+    ./in.cue:177:38
 structural cycle:
-    ./in.cue:134:38
+    ./in.cue:177:38
 4 errors in empty disjunction::
-    ./in.cue:135:8
+    ./in.cue:178:8
 [incomplete] disjunction.ambiguous.out: cannot call h: unresolved disjunction func(a: int) -> int: ... | func(a: int) -> int: ... (type func):
-    ./in.cue:195:8
+    ./in.cue:238:8
 [incomplete] disjunction.builtins.out: cannot call h: unresolved disjunction strings.ToUpper | strings.ToLower (type func):
-    ./in.cue:215:8
+    ./in.cue:258:8
 [incomplete] disjunction.mixed.out: cannot call h: unresolved disjunction func(a: int) -> int: ... | 1 (type (int|func)):
-    ./in.cue:219:8
+    ./in.cue:262:8
 [eval] conflicting values 2 and 1:
-    ./in.cue:224:12
-    ./in.cue:224:16
+    ./in.cue:267:12
+    ./in.cue:267:16
 [incomplete] disjunction.callee.incomplete.out: cannot call non-concrete value x (type _):
-    ./in.cue:227:9
+    ./in.cue:270:9
 [incomplete] a: undefined field: q:
-    ./in.cue:255:9
+    ./in.cue:298:9
 [incomplete] incompleteArgs.z: undefined field: q:
-    ./in.cue:258:11
+    ./in.cue:301:11
 [eval] declarations.open.bad: cannot call function without implementation:
-    ./in.cue:297:8
+    ./in.cue:340:8
 -- out/eval/stats --
-Leaks:  21
-Freed:  604
-Reused: 551
-Allocs: 74
+Leaks:  24
+Freed:  652
+Reused: 599
+Allocs: 77
 Retain: 0
 
-Unifications: 528
-Conjuncts:    2512
-Disjuncts:    89
+Unifications: 571
+Conjuncts:    2703
+Disjuncts:    95
 
-NumCloseIDs: 337
+NumCloseIDs: 363
 
-ConjunctInfos:       814
+ConjunctInfos:       873
 MaxConjunctInfos:    8

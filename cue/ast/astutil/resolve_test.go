@@ -20,9 +20,12 @@ import (
 	"testing"
 	"text/tabwriter"
 
+	"github.com/go-quicktest/qt"
+
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/errors"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/astinternal"
 	"cuelang.org/go/internal/cuetxtar"
@@ -80,6 +83,93 @@ func TestResolve(t *testing.T) {
 			fmt.Fprint(b)
 		}
 	})
+}
+
+// TestResolveFuncSignatureScopes tests that a reference to one of a
+// function's own parameters in its parameter constraints or return type is
+// reserved and reported as an error, and that this rule applies one signature
+// at a time: a function literal nested within another function's signature
+// resolves its own parameters in its own body as usual.
+func TestResolveFuncSignatureScopes(t *testing.T) {
+	testCases := []struct {
+		desc    string
+		src     string
+		wantErr []string
+	}{{
+		desc: "nested function in return type resolves own parameter in body",
+		src: `
+@experiment(functions)
+f: func(x: int) -> (func(a: int) -> int: a): 1
+`,
+	}, {
+		desc: "nested function in parameter constraint resolves own parameter in body",
+		src: `
+@experiment(functions)
+f: func(g: int | *(func(a: int) -> int: a + 1)) -> int: 1
+`,
+	}, {
+		desc: "nested function in body may refer to outer parameter in its signature",
+		src: `
+@experiment(functions)
+f: func(x: int) -> int: {
+	g:   func(y: x) -> int: y
+	out: g(x)
+}.out
+`,
+	}, {
+		desc: "parameter constraint referring to sibling parameter is reserved",
+		src: `
+@experiment(functions)
+f: func(x: int, y: x) -> int: x
+`,
+		wantErr: []string{
+			`cannot refer to parameter "x" in a parameter constraint or return type`,
+		},
+	}, {
+		desc: "return type referring to parameter is reserved",
+		src: `
+@experiment(functions)
+f: func(x: int) -> x: x
+`,
+		wantErr: []string{
+			`cannot refer to parameter "x" in a parameter constraint or return type`,
+		},
+	}, {
+		desc: "nested signature reserves its own parameters",
+		src: `
+@experiment(functions)
+f: func(x: int) -> (func(a: int, b: a) -> int): 1
+`,
+		wantErr: []string{
+			`cannot refer to parameter "a" in a parameter constraint or return type`,
+		},
+	}, {
+		desc: "nested function in outer signature cannot refer to outer parameter",
+		src: `
+@experiment(functions)
+f: func(x: int) -> (func(a: int) -> int: x): 1
+`,
+		wantErr: []string{
+			`cannot refer to parameter "x" in a parameter constraint or return type`,
+		},
+	}}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			f, err := parser.ParseFile("test.cue", tc.src)
+			if len(tc.wantErr) == 0 {
+				qt.Assert(t, qt.IsNil(err))
+			}
+
+			// Resolve does not overwrite identifiers that were already
+			// resolved during parsing, but the reserved-parameter check runs
+			// again.
+			var got []string
+			astutil.Resolve(f, func(pos token.Pos, msg string, args ...interface{}) {
+				got = append(got, fmt.Sprintf(msg, args...))
+			})
+			qt.Assert(t, qt.DeepEquals(got, tc.wantErr))
+		})
+	}
 }
 
 func TestResolveLegacyFuncArgs(t *testing.T) {

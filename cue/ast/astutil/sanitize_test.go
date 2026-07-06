@@ -707,6 +707,29 @@ func TestSanitizeCrossFileShadowing(t *testing.T) {
 	}
 }
 
+// TestSanitizeFuncSignatureImports tests that an import that is referenced
+// only from a parameter constraint or only from the return type of a function
+// literal is marked as used, so that Sanitize does not strip it.
+func TestSanitizeFuncSignatureImports(t *testing.T) {
+	const src = `@experiment(functions)
+
+import (
+	"time"
+	"math"
+)
+
+f: func(x: time.Duration) -> math.MaxFloat64: 1.0
+`
+	f, err := parser.ParseFile("test.cue", src, parser.ParseComments)
+	qt.Assert(t, qt.IsNil(err))
+
+	qt.Assert(t, qt.IsNil(astutil.Sanitize(f)))
+
+	b, err := format.Node(f)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(string(b), src))
+}
+
 // For testing purposes: do not remove.
 func TestX(t *testing.T) {
 	t.Skip()

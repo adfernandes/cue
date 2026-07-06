@@ -425,14 +425,24 @@ func (s *scope) Before(n ast.Node) bool {
 		return false
 
 	case *ast.Func:
-		// Parameter values and the return type resolve in the enclosing
-		// scope; only the body gets a function-parameter scope.
-		for _, p := range x.Parameters() {
-			if p != nil && p.Value != nil {
-				ast.Walk(p.Value, s.Before, nil)
+		// Parameter constraints and the return type resolve in the enclosing
+		// scope; only the body gets a function-parameter scope. A reference to
+		// another parameter is reserved for a possible future dependent-
+		// parameter feature and is reported as an error rather than silently
+		// binding to a like-named field of an enclosing scope.
+		if params := x.Parameters(); len(params) > 0 {
+			cs := newFuncScope(s.file, s, x)
+			cs.identFn = paramConstraintIdentFn(cs, cs.identFn)
+			for _, p := range params {
+				if p != nil && p.Value != nil {
+					ast.Walk(p.Value, cs.Before, nil)
+				}
 			}
-		}
-		if x.Ret != nil {
+			if x.Ret != nil {
+				ast.Walk(x.Ret, cs.Before, nil)
+			}
+			cs.freeScope()
+		} else if x.Ret != nil {
 			ast.Walk(x.Ret, s.Before, nil)
 		}
 		if x.Body != nil {
@@ -574,6 +584,32 @@ func (s *scope) Before(n ast.Node) bool {
 		}
 	}
 	return true
+}
+
+// paramConstraintIdentFn returns an identFn for identifiers that appear in a
+// parameter constraint or in the return type of the function whose parameters
+// are declared in cs. These resolve in the scope enclosing the function, but a
+// reference that resolves to one of the function's own parameters is reserved
+// for a possible future dependent-parameter feature and is reported as an
+// error. A closer binding (for example a let clause inside the constraint, or
+// a parameter of a nested function literal) shadows the parameter as usual and
+// is resolved normally. All other identifiers are delegated to base, the
+// identFn inherited from the enclosing scope, so that the check composes with
+// custom identFn implementations such as those used by Sanitize, and so that
+// the rule applies one signature at a time when function literals nest.
+func paramConstraintIdentFn(cs *scope, base func(*scope, *ast.Ident) bool) func(*scope, *ast.Ident) bool {
+	return func(s *scope, x *ast.Ident) bool {
+		if name, ok, _ := ast.LabelName(x); ok {
+			if p, _, node := s.lookup(name); node.node != nil {
+				if _, isParam := node.node.(*ast.FuncParam); isParam && p == cs {
+					s.errFn(x.Pos(),
+						"cannot refer to parameter %q in a parameter constraint or return type", name)
+					return true
+				}
+			}
+		}
+		return base(s, x)
+	}
 }
 
 func resolveIdent(s *scope, x *ast.Ident) bool {
