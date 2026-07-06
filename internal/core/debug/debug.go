@@ -61,6 +61,11 @@ type Config struct {
 	// inline after the reference. Note that this may result in large outputs;
 	// use with care. Only applies if Compact is false.
 	ExpandLetExpr bool
+
+	// ShowConjuncts causes conjuncts to be printed even when there is a
+	// concrete BaseValue. This is useful for debugging wire format round-trips
+	// where conjuncts should be preserved.
+	ShowConjuncts bool
 }
 
 // AppendNode writes a string representation of the node to w.
@@ -382,7 +387,7 @@ func (w *printer) node(n adt.Node) {
 			// }
 
 		case adt.Value:
-			if len(x.Arcs) == 0 {
+			if len(x.Arcs) == 0 && !(w.cfg.ShowConjuncts && len(x.Conjuncts) > 0) {
 				w.string(" ")
 				w.node(v)
 				w.string(" }")
@@ -418,9 +423,12 @@ func (w *printer) node(n adt.Node) {
 			}
 		}
 
-		if x.BaseValue == nil {
+		if x.BaseValue == nil || (w.cfg.ShowConjuncts && len(x.Conjuncts) > 0) {
 			w.indent += "// "
 			w.string("// ")
+			if x.BaseValue != nil {
+				w.string("Conjuncts: ")
+			}
 			for i, c := range x.Conjuncts {
 				if c.CloseInfo.FromDef || c.CloseInfo.FromEmbed {
 					w.string("[")

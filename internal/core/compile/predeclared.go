@@ -91,6 +91,14 @@ func LookupRange(name string) adt.Expr {
 	return predefinedRanges[name]
 }
 
+// Predeclared returns the adt expression for a predeclared identifier
+// such as "len", "and", or "int", or nil if name is not predeclared.
+// It is used to reconstruct references to builtins that were resolved
+// at compile time.
+func Predeclared(name string) adt.Expr {
+	return predeclared(&ast.Ident{Name: name})
+}
+
 var predefinedRanges = map[string]adt.Expr{
 	"rune":  mkIntRange("0", strconv.Itoa(0x10FFFF)),
 	"int8":  mkIntRange("-128", "127"),
