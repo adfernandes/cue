@@ -300,6 +300,15 @@ func (c *visitor) markExpr(env *adt.Environment, expr adt.Elem) {
 
 	switch x := expr.(type) {
 	case nil:
+	case *adt.Vertex:
+		// A vertex appears as a conjunct when the value being analyzed was
+		// composed through the API, such as by cue.Value.Unify, rather than
+		// compiled from source. Note that a vertex shared by multiple
+		// conjuncts is walked once per path reaching it; deduplicating on
+		// vertex identity alone would be wrong, as what markConjuncts reports
+		// depends on the path taken to get there.
+		c.markConjuncts(x)
+
 	case *adt.BinaryExpr:
 		c.markExpr(env, x.X)
 		c.markExpr(env, x.Y)

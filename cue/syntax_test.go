@@ -351,12 +351,13 @@ x: test.#x
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TODO: the output below still retains the import; fixed in the next
-	// commit.
 	want := strings.TrimSpace(`
-import "example.com/test"
+{
+	x: X.#x
 
-x: test.#x`)
+	//cue:path: "example.com/test".#x
+	let X = {#x: {}}
+}`)
 	got := strings.TrimSpace(string(b))
 	if got != want {
 		t.Errorf("got: %v; want %v", got, want)
