@@ -102,6 +102,10 @@ type File struct {
 	// is evaluated conditionally") and is consistent with all mainstream
 	// languages.
 	ShortCircuit bool `experiment:"preview:v0.17.0"`
+
+	// Functions enables experimental function signatures and native CUE
+	// function bodies.
+	Functions bool `experiment:"preview:v0.18.0"`
 }
 
 // LanguageVersion returns the language version of the file or "" if no language

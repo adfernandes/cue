@@ -92,6 +92,10 @@ Available per-file experiments:
     is evaluated conditionally") and is consistent with all mainstream
     languages.
 
+  functions (preview: v0.18.0)
+    functions enables experimental function signatures and native CUE
+    function bodies.
+
 
 ## Global Experiments
 

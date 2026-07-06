@@ -189,6 +189,13 @@ func (e *exporter) value(n adt.Value, a ...adt.Conjunct) (result ast.Expr) {
 	case *adt.BuiltinValidator:
 		result = e.builtinValidator(x)
 
+	case *adt.FuncValue:
+		if x.Src != nil {
+			result = x.Src
+		} else {
+			result = ast.NewIdent("_")
+		}
+
 	case *adt.Vertex:
 		result = e.vertex(x)
 

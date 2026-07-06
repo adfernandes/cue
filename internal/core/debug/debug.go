@@ -667,12 +667,22 @@ func (w *printer) node(n adt.Node) {
 		w.node(x.X)
 		w.string("...")
 
+	case *adt.Function:
+		w.string("func")
+
+	case *adt.FuncValue:
+		w.string("func")
+
 	case *adt.CallExpr:
 		w.node(x.Fun)
 		w.string("(")
 		for i, a := range x.Args {
 			if i > 0 {
 				w.string(", ")
+			}
+			if i < len(x.ArgLabels) && x.ArgLabels[i] != adt.InvalidLabel {
+				w.string(x.ArgLabels[i].SelectorString(w.index))
+				w.string(": ")
 			}
 			w.arg(a)
 		}

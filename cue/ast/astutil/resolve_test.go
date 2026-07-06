@@ -21,7 +21,9 @@ import (
 	"text/tabwriter"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/errors"
+	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/astinternal"
 	"cuelang.org/go/internal/cuetxtar"
 )
@@ -78,4 +80,34 @@ func TestResolve(t *testing.T) {
 			fmt.Fprint(b)
 		}
 	})
+}
+
+func TestResolveLegacyFuncArgs(t *testing.T) {
+	outerValue := ast.NewIdent("int")
+	argRef := ast.NewIdent("outer")
+	file := &ast.File{
+		Decls: []ast.Decl{
+			&ast.Field{
+				Label:    ast.NewIdent("outer"),
+				TokenPos: token.NoSpace.Pos(),
+				Value:    outerValue,
+			},
+			&ast.Field{
+				Label:    ast.NewIdent("f"),
+				TokenPos: token.NoSpace.Pos(),
+				Value: &ast.Func{
+					Func: token.NoSpace.Pos(),
+					Args: []ast.Expr{argRef},
+					Ret:  ast.NewIdent("_"),
+				},
+			},
+		},
+	}
+
+	astutil.Resolve(file, func(pos token.Pos, msg string, args ...interface{}) {
+		t.Fatalf(msg, args...)
+	})
+	if argRef.Node != outerValue {
+		t.Fatalf("legacy function argument was not resolved to outer field: got %T", argRef.Node)
+	}
 }

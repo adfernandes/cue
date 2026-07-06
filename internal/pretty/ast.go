@@ -2464,7 +2464,7 @@ func (c *converter) callExpr(x *ast.CallExpr) doc {
 		return cats(fun, stringLit("()"))
 	}
 	if arg := x.Args[0]; len(x.Args) == 1 && c.shouldHug(arg) {
-		return cats(fun, lParenLit, c.expr(arg), rParenLit)
+		return cats(fun, lParenLit, c.callArg(x, 0), rParenLit)
 	}
 
 	layout := bracketedLayout{
@@ -2497,8 +2497,49 @@ func (c *converter) callExpr(x *ast.CallExpr) doc {
 	policy.useBodyShape = useBodyShape
 	// Call arguments are always comma-separated; comma-free style is a
 	// list-literal feature only.
-	layout.inner = table(c.elementRows(x.Args, policy.wantTrailingComma, useBodyShape, false))
+	layout.inner = table(c.callArgRows(x, policy.wantTrailingComma, useBodyShape))
 	return c.applyBracketed(layout, policy)
+}
+
+func (c *converter) callArg(x *ast.CallExpr, i int) doc {
+	arg := c.expr(x.Args[i])
+	if i < len(x.ArgLabels) && x.ArgLabels[i] != nil {
+		return cats(c.label(x.ArgLabels[i]), colonLit, spaceLit, arg)
+	}
+	return arg
+}
+
+func (c *converter) callArgRows(x *ast.CallExpr, trailingComma, wrapLinked bool) []row {
+	if len(x.Args) == 0 {
+		return nil
+	}
+	rows := make([]row, 0, len(x.Args))
+	lastIdx := len(x.Args) - 1
+	prevLackRelPos := false
+	prevHasComment := false
+	for i, e := range x.Args {
+		row, postCgs := c.listElemRow(e, i == lastIdx, trailingComma, false)
+		if i < len(x.ArgLabels) && x.ArgLabels[i] != nil && len(row.cells) > 0 {
+			row.cells[0] = cats(c.label(x.ArgLabels[i]), colonLit, spaceLit, row.cells[0])
+		}
+		if wrapLinked && len(row.cells) > 0 {
+			row.cells[0] = nextGroupNoop(row.cells[0])
+		}
+		curLackRelPos := bracketsLackRelPos(e)
+		if i > 0 {
+			switch {
+			case prevLackRelPos && curLackRelPos && !prevHasComment && row.docComment == nil:
+				row.sep = spaceLit
+			default:
+				row.sep = elemBreak(e)
+			}
+		}
+		prevLackRelPos = curLackRelPos
+		prevHasComment = row.hasComment || len(postCgs) > 0
+		rows = append(rows, row)
+		rows = append(rows, c.postCommentRows(postCgs)...)
+	}
+	return rows
 }
 
 // indexExpr converts an IndexExpr. Honours RelPos on the index
@@ -2803,12 +2844,142 @@ func (c *converter) multiLineInterpolation(x *ast.Interpolation) doc {
 
 // funcExpr converts a Func node.
 func (c *converter) funcExpr(x *ast.Func) doc {
-	args := make([]doc, len(x.Args))
-	for i, a := range x.Args {
-		args[i] = c.expr(a)
+	var args []doc
+	if len(x.Params) > 0 || len(x.Args) == 0 {
+		if len(x.Params) == 0 {
+			return c.funcResult(cats(stringLit("func"), lParenLit, rParenLit), x)
+		}
+		// Params may contain nil entries when the AST is constructed
+		// programmatically; skip them, as funcParamRows does.
+		hasParamDoc := false
+		for _, p := range x.Params {
+			if p != nil && HasDocComment(p) {
+				hasParamDoc = true
+				break
+			}
+		}
+		if hasParamDoc {
+			layout := bracketedLayout{
+				node:                x,
+				openPrefix:          stringLit("func"),
+				open:                lParenLit,
+				close:               rParenLit,
+				openerRel:           x.Lparen.RelPos(),
+				closerRel:           x.Rparen.RelPos(),
+				firstElem:           firstFuncParam(x.Params),
+				lastElem:            lastFuncParam(x.Params),
+				numElems:            len(x.Params),
+				anyDoc:              hasParamDoc,
+				lineHeader:          hasLineLeadingComment(commentSlots{}, firstFuncParam(x.Params)),
+				allowsTrailingComma: true,
+				inner:               table(c.funcParamRows(x.Params, true)),
+			}
+			return c.funcResult(c.applyBracketed(layout, c.computeBracketedPolicy(layout)), x)
+		}
+		args = make([]doc, 0, len(x.Params))
+		for _, p := range x.Params {
+			if p == nil {
+				continue
+			}
+			args = append(args, c.funcParam(p))
+		}
+	} else {
+		args = make([]doc, len(x.Args))
+		for i, a := range x.Args {
+			args[i] = c.expr(a)
+		}
 	}
 	argDoc := sep(commaSpaceLit, args...)
-	return cats(stringLit("func"), lParenLit, argDoc, stringLit("): "), c.expr(x.Ret))
+	d := cats(stringLit("func"), lParenLit, argDoc, rParenLit)
+	return c.funcResult(d, x)
+}
+
+func (c *converter) funcResult(d doc, x *ast.Func) doc {
+	if x.Ret != nil {
+		d = cats(d, stringLit(" -> "), c.expr(x.Ret))
+	}
+	if x.Body != nil {
+		d = cats(d, colonLit, spaceLit, c.expr(x.Body))
+	}
+	return d
+}
+
+func (c *converter) funcParam(p *ast.FuncParam) doc {
+	return c.withComments(p, c.funcParamCore(p))
+}
+
+func (c *converter) funcParamCore(p *ast.FuncParam) doc {
+	if p == nil {
+		return nil
+	}
+	d := c.expr(p.Value)
+	if p.Label == nil {
+		return d
+	}
+	label := c.label(p.Label)
+	if p.Alias != nil {
+		label = cats(label, c.postfixAlias(p.Alias))
+	}
+	if p.Constraint != token.ILLEGAL {
+		label = cats(label, stringLit(p.Constraint.String()))
+	}
+	return cats(label, colonLit, spaceLit, d)
+}
+
+func (c *converter) funcParamRows(params []*ast.FuncParam, trailingComma bool) []row {
+	rows := make([]row, 0, len(params))
+	lastIdx := len(params) - 1
+	for i, p := range params {
+		if p == nil {
+			continue
+		}
+		var comma doc
+		switch {
+		case i < lastIdx:
+			comma = commaLit
+		case trailingComma:
+			comma = commaWhenBroken
+		}
+
+		slots := classifyComments(p)
+		lineSlots, otherSlots := partitionLineComments(slots)
+		var trailing doc
+		for _, cg := range lineSlots.all() {
+			trailing = joinLines(trailing, c.commentGroup(cg))
+		}
+		cells := []doc{cat(c.funcParamCore(p), comma)}
+		if trailing != nil {
+			cells = append(cells, trailing)
+		}
+		r := row{
+			docComment: c.docCommentBlock(otherSlots.doc, p.Pos().RelPos()),
+			cells:      cells,
+			hasComment: slots.any(),
+		}
+		if len(rows) > 0 {
+			r.sep = relBreakOr(LeadingRelPos(p), lineBreakOrSpace)
+		}
+		rows = append(rows, r)
+	}
+	return rows
+}
+
+func firstFuncParam(params []*ast.FuncParam) ast.Node {
+	for _, p := range params {
+		if p != nil {
+			return p
+		}
+	}
+	return nil
+}
+
+func lastFuncParam(params []*ast.FuncParam) ast.Node {
+	for i := len(params) - 1; i >= 0; i-- {
+		if params[i] != nil {
+			return params[i]
+		}
+	}
+	return nil
 }
 
 // comprehension converts a Comprehension.
@@ -3579,8 +3750,8 @@ var (
 // (authored). For non-eligible types, both results are false.
 //
 // The eligible node types are *ast.File, *ast.StructLit, *ast.ListLit,
-// *ast.CallExpr, *ast.BinaryExpr, and *ast.IndexExpr; the isAuthored
-// algorithm only sets the flag on these types.
+// *ast.Func, *ast.CallExpr, *ast.BinaryExpr, and *ast.IndexExpr; the
+// isAuthored algorithm only sets the flag on these types.
 //
 // authored == false for a wrap-eligible node means its brackets were
 // synthesised by the converter (e.g. a programmatic StructLit with
@@ -3598,7 +3769,7 @@ func wrapEligibility(n ast.Node) (eligible, authored bool) {
 		return true, x.Lbrace.IsValid()
 	case *ast.ListLit:
 		return true, x.Lbrack.IsValid()
-	case *ast.File, *ast.CallExpr, *ast.BinaryExpr, *ast.IndexExpr:
+	case *ast.File, *ast.Func, *ast.CallExpr, *ast.BinaryExpr, *ast.IndexExpr:
 		return true, true
 	}
 	return false, false

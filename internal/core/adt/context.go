@@ -164,6 +164,29 @@ type OpContext struct {
 	e  *Environment
 	ci CloseInfo
 
+	// funcTemplates caches the stable struct template vertex for each native
+	// CUE function literal, keyed by literal and closure environment. Reusing
+	// it across (recursive) calls lets the regular structural cycle detector
+	// observe recursion. See [OpContext.funcTemplate].
+	funcTemplates map[funcTemplateKey]*Vertex
+
+	// funcTemplateRefs caches the stable reference to a template vertex for
+	// each call site, keyed by call expression and closure environment. A
+	// per-call-site reference keeps the (vertex, source-reference) distinction
+	// the structural cycle detector relies on, so that recursion (same call
+	// site) is a cycle while nesting (distinct call sites) is not. See
+	// [OpContext.funcTemplateRef].
+	funcTemplateRefs map[funcTemplateRefKey]Resolver
+
+	// probingDefaults tracks the native CUE function literals whose parameter
+	// defaults are currently being probed for arity checking. Unlike a call
+	// body (which the structural cycle detector handles through the shared
+	// template), the default probe runs outside any vertex, so a recursive or
+	// mutually recursive default would loop forever. Re-entering the probe for
+	// a function already on this set is treated as "no single default", which
+	// surfaces as a missing-argument error.
+	probingDefaults map[*Function]bool
+
 	// Source node associated with the CUE operation, if any.
 	// When nil, created nodes like [Bool] may use sentinels to avoid allocations.
 	src ast.Node

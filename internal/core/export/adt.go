@@ -227,6 +227,12 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			Op: token.ELLIPSIS,
 		}
 
+	case *adt.Function:
+		if x.Src != nil {
+			return x.Src
+		}
+		return ast.NewIdent("_")
+
 	case *adt.BinaryExpr:
 		if x.Op == adt.AndOp || x.Op == adt.OrOp {
 			return e.sortBinaryTree(env, x)
@@ -239,6 +245,7 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 
 	case *adt.CallExpr:
 		a := []ast.Expr{}
+		labels := []ast.Label(nil)
 		for _, arg := range x.Args {
 			v := e.innerExpr(env, arg)
 			if v == nil {
@@ -247,8 +254,16 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			}
 			a = append(a, v)
 		}
+		if x.ArgLabels != nil {
+			labels = make([]ast.Label, len(x.ArgLabels))
+			for i, label := range x.ArgLabels {
+				if label != adt.InvalidLabel {
+					labels[i] = ast.NewIdent(label.IdentString(e.ctx))
+				}
+			}
+		}
 		fun := e.innerExpr(env, x.Fun)
-		return &ast.CallExpr{Fun: fun, Args: a}
+		return &ast.CallExpr{Fun: fun, Args: a, ArgLabels: labels}
 
 	case *adt.DisjunctionExpr:
 		a := []ast.Expr{}

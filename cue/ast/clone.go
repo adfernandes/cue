@@ -116,6 +116,7 @@ func (c *cloner) node(node Node) Node {
 		x := shallow(c, n)
 		x.Fun = clone(c, n.Fun)
 		x.Args = cloneList(c, n.Args)
+		x.ArgLabels = cloneList(c, n.ArgLabels)
 		return x
 
 	case *Comment:
@@ -172,8 +173,17 @@ func (c *cloner) node(node Node) Node {
 
 	case *Func:
 		x := shallow(c, n)
+		x.Params = cloneList(c, n.Params)
 		x.Args = cloneList(c, n.Args)
 		x.Ret = clone(c, n.Ret)
+		x.Body = clone(c, n.Body)
+		return x
+
+	case *FuncParam:
+		x := shallow(c, n)
+		x.Label = clone(c, n.Label)
+		x.Alias = clone(c, n.Alias)
+		x.Value = clone(c, n.Value)
 		return x
 
 	case *Ident:

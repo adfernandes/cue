@@ -872,6 +872,65 @@ x: {
 	])
 }`[1:],
 		},
+		{
+			// A programmatically built Func may hold nil entries in
+			// Params; the printer must skip them rather than panic. The
+			// parser never produces this shape.
+			name: "func_nil_param_skipped",
+			node: &ast.File{Decls: []ast.Decl{
+				&ast.Attribute{Text: "@experiment(functions)"},
+				&ast.Field{
+					Label:    &ast.Ident{NamePos: token.Newline.Pos(), Name: "f"},
+					TokenPos: token.Blank.Pos(),
+					Value: &ast.Func{
+						Params: []*ast.FuncParam{
+							nil,
+							{Value: &ast.Ident{Name: "int"}},
+							nil,
+						},
+						Ret: &ast.Ident{Name: "int"},
+					},
+				},
+			}},
+			cfg: &pretty.Config{Width: 80, Indent: "\t"},
+			want: `
+@experiment(functions)
+f: func(int) -> int`[1:],
+		},
+		{
+			// As above, but a non-nil parameter carries a doc comment, so
+			// the parameter list takes the table layout. The nil entries
+			// must again be skipped rather than panic.
+			name: "func_nil_param_skipped_with_doc_comment",
+			node: func() *ast.File {
+				p := &ast.FuncParam{
+					Label: &ast.Ident{Name: "a"},
+					Value: &ast.Ident{Name: "int"},
+				}
+				ast.AddComment(p, &ast.CommentGroup{
+					Position: 0,
+					List:     []*ast.Comment{{Text: "// doc"}},
+				})
+				return &ast.File{Decls: []ast.Decl{
+					&ast.Attribute{Text: "@experiment(functions)"},
+					&ast.Field{
+						Label:    &ast.Ident{NamePos: token.Newline.Pos(), Name: "f"},
+						TokenPos: token.Blank.Pos(),
+						Value: &ast.Func{
+							Params: []*ast.FuncParam{nil, p},
+							Ret:    &ast.Ident{Name: "int"},
+						},
+					},
+				}}
+			}(),
+			cfg: &pretty.Config{Width: 80, Indent: "\t"},
+			want: `
+@experiment(functions)
+f: func(
+	// doc
+	a: int,
+) -> int`[1:],
+		},
 	}
 
 	for _, tt := range tests {

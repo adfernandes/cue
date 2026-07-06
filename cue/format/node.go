@@ -342,15 +342,37 @@ func (f *formatter) walkListElems(list []ast.Expr, lbrack, rbrack token.Pos) {
 	f.after(nil)
 }
 
-func (f *formatter) walkArgsList(list []ast.Expr, depth int) {
+func (f *formatter) walkCallArgsList(args []ast.Expr, labels []ast.Label, depth int) {
 	f.before(nil)
-	for _, x := range list {
+	for i, x := range args {
 		f.before(x)
+		if i < len(labels) && labels[i] != nil {
+			f.label(labels[i], token.ILLEGAL)
+			f.print(token.COLON, blank)
+		}
 		f.exprRaw(x, token.LowestPrec, depth)
 		f.print(comma, blank)
 		f.after(x)
 	}
 	f.after(nil)
+}
+
+func (f *formatter) postfixAlias(a *ast.PostfixAlias) {
+	if a == nil {
+		return
+	}
+	f.print(a.Tilde, token.TILDE, noblank)
+	if a.Label != nil {
+		f.print(a.Lparen, token.LPAREN, noblank)
+		f.expr(a.Label)
+		f.print(a.Comma, token.COMMA, noblank)
+		f.expr(a.Field)
+		f.print(a.Rparen, token.RPAREN, noblank)
+		return
+	}
+	f.print(a.Lparen, token.LPAREN, noblank)
+	f.expr(a.Field)
+	f.print(a.Rparen, token.RPAREN, noblank)
 }
 
 func (f *formatter) file(file *ast.File) {
@@ -602,6 +624,24 @@ func (f *formatter) nextNeedsFormfeed(n ast.Expr) bool {
 		if slices.ContainsFunc(x.Args, f.nextNeedsFormfeed) {
 			return true
 		}
+	case *ast.Func:
+		if len(x.Params) > 0 || len(x.Args) == 0 {
+			for _, p := range x.Params {
+				if p == nil {
+					continue
+				}
+				if len(ast.Comments(p)) > 0 || (p.Label != nil && len(ast.Comments(p.Label)) > 0) {
+					return true
+				}
+				if f.nextNeedsFormfeed(p.Value) {
+					return true
+				}
+			}
+		} else if slices.ContainsFunc(x.Args, f.nextNeedsFormfeed) {
+			return true
+		}
+		return (x.Ret != nil && f.nextNeedsFormfeed(x.Ret)) ||
+			(x.Body != nil && f.nextNeedsFormfeed(x.Body))
 	}
 	return false
 }
@@ -745,6 +785,48 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		}
 		f.after(nil)
 
+	case *ast.Func:
+		f.print(x.Func, token.FUNC)
+		f.print(x.Lparen, token.LPAREN)
+		f.before(nil)
+		if len(x.Params) > 0 || len(x.Args) == 0 {
+			for _, p := range x.Params {
+				if p == nil {
+					continue
+				}
+				f.before(p)
+				if p.Label != nil {
+					f.label(p.Label, token.ILLEGAL)
+					f.postfixAlias(p.Alias)
+					if p.Constraint != token.ILLEGAL {
+						f.print(p.Constraint)
+					}
+					f.print(noblank, nooverride, p.TokenPos, token.COLON, blank)
+					f.visitComments(f.current.pos)
+				}
+				f.exprRaw(p.Value, token.LowestPrec, depth)
+				f.print(comma, blank)
+				f.after(p)
+			}
+		} else {
+			for _, arg := range x.Args {
+				f.before(arg)
+				f.exprRaw(arg, token.LowestPrec, depth)
+				f.print(comma, blank)
+				f.after(arg)
+			}
+		}
+		f.after(nil)
+		f.print(trailcomma, noblank, x.Rparen, token.RPAREN)
+		if x.Ret != nil {
+			f.print(blank, x.Arrow, token.RARROW, blank)
+			f.expr(x.Ret)
+		}
+		if x.Body != nil {
+			f.print(x.Colon, token.COLON, blank)
+			f.expr(x.Body)
+		}
+
 	case *ast.ParenExpr:
 		if _, hasParens := x.X.(*ast.ParenExpr); hasParens {
 			// don't print parentheses around an already parenthesized expression
@@ -791,7 +873,7 @@ func (f *formatter) exprRaw(expr ast.Expr, prec1, depth int) {
 		}
 		wasIndented := f.possibleSelectorExpr(x.Fun, token.HighestPrec, depth)
 		f.print(x.Lparen, token.LPAREN)
-		f.walkArgsList(x.Args, depth)
+		f.walkCallArgsList(x.Args, x.ArgLabels, depth)
 		f.print(trailcomma, noblank, x.Rparen, token.RPAREN)
 		if wasIndented {
 			f.print(unindent)

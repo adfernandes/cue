@@ -472,9 +472,22 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 		return n.markCyclic(arc, env, x, ci)
 	}
 
+	// The optional-conjunct affordances below assume that re-entering the
+	// same arc settles to a fixed point, so that skipping the conjunct or
+	// affording it one more level eventually terminates (e.g. a pattern
+	// constraint feeding rooted structure). A function-call template
+	// reference does not have this property: every call re-instantiates the
+	// template into a fresh non-rooted vertex, so skipping the conjunct
+	// drops the call's result entirely and re-evaluation makes no progress,
+	// looping forever. Function calls therefore always take the regular
+	// (vertex, reference) cycle rules below, which already distinguish
+	// same-call-site recursion (a structural cycle) from distinct-call-site
+	// nesting such as twice(twice(2)).
+	_, isFuncCall := x.(*funcTemplateRef)
+
 	// As long as a node-wide cycle has not yet been detected, we allow cycles
 	// in optional fields to proceed unchecked.
-	if n.hasNonCyclic && ci.CycleType == MaybeCyclic {
+	if !isFuncCall && n.hasNonCyclic && ci.CycleType == MaybeCyclic {
 		return ci, false
 	}
 
@@ -491,7 +504,7 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 
 			// If there are still any non-cyclic conjuncts, and if this conjunct
 			// is optional, we allow this to continue one more cycle.
-			if ci.CycleType == IsOptional && n.hasNonCyclic {
+			if !isFuncCall && ci.CycleType == IsOptional && n.hasNonCyclic {
 				ci.CycleType = MaybeCyclic
 				// There my still be a cycle if the optional field is a pattern
 				// that unifies with itself, as in:

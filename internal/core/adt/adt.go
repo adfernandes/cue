@@ -172,6 +172,7 @@ func (*BoundValue) Concreteness() Concreteness  { return Constraint }
 
 func (*Builtin) Concreteness() Concreteness          { return Concrete }
 func (*BuiltinValidator) Concreteness() Concreteness { return Constraint }
+func (*FuncValue) Concreteness() Concreteness        { return Concrete }
 
 // Value and Expr
 
@@ -215,10 +216,12 @@ func (*Disjunction) expr()      {}
 func (*BoundValue) expr()       {}
 func (*BuiltinValidator) expr() {}
 func (*Builtin) expr()          {}
+func (*FuncValue) expr()        {}
 
 // Expr and Resolver
 
 func (*NodeLink) expr()         {}
+func (*funcTemplateRef) expr()  {}
 func (*FieldReference) expr()   {}
 func (*ValueReference) expr()   {}
 func (*LabelReference) expr()   {}
@@ -237,6 +240,7 @@ func (*UnaryExpr) expr()     {}
 func (*BinaryExpr) expr()    {}
 func (*OpenExpr) expr()      {}
 func (*CallExpr) expr()      {}
+func (*Function) expr()      {}
 
 // Decl and Expr (so allow attaching original source in Conjunct)
 
@@ -307,8 +311,12 @@ func (*BoundValue) declNode()       {}
 func (*BoundValue) elemNode()       {}
 func (*BuiltinValidator) declNode() {}
 func (*BuiltinValidator) elemNode() {}
+func (*FuncValue) declNode()        {}
+func (*FuncValue) elemNode()        {}
 func (*NodeLink) declNode()         {}
 func (*NodeLink) elemNode()         {}
+func (*funcTemplateRef) declNode()  {}
+func (*funcTemplateRef) elemNode()  {}
 func (*FieldReference) declNode()   {}
 func (*FieldReference) elemNode()   {}
 func (*ValueReference) declNode()   {}
@@ -337,6 +345,8 @@ func (*OpenExpr) declNode()         {}
 func (*OpenExpr) elemNode()         {}
 func (*CallExpr) declNode()         {}
 func (*CallExpr) elemNode()         {}
+func (*Function) declNode()         {}
+func (*Function) elemNode()         {}
 func (*Builtin) declNode()          {}
 func (*Builtin) elemNode()          {}
 func (*DisjunctionExpr) declNode()  {}
@@ -369,6 +379,7 @@ func (*StructLit) node()         {}
 func (*ListLit) node()           {}
 func (*BoundExpr) node()         {}
 func (*NodeLink) node()          {}
+func (*funcTemplateRef) node()   {}
 func (*FieldReference) node()    {}
 func (*ValueReference) node()    {}
 func (*LabelReference) node()    {}
@@ -382,6 +393,8 @@ func (*Interpolation) node()     {}
 func (*UnaryExpr) node()         {}
 func (*BinaryExpr) node()        {}
 func (*CallExpr) node()          {}
+func (*Function) node()          {}
+func (*FuncValue) node()         {}
 func (*DisjunctionExpr) node()   {}
 func (*Field) node()             {}
 func (*LetField) node()          {}

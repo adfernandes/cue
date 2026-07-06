@@ -15,13 +15,20 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/ast"
+	cueerrors "cuelang.org/go/cue/errors"
+	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/astinternal"
 	"cuelang.org/go/internal/cueversion"
+	"golang.org/x/tools/txtar"
 )
 
 // oldAliasVersion is the last language version accepting the prefix alias
@@ -1345,7 +1352,114 @@ bar: 2
 			f5: func(int, int): func(bool, bool): bool
 			f6: func(func(bool, bool): bool, func(string, string): string): func(int, func(int, string): int): func(int, string): int
 		`,
-			out: "f0: func(): int, f1: func(int): int, f2: func(int, string): int, f3: func({a: int, b: string}): bool, f4: func(bool, func(int, string): int): string, f5: func(int, int): func(bool, bool): bool, f6: func(func(bool, bool): bool, func(string, string): string): func(int, func(int, string): int): func(int, string): int",
+			out: "f0: func() -> int, f1: func(int) -> int, f2: func(int, string) -> int, f3: func({a: int, b: string}) -> bool, f4: func(bool, func(int, string) -> int) -> string, f5: func(int, int) -> func(bool, bool) -> bool, f6: func(func(bool, bool) -> bool, func(string, string) -> string) -> func(int, func(int, string) -> int) -> func(int, string) -> int",
+		},
+		{
+			desc: "functions experiment",
+			in: `@experiment(functions)
+			sum: func(a: int, b: int) -> int: a + b
+			add1: func(_~x: int) -> int: x + 1
+			pick: func(a: int | *5) -> int: a
+			keyword: func(a!: int, b?: int) -> int: a
+			pos: sum(1, 2)
+			mixed: sum(1, b: 2)
+			named: sum(a: 1, b: 2)`,
+			out: "@experiment(functions), sum: func(a: int, b: int) -> int: a+b, add1: func(_~x: int) -> int: x+1, pick: func(a: int|*5) -> int: a, keyword: func(a!: int, b?: int) -> int: a, pos: sum(1, 2), mixed: sum(1, b: 2), named: sum(a: 1, b: 2)",
+		},
+		{
+			desc: "func literal experiment missing",
+			in: `
+			sum: func(a: int, b: int) -> int: a + b
+			`,
+			out: "sum: func(a: int, b: int) -> int: a+b\nfunction syntax requires @experiment(functions)",
+		},
+		{
+			desc: "func identifier call without experiment",
+			in: `
+			x: func(3)
+			y: func()
+			`,
+			out: "x: func(3), y: func()",
+		},
+		{
+			desc: "func identifier call with interpolation argument without experiment",
+			in: `
+			a: 1
+			x: func("\(a)")
+			`,
+			out: `a: 1, x: func("\(a)")`,
+		},
+		{
+			desc: "func identifier call with colon inside interpolation without experiment",
+			in: `
+			a: 1
+			x: func("\(a): 1")
+			`,
+			out: `a: 1, x: func("\(a): 1")`,
+		},
+		{
+			desc: "arrow scans as subtraction without experiment",
+			in: `
+			a: 3->2
+			`,
+			// Parses as the binary expression 3 - (>2).
+			out: "a: 3->2",
+		},
+		{
+			desc: "labeled call experiment missing",
+			in: `
+			x: f(a: 1)
+			`,
+			out: "x: f(a: 1)\nlabeled arguments require @experiment(functions)",
+		},
+		{
+			desc: "definition as argument label",
+			in: `@experiment(functions)
+			x: f(#a: 1)
+			`,
+			out: "@experiment(functions), x: f(#a: 1)\ndefinitions are not allowed as argument labels",
+		},
+		{
+			desc: "blank argument label",
+			in: `@experiment(functions)
+			x: f(_: 1)
+			`,
+			out: "@experiment(functions), x: f(_: 1)\n_ is not allowed as an argument label",
+		},
+		{
+			desc: "positional argument after labeled argument",
+			in: `@experiment(functions)
+			x: f(a: 1, 2)
+			`,
+			out: "@experiment(functions), x: f(a: 1, 2)\npositional argument after labeled argument",
+		},
+		{
+			desc: "positional argument after later labeled argument",
+			in: `@experiment(functions)
+			x: f(1, b: 2, 3)
+			`,
+			out: "@experiment(functions), x: f(1, b: 2, 3)\npositional argument after labeled argument",
+		},
+		{
+			desc: "positional parameter after named parameter",
+			in: `@experiment(functions)
+			x: func(a: int, int) -> int: 1
+			`,
+			out: "@experiment(functions), x: func(a: int, int) -> int: 1\npositional parameter after named parameter",
+		},
+		{
+			desc: "function duplicate parameter",
+			in: `@experiment(functions)
+			x: func(a: int, a: string) -> int: 1
+			`,
+			out: "@experiment(functions), x: func(a: int, a: string) -> int: 1\nparameter \"a\" redeclared in same scope",
+		},
+		{
+			desc: "alias-bound positional parameter after named parameter",
+			in: `@experiment(functions)
+			x: func(a: int, _~x: int) -> int: x
+			`,
+			out: "@experiment(functions), x: func(a: int, _~x: int) -> int: x\npositional parameter after named parameter",
 		},
 		{
 			desc: "postfix ... operator with experiment",
@@ -1471,6 +1585,154 @@ func TestStrict(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFunctionOrderingErrors(t *testing.T) {
+	filename := filepath.Join("testdata", "functions_order.txtar")
+	a, err := txtar.ParseFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var src []byte
+	var want string
+	for _, f := range a.Files {
+		switch f.Name {
+		case "in.cue":
+			src = f.Data
+		case "out/errors":
+			want = string(f.Data)
+		}
+	}
+	if src == nil {
+		t.Fatal("missing in.cue")
+	}
+	file, err := ParseFile("in.cue", src, AllErrors, ParseComments)
+	if err == nil {
+		t.Fatal("expected ordering errors")
+	}
+	var buf bytes.Buffer
+	printParserErrorsWithPaths(&buf, file, err)
+	got := buf.String()
+	if got != want {
+		if os.Getenv("CUE_UPDATE") == "1" {
+			for i := range a.Files {
+				if a.Files[i].Name == "out/errors" {
+					a.Files[i].Data = []byte(got)
+					if err := os.WriteFile(filename, txtar.Format(a), 0666); err != nil {
+						t.Fatal(err)
+					}
+					return
+				}
+			}
+		}
+		t.Fatalf("unexpected errors:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// TestArrowWithoutExperiment verifies that without the functions experiment
+// "->" scans as two tokens, so that 3->2 parses as the binary expression
+// 3 - (>2), as it did before the experiment was introduced.
+func TestArrowWithoutExperiment(t *testing.T) {
+	f, err := ParseFile("input", "a: 3->2", AllErrors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	field, ok := f.Decls[0].(*ast.Field)
+	if !ok {
+		t.Fatalf("got %T, expected *ast.Field", f.Decls[0])
+	}
+	bin, ok := field.Value.(*ast.BinaryExpr)
+	if !ok {
+		t.Fatalf("got %T, expected *ast.BinaryExpr", field.Value)
+	}
+	if bin.Op != token.SUB {
+		t.Errorf("got op %s, expected %s", bin.Op, token.SUB)
+	}
+	un, ok := bin.Y.(*ast.UnaryExpr)
+	if !ok {
+		t.Fatalf("got %T, expected *ast.UnaryExpr", bin.Y)
+	}
+	if un.Op != token.GTR {
+		t.Errorf("got op %s, expected %s", un.Op, token.GTR)
+	}
+}
+
+// TestFuncLookaheadErrors verifies that the speculative scan that
+// distinguishes disabled function syntax from a call of a regular field
+// named "func" does not report errors of its own: a genuine scan error in
+// the argument list must be reported exactly once, by the real parse.
+func TestFuncLookaheadErrors(t *testing.T) {
+	_, err := ParseFile("input", `x: func("a\q")`, AllErrors)
+	var msgs []string
+	for _, e := range cueerrors.Errors(err) {
+		msgs = append(msgs, e.Error())
+	}
+	want := []string{"unknown escape sequence"}
+	if !slices.Equal(msgs, want) {
+		t.Errorf("got errors %q, expected %q", msgs, want)
+	}
+}
+
+func printParserErrorsWithPaths(buf *bytes.Buffer, file *ast.File, err error) {
+	cfg := &cueerrors.Config{
+		Cwd:     ".",
+		ToSlash: true,
+	}
+	for _, e := range cueerrors.Errors(err) {
+		var single bytes.Buffer
+		cueerrors.Print(&single, e, cfg)
+		text := single.String()
+		if path := parserPathForPos(file, e.Position()); path != "" {
+			if i := strings.IndexByte(text, '\n'); i >= 0 {
+				text = path + ": " + text[:i] + text[i:]
+			} else {
+				text = path + ": " + text
+			}
+		}
+		buf.WriteString(text)
+	}
+}
+
+func parserPathForPos(file *ast.File, pos token.Pos) string {
+	if file == nil || !pos.IsValid() {
+		return ""
+	}
+	var (
+		stack  []string
+		best   string
+		pushed = map[*ast.Field]bool{}
+	)
+	ast.Walk(file, func(n ast.Node) bool {
+		f, ok := n.(*ast.Field)
+		if !ok {
+			return true
+		}
+		if !nodeContainsPos(f, pos) {
+			return false
+		}
+		name, _, err := ast.LabelName(f.Label)
+		if err != nil || name == "" {
+			return true
+		}
+		pushed[f] = true
+		stack = append(stack, name)
+		best = strings.Join(stack, ".")
+		return true
+	}, func(n ast.Node) {
+		f, ok := n.(*ast.Field)
+		if !ok || !pushed[f] {
+			return
+		}
+		stack = stack[:len(stack)-1]
+	})
+	return best
+}
+
+func nodeContainsPos(n ast.Node, pos token.Pos) bool {
+	start := n.Pos()
+	end := n.End()
+	return start.IsValid() && end.IsValid() &&
+		start.Compare(pos) <= 0 && pos.Compare(end) <= 0
 }
 
 // parseExprString is a convenience function for obtaining the AST of an

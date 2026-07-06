@@ -1,0 +1,197 @@
+-- in.cue --
+@experiment(functions)
+
+arguments: {
+	sum: {
+		fn: func(a: int, b: int) -> int: a + b
+
+		positional: fn(1, 2) @test(eq, 3)
+		labeled:    fn(a: 1, b: 2) @test(eq, 3)
+		mixed:      fn(1, b: 2) @test(eq, 3)
+
+		tooMany:        fn(1, 2, 3) @test(err, code=eval, contains="too many positional arguments")
+		unknownLabeled: fn(a: 1, b: 2, c: 3) @test(err, code=eval, contains="unknown argument c")
+		duplicateArg:   fn(1, a: 2) @test(err, code=eval, contains="argument a provided by position and label")
+		duplicateLabeled: fn(a: 1, a: 2) @test(err, code=eval, contains="duplicate argument a")
+	}
+
+	alias: {
+		add1:     func(_~x: int) -> int: x + 1
+		addNamed: func(_~x: int, a: int) -> int: x + a
+
+		positional: add1(1) @test(eq, 2)
+		beforeNamed: addNamed(1, 2) @test(eq, 3)
+		mixed:       addNamed(1, a: 2) @test(eq, 3)
+	}
+
+	keyword: {
+		fn: func(a!: int, b?: int) -> int: a
+
+		nameOnly:   fn(a: 4) @test(eq, 4)
+		positional: fn(4) @test(err, code=eval, contains="missing required argument a")
+	}
+
+	order: {
+		fn:       func(int, a: int) -> int: a
+		required: func(int, a!: int) -> int: a
+
+		positionalThenNamed: fn(1, a: 2) @test(eq, 2)
+		allPositional:       fn(1, 2) @test(eq, 2)
+		requiredNamed:       required(1, a: 2) @test(eq, 2)
+	}
+
+	missing: {
+		positional: (func(int) -> int: 1)() @test(err, code=eval, contains="not enough arguments")
+		named:      (func(a: int) -> int: a)() @test(err, code=eval, contains="missing argument a")
+	}
+
+	builtin: {
+		labeled: len(x: "foo") @test(err, code=eval, contains="labeled arguments are not supported for builtin")
+	}
+}
+
+defaults: {
+	value:   int | *6
+	pick:    func(a: int | *5) -> int: a
+	pickRef: func(a: value) -> int: a
+	pickAmbiguous: func(a: int | *1 | *2) -> int: a
+	pickRecursive: func(a: int | *pickRecursive()) -> int: a
+	pickMutualA:   func(a: int | *pickMutualB()) -> int: a
+	pickMutualB:   func(a: int | *pickMutualA()) -> int: a
+
+	literal:   pick() @test(eq, int | *5)
+	reference: pickRef() @test(eq, int | *6)
+	ambiguous: pickAmbiguous() @test(err, code=eval, contains="missing argument a")
+	recursive: pickRecursive() @test(err, code=eval, contains="missing argument a")
+	mutualRecursive: pickMutualA() @test(err, code=eval, contains="missing argument a")
+}
+
+scoping: {
+	capture: {
+		base: 10
+		fn:   func(a: int) -> int: a + base
+
+		sameScope: fn(2) @test(eq, 12)
+		callerArg: {
+			local: 3
+			out:   fn(local) @test(eq, 13)
+		}
+	}
+
+	parameter: {
+		a: int | *7
+		fn: func(a: string, b: a) -> int: b
+		out: fn("shadow") @test(eq, int | *7)
+		selected: {
+			out: fn("shadow")
+			@test(eq, {
+				out: 7 @test(final)
+			})
+		}
+	}
+
+	returnType: {
+		a: string
+		fn: func(a: int) -> a: a
+		out: fn(1) @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[int, string, int, string])
+	}
+
+	returnConstraint: (func() -> string: 1)() @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[1, string, int, string])
+}
+
+cycles: {
+	direct: {
+		fn:  func(n: int) -> int: fn(n)
+		out: fn(1) @test(err, code=structural_cycle, contains="structural cycle")
+	}
+
+	mutual: {
+		a:   func(n: int) -> int: b(n)
+		b:   func(n: int) -> int: a(n)
+		out: a(1) @test(err, code=structural_cycle, contains="structural cycle")
+	}
+
+	fibonacci: {
+		fib: func(n: int) -> int: fib(n-1) + fib(n-2)
+		out: fib(5) @test(err, code=structural_cycle, contains="structural cycle")
+	}
+
+	ackermann: {
+		fn:  func(m: int, n: int) -> int: fn(m-1, fn(m, n-1))
+		out: fn(2, 2) @test(err, code=structural_cycle, contains="structural cycle")
+	}
+
+	// Non-recursive nesting of calls to the same function must NOT be flagged
+	// as a cycle. This guards against collapsing all calls to one identity.
+	nesting: {
+		sum:   func(a: int, b: int) -> int: a + b
+		twice: func(n: int) -> int: sum(n, n)
+		out:   twice(twice(2)) @test(eq, 8)
+	}
+}
+
+// A parameter may share its name with the synthetic label under which a call
+// selects its result. This guards against the result arc colliding with a
+// parameter arc in the call instance.
+paramNamedOut: {
+	f: func(out: int) -> int: out + 1
+	x: f(3) @test(eq, 4)
+
+	g: func(_~out: int) -> int: out * 2
+	y: g(5) @test(eq, 10)
+}
+-- out/errors.txt --
+[eval] arguments.sum.tooMany: too many positional arguments in function call:
+    ./in.cue:11:19
+[eval] arguments.sum.unknownLabeled: unknown argument c:
+    ./in.cue:12:19
+[eval] arguments.sum.duplicateArg: argument a provided by position and label:
+    ./in.cue:13:19
+[eval] arguments.sum.duplicateLabeled: duplicate argument a:
+    ./in.cue:14:21
+[eval] arguments.keyword.positional: missing required argument a:
+    ./in.cue:30:15
+[eval] arguments.missing.positional: not enough arguments in function call:
+    ./in.cue:43:15
+[eval] arguments.missing.named: missing argument a:
+    ./in.cue:44:15
+[eval] arguments.builtin.labeled: labeled arguments are not supported for builtin len:
+    ./in.cue:48:12
+[eval] defaults.ambiguous: missing argument a:
+    ./in.cue:63:13
+[eval] defaults.recursive: missing argument a:
+    ./in.cue:64:13
+[eval] defaults.mutualRecursive: missing argument a:
+    ./in.cue:65:19
+[eval] conflicting values 1 and string (mismatched types int and string):
+    ./in.cue:93:6
+    ./in.cue:94:23
+    ./in.cue:94:26
+    ./in.cue:95:8
+    ./in.cue:95:11
+[eval] conflicting values 1 and string (mismatched types int and string):
+    ./in.cue:98:20
+    ./in.cue:98:31
+    ./in.cue:98:39
+[structural_cycle] structural cycle:
+    ./in.cue:103:29
+[structural_cycle] structural cycle:
+    ./in.cue:108:29
+[structural_cycle] structural cycle:
+    ./in.cue:114:29
+structural cycle:
+    ./in.cue:114:40
+[structural_cycle] structural cycle:
+    ./in.cue:119:45
+-- out/eval/stats --
+Leaks:  3
+Freed:  424
+Reused: 386
+Allocs: 41
+Retain: 0
+
+Unifications: 335
+Conjuncts:    1234
+Disjuncts:    33
+
+NumCloseIDs: 162

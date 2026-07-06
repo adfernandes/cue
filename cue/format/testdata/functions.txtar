@@ -1,0 +1,24 @@
+-- functions.input --
+@experiment(functions)
+
+sum: func(
+    _~x: int,
+    // left operand
+    a: int | *5,
+    req!: string,
+    opt?: bool,
+) -> int: call(x, a: a, req: req)
+
+mixed: sum(1, req: "x")
+-- out/format/functions.golden --
+@experiment(functions)
+
+sum: func(
+	_~(x): int,
+	// left operand
+	a: int | *5,
+	req!: string,
+	opt?: bool,
+) -> int: call(x, a: a, req: req)
+
+mixed: sum(1, req: "x")

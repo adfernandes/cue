@@ -340,9 +340,13 @@ func apply[N ast.NilableNode](v applyVisitor, parent Cursor, nodePtr *N) {
 	}
 }
 
-func applyList[N ast.Node](v applyVisitor, parent Cursor, list []N) {
+func applyList[N ast.NilableNode](v applyVisitor, parent Cursor, list []N) {
 	c := newCursor(parent, nil, nil)
+	var zero N // nil
 	for i, node := range list {
+		if node == zero {
+			continue
+		}
 		c.index = i
 		c.node = node
 		if c.modified {
@@ -396,6 +400,11 @@ func applyCursor(v applyVisitor, c Cursor) {
 		applyIfNotNil(v, c, &n.Value)
 		applyList(v, c, n.Attrs)
 
+	case *ast.FuncParam:
+		applyIfNotNil(v, c, &n.Label)
+		applyIfNotNil(v, c, &n.Alias)
+		applyIfNotNil(v, c, &n.Value)
+
 	case *ast.StructLit:
 		n.Elts = applyDeclList(v, c, n.Elts)
 
@@ -411,6 +420,15 @@ func applyCursor(v applyVisitor, c Cursor) {
 
 	case *ast.Ellipsis:
 		applyIfNotNil(v, c, &n.Type)
+
+	case *ast.Func:
+		if len(n.Params) > 0 || len(n.Args) == 0 {
+			applyList(v, c, n.Params)
+		} else {
+			applyList(v, c, n.Args)
+		}
+		applyIfNotNil(v, c, &n.Ret)
+		applyIfNotNil(v, c, &n.Body)
 
 	case *ast.ParenExpr:
 		apply(v, c, &n.X)
@@ -430,6 +448,7 @@ func applyCursor(v applyVisitor, c Cursor) {
 
 	case *ast.CallExpr:
 		apply(v, c, &n.Fun)
+		applyList(v, c, n.ArgLabels)
 		applyList(v, c, n.Args)
 
 	case *ast.UnaryExpr:

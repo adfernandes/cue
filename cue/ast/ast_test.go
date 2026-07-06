@@ -144,6 +144,19 @@ func TestNewStruct(t *testing.T) {
 	})
 }
 
+func TestFuncParamType(t *testing.T) {
+	var _ ast.Decl = (*ast.Field)(nil)
+
+	p := ast.FuncParam(ast.Field{}) // Requires identical underlying types.
+	var n ast.Node = &p
+	if _, ok := n.(*ast.Field); ok {
+		t.Fatal("FuncParam is not a distinct node type")
+	}
+	if _, ok := n.(ast.Decl); ok {
+		t.Fatal("FuncParam implements ast.Decl")
+	}
+}
+
 func TestFileExperiments(t *testing.T) {
 	forVersion := func(t *testing.T, version string) *cueexperiment.File {
 		t.Helper()

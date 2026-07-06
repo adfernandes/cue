@@ -232,6 +232,44 @@ func newScope(f *ast.File, outer *scope, node ast.Node, decls []ast.Decl) *scope
 	return s
 }
 
+func newFuncScope(f *ast.File, outer *scope, fn *ast.Func) *scope {
+	s := outer.allocScope()
+	s.file = f
+	s.outer = outer
+	s.node = fn
+	s.inField = false
+	s.identFn = outer.identFn
+	s.nameFn = outer.nameFn
+	s.errFn = outer.errFn
+
+	insertParam := func(name string, p *ast.FuncParam) {
+		if name == "" || name == "_" {
+			return
+		}
+		if e := s.index[name]; e.node != nil {
+			s.errFn(p.Pos(), "parameter %q redeclared in same scope", name)
+			return
+		}
+		s.insert(name, p, p, nil)
+	}
+	for _, p := range fn.Params {
+		if p == nil {
+			continue
+		}
+		if a := p.Alias; a != nil && a.Field != nil && a.Field.Name != "_" {
+			insertParam(a.Field.Name, p)
+			continue
+		}
+		if p.Label != nil {
+			name, isIdent, _ := ast.LabelName(p.Label)
+			if isIdent {
+				insertParam(name, p)
+			}
+		}
+	}
+	return s
+}
+
 func (s *scope) isLet(n, link ast.Node) bool {
 	if _, ok := s.node.(*ast.Field); ok {
 		return true
@@ -383,6 +421,24 @@ func (s *scope) Before(n ast.Node) bool {
 		defer s.freeScope()
 		for _, elt := range x.Elts {
 			ast.Walk(elt, s.Before, nil)
+		}
+		return false
+
+	case *ast.Func:
+		// Parameter values and the return type resolve in the enclosing
+		// scope; only the body gets a function-parameter scope.
+		for _, p := range x.Parameters() {
+			if p != nil && p.Value != nil {
+				ast.Walk(p.Value, s.Before, nil)
+			}
+		}
+		if x.Ret != nil {
+			ast.Walk(x.Ret, s.Before, nil)
+		}
+		if x.Body != nil {
+			s = newFuncScope(s.file, s, x)
+			defer s.freeScope()
+			ast.Walk(x.Body, s.Before, nil)
 		}
 		return false
 

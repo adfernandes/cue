@@ -214,6 +214,11 @@ func equalTerminal(ctx *OpContext, v, w Value, flags Flag) bool {
 			}
 			return true
 		}
+
+	case *FuncValue:
+		if y, ok := w.(*FuncValue); ok {
+			return x.Fn == y.Fn && x.Env.Equal(ctx, y.Env)
+		}
 	}
 
 	return false

@@ -621,6 +621,13 @@ func (c *compiler) resolve(n *ast.Ident) adt.Expr {
 			X:       entry.expr, // TODO: remove usage
 		}
 
+	case *ast.FuncParam:
+		return &adt.FieldReference{
+			Src:     n,
+			UpCount: upCount,
+			Label:   c.funcParamLocal(f),
+		}
+
 	// Handle new-style postfix aliases: a~X or a~(K,V)
 	case *ast.Field:
 		var ident *ast.Ident
@@ -1118,6 +1125,51 @@ func (c *compiler) labeledExprAt(k int, f ast.Decl, lab labeler, expr ast.Expr) 
 	return value
 }
 
+func (c *compiler) funcParamLocal(p *ast.FuncParam) adt.Feature {
+	if p == nil {
+		return adt.InvalidLabel
+	}
+	if p.Alias != nil && isNonBlank(p.Alias.Field) {
+		return c.label(p.Alias.Field)
+	}
+	if p.Label != nil {
+		return c.label(p.Label)
+	}
+	return adt.InvalidLabel
+}
+
+func (c *compiler) funcParam(p *ast.FuncParam) adt.FuncParam {
+	if p == nil {
+		return adt.FuncParam{
+			Label:      adt.InvalidLabel,
+			Local:      adt.InvalidLabel,
+			Positional: true,
+		}
+	}
+	param := adt.FuncParam{
+		Src:        p,
+		Label:      adt.InvalidLabel,
+		Local:      c.funcParamLocal(p),
+		Positional: true,
+	}
+	if p.Alias != nil && p.Alias.Label != nil {
+		param.Value = c.errf(p.Alias, "dual postfix alias not supported in function parameters")
+		return param
+	}
+	if p.Label != nil {
+		param.Label = c.label(p.Label)
+	}
+	param.Value = c.expr(p.Value)
+	param.ArcType = adt.ConstraintFromToken(p.Constraint)
+	if param.ArcType != adt.ArcMember {
+		param.Positional = false
+	}
+	if param.Label == adt.InvalidLabel && param.Local == adt.InvalidLabel {
+		param.Positional = true
+	}
+	return param
+}
+
 func (c *compiler) expr(expr ast.Expr) adt.Expr {
 	switch n := expr.(type) {
 	case nil:
@@ -1126,14 +1178,41 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 		return c.resolve(n)
 
 	case *ast.Func:
-		// We don't yet support function types natively in
-		// CUE.  ast.Func exists only to support external
-		// injections. Function values (really, adt.Builtin)
-		// are only created by the runtime, or injected by
-		// external injections.
-		//
-		// TODO: revise this when we add function types.
-		return c.resolve(ast.NewIdent("_"))
+		if !c.experiments.Functions {
+			return c.errf(n, "function syntax requires @experiment(functions)")
+		}
+		fn := &adt.Function{Src: n}
+		seenCallableName := false
+		params := n.Parameters()
+		seenParamName := map[adt.Feature]ast.Node{}
+		seenNameOnly := false
+		for _, p := range params {
+			param := c.funcParam(p)
+			if (seenCallableName && param.Label == adt.InvalidLabel) ||
+				(seenNameOnly && param.Positional) {
+				return c.errf(p, "positional parameter after named parameter")
+			}
+			if param.Label != adt.InvalidLabel {
+				seenCallableName = true
+				if !param.Positional {
+					seenNameOnly = true
+				}
+			}
+			if param.Local != adt.InvalidLabel {
+				if prev := seenParamName[param.Local]; prev != nil {
+					return c.errf(p, "parameter %s redeclared in same scope", param.Local.SelectorString(c.index))
+				}
+				seenParamName[param.Local] = p
+			}
+			fn.Params = append(fn.Params, param)
+		}
+		// Parameter constraints and return values are compiled in the closure
+		// scope. Only the implementation body gets a function-parameter scope.
+		fn.Ret = c.expr(n.Ret)
+		c.pushScope(nil, 1, n)
+		fn.Body = c.expr(n.Body)
+		c.popScope()
+		return fn
 
 	case *ast.StructLit:
 		c.pushScope(nil, 1, n)
@@ -1250,8 +1329,24 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 
 	case *ast.CallExpr:
 		call := &adt.CallExpr{Src: n, Fun: c.expr(n.Fun)}
-		for _, a := range n.Args {
+		seenLabel := false
+		for i, a := range n.Args {
 			call.Args = append(call.Args, c.expr(a))
+			if n.ArgLabels != nil {
+				var label ast.Label
+				if i < len(n.ArgLabels) {
+					label = n.ArgLabels[i]
+				}
+				if label != nil {
+					seenLabel = true
+					call.ArgLabels = append(call.ArgLabels, c.label(label))
+				} else {
+					if seenLabel {
+						return c.errf(a, "positional argument after labeled argument")
+					}
+					call.ArgLabels = append(call.ArgLabels, adt.InvalidLabel)
+				}
+			}
 		}
 		return call
 

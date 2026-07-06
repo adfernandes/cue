@@ -1420,6 +1420,436 @@ func (x *OpenExpr) evaluate(c *OpContext, state Flags) Value {
 	return c.evalState(x.X, state)
 }
 
+// A Function represents an unevaluated native CUE function literal.
+type Function struct {
+	Src    *ast.Func
+	Params []FuncParam
+	Ret    Expr
+	Body   Expr
+}
+
+// funcInternalPkg is the pseudo package qualifying hidden labels that are
+// internal to the function-call implementation. It contains a NUL byte, which
+// no user import path can contain, so such labels can never collide with
+// labels from user code.
+const funcInternalPkg = "\x00func"
+
+// funcOutLabel returns the synthetic label under which a function call selects
+// its result, mirroring the hand-written `(f & {...}).out` pattern. It is a
+// hidden label qualified by [funcInternalPkg], so it can never collide with a
+// parameter: parameters are identifier-labeled, and a hidden identifier
+// parameter would be qualified by the user's own package. Features are
+// interned per runtime, so every call site computes the same label.
+func (c *OpContext) funcOutLabel() Feature {
+	return MakeIdentLabel(c, "_out", funcInternalPkg)
+}
+
+// isFuncInternalLabel reports whether f is a label internal to the
+// function-call implementation, such as the synthetic result label. That a
+// call is evaluated as a struct is an implementation detail, so these labels
+// are omitted from user-visible error paths.
+func isFuncInternalLabel(f Feature, r StringIndexer) bool {
+	return f.IsHidden() && f.PkgID(r) == funcInternalPkg
+}
+
+// FuncParam represents a compiled function parameter.
+type FuncParam struct {
+	Src        *ast.FuncParam
+	Label      Feature
+	Local      Feature
+	Value      Expr
+	Positional bool
+
+	// ArcType records the parameter's requiredness: ArcMember for a plain
+	// parameter, ArcRequired for p!, and ArcOptional for p?.
+	ArcType ArcType
+}
+
+// A FuncValue is a function closure captured in an evaluation environment.
+type FuncValue struct {
+	Src *ast.Func
+	Fn  *Function
+	Env *Environment
+}
+
+func (x *Function) Source() ast.Node {
+	if x.Src == nil {
+		return nil
+	}
+	return x.Src
+}
+
+func (x *Function) evaluate(c *OpContext, state Flags) Value {
+	return &FuncValue{
+		Src: x.Src,
+		Fn:  x,
+		Env: c.Env(0),
+	}
+}
+
+func (x *FuncValue) Source() ast.Node {
+	if x.Src == nil {
+		return nil
+	}
+	return x.Src
+}
+
+func (x *FuncValue) Kind() Kind { return FuncKind }
+
+// template returns the struct template {<param constraints>, out: Body & Ret}
+// that backs every call of the function literal captured in environment env.
+// It is built once per (literal, closure) and shared so that recursive calls
+// re-reference the same template, letting the regular structural cycle detector
+// observe the re-entry the same way it does for the hand-written
+// `(f & {...}).out` pattern.
+//
+// Parameter constraints are compiled in the closure scope, while the body sees
+// parameters as sibling fields. Both live in one struct here: the body's
+// constraint references resolve at the struct level (siblings), whereas a
+// parameter constraint is pinned to env so its references resolve in the
+// closure, one level up, preserving the documented scoping (e.g. `b: a` refers
+// to an outer `a`, not the sibling parameter).
+func (x *Function) template(c *OpContext, env *Environment) *StructLit {
+	out := c.funcOutLabel()
+
+	decls := make([]Decl, 0, len(x.Params)+1)
+	for _, p := range x.Params {
+		if p.Local == InvalidLabel || p.Value == nil {
+			// Anonymous positional parameters and parameters without a
+			// constraint contribute nothing to the template scope.
+			continue
+		}
+		group := ConjunctGroup{MakeConjunct(env, p.Value, c.ci)}
+		decls = append(decls, &Field{
+			Label:   p.Local,
+			ArcType: ArcMember,
+			Value:   &group,
+		})
+	}
+
+	// The body sees parameters as sibling fields, so it is evaluated in the
+	// template-struct scope (a plain field value inherits that scope).
+	decls = append(decls, &Field{
+		Label:   out,
+		ArcType: ArcMember,
+		Value:   x.Body,
+	})
+	// The return type, like parameter constraints, is compiled in the closure
+	// scope, so it is pinned to env (one level up) as a second conjunct on the
+	// same arc. This keeps `-> a:` referring to an outer `a`, not the parameter.
+	if x.Ret != nil {
+		group := ConjunctGroup{MakeConjunct(env, x.Ret, c.ci)}
+		decls = append(decls, &Field{
+			Label:   out,
+			ArcType: ArcMember,
+			Value:   &group,
+		})
+	}
+
+	return &StructLit{Src: x.Src, Decls: decls}
+}
+
+// funcTemplateKey identifies the cached template for a function literal
+// captured in a particular closure environment.
+type funcTemplateKey struct {
+	fn  *Function
+	env *Environment
+}
+
+// funcTemplateRefKey identifies the cached reference for a function call site
+// captured in a particular closure environment.
+type funcTemplateRefKey struct {
+	call *CallExpr
+	env  *Environment
+}
+
+// funcTemplateRef is a stable reference to a function's template vertex. Unlike
+// [NodeLink] it is a pure [Resolver] (not also a [Value]), so it is scheduled
+// through handleResolver, mixing the template's conjuncts into the call
+// instance and routing through [nodeContext.detectCycle]. Reusing the same
+// funcTemplateRef across (recursive) calls is what lets the detector recognize
+// re-entry as a structural cycle.
+type funcTemplateRef struct {
+	src    ast.Node
+	target *Vertex
+}
+
+func (x *funcTemplateRef) Source() ast.Node { return x.src }
+
+func (x *funcTemplateRef) resolve(c *OpContext, state Flags) *Vertex {
+	return x.target
+}
+
+func valueHasSingleDefault(v Value) bool {
+	switch x := Unwrap(v).(type) {
+	case *Vertex:
+		return baseValueHasSingleDefault(x.BaseValue)
+	case *Disjunction:
+		return x.NumDefaults == 1
+	default:
+		return false
+	}
+}
+
+func baseValueHasSingleDefault(v BaseValue) bool {
+	if x, ok := v.(Value); ok {
+		return valueHasSingleDefault(x)
+	}
+	return false
+}
+
+func (x *FuncValue) paramHasDefault(c *OpContext, env *Environment, p FuncParam, state Flags) (bool, *Bottom) {
+	if p.Value == nil {
+		return false, nil
+	}
+	// The default probe evaluates the parameter constraint outside any vertex,
+	// so a recursive or mutually recursive default (e.g. n: int | *f()) would
+	// loop forever; the shared-template structural cycle detector does not
+	// apply here. Guard against re-entering the probe for a function already
+	// being probed: treat its default as not single, which surfaces as a
+	// missing-argument error, matching the hand-written `(f & {...})` behavior.
+	if c.probingDefaults[x.Fn] {
+		return false, nil
+	}
+	if c.probingDefaults == nil {
+		c.probingDefaults = map[*Function]bool{}
+	}
+	c.probingDefaults[x.Fn] = true
+	defer delete(c.probingDefaults, x.Fn)
+
+	// Parameter constraints are evaluated in the closure scope, not in the
+	// function body scope, so probing for a single default does not depend
+	// on parameter bindings.
+	savedErrs := c.errs
+	c.errs = nil
+	s := c.PushState(env, p.Value.Source())
+	v := c.evalState(p.Value, Flags{
+		status:    partial,
+		condition: state.condition,
+		mode:      yield,
+	})
+	_ = c.PopState(s)
+	errs := c.errs
+	c.errs = savedErrs
+	if errs != nil && !errs.IsIncomplete() {
+		return false, errs
+	}
+	if b := bottom(v); b != nil && !b.IsIncomplete() {
+		return false, b
+	}
+	return valueHasSingleDefault(v), nil
+}
+
+func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
+	if x.Fn == nil || x.Fn.Body == nil {
+		c.AddErrf("cannot call function without implementation")
+		return nil
+	}
+
+	callEnv := c.Env(0)
+
+	// tmpl is the stable struct template {<param constraints>, out: Body & Ret}
+	// of this function literal. Every call instantiates it, and recursive calls
+	// re-reference it, so the regular structural cycle detector observes the
+	// re-entry the same way it does for the hand-written `(f & {...}).out`
+	// pattern.
+	//
+	// tmplRef is the reference used to reach tmpl. It is stable per call site
+	// (this *CallExpr), not merely per function: the detector treats a
+	// re-occurring arc reached by the SAME reference (r.Ref == x) as a cycle,
+	// but a different reference (r.Ref != x) as ordinary nesting. Distinct call
+	// sites therefore nest freely (e.g. twice(twice(2))), while a single call
+	// site re-entered through recursion is flagged as a structural cycle. This
+	// mirrors `(f & {n: (f & {...}).out}).out`, where the two `f` references are
+	// distinct AST nodes.
+	tmpl := c.funcTemplate(x.Fn, x.Env)
+	tmplRef := c.funcTemplateRef(call, tmpl, x.Env)
+
+	used := make([]bool, len(call.Args))
+	argFields := make([]Decl, 0, len(x.Fn.Params))
+
+	nextPos := 0
+	for _, p := range x.Fn.Params {
+		var arg Expr
+
+		if p.Positional {
+			for nextPos < len(call.Args) && nextPos < len(call.ArgLabels) && call.ArgLabels[nextPos] != InvalidLabel {
+				nextPos++
+			}
+			if nextPos < len(call.Args) && (nextPos >= len(call.ArgLabels) || call.ArgLabels[nextPos] == InvalidLabel) {
+				arg = call.Args[nextPos]
+				used[nextPos] = true
+				nextPos++
+			}
+		}
+
+		if p.Label != InvalidLabel {
+			byLabel := false
+			for j, label := range call.ArgLabels {
+				if label != p.Label {
+					continue
+				}
+				switch {
+				case byLabel:
+					c.AddErrf("duplicate argument %s", p.Label.SelectorString(c))
+					return nil
+				case arg != nil:
+					c.AddErrf("argument %s provided by position and label", p.Label.SelectorString(c))
+					return nil
+				}
+				arg = call.Args[j]
+				used[j] = true
+				byLabel = true
+			}
+		}
+
+		if p.ArcType == ArcRequired && arg == nil {
+			c.AddErrf("missing required argument %s", p.Label.SelectorString(c))
+			return nil
+		}
+		if arg == nil && p.ArcType != ArcOptional {
+			hasDefault, b := x.paramHasDefault(c, x.Env, p, state)
+			if b != nil {
+				c.AddBottom(b)
+				return b
+			}
+			if !hasDefault {
+				if p.Label != InvalidLabel {
+					c.AddErrf("missing argument %s", p.Label.SelectorString(c))
+				} else {
+					c.AddErrf("not enough arguments in function call")
+				}
+				return nil
+			}
+		}
+		if p.ArcType == ArcOptional && arg == nil {
+			continue
+		}
+		if p.Local == InvalidLabel {
+			// Anonymous positional parameters consume arguments for arity and
+			// type checking but are not referenceable from the function body.
+			continue
+		}
+		if arg == nil {
+			// Unprovided parameter that has a single default: the template's
+			// own constraint already carries it, so there is nothing to bind.
+			continue
+		}
+
+		// The argument is evaluated in the caller's environment; the parameter
+		// constraint lives in the template (closure scope). Pinning the
+		// argument conjunct to callEnv keeps its references resolving in the
+		// caller regardless of the template nesting, mirroring the original
+		// `(f & {param: arg})` binding.
+		group := ConjunctGroup{MakeConjunct(callEnv, arg, c.ci)}
+		argFields = append(argFields, &Field{
+			Label:   p.Local,
+			ArcType: ArcMember,
+			Value:   &group,
+		})
+	}
+
+	for i := range call.Args {
+		if !used[i] {
+			if i < len(call.ArgLabels) && call.ArgLabels[i] != InvalidLabel {
+				c.AddErrf("unknown argument %s", call.ArgLabels[i].SelectorString(c))
+			} else {
+				c.AddErrf("too many positional arguments in function call")
+			}
+			return nil
+		}
+	}
+
+	// Build the per-call instance (tmpl & {param: arg, ...}) as a fresh inline
+	// vertex, then select its result arc, mirroring `(f & {...}).out`. The
+	// instance is non-rooted (an inline vertex), so a recursive call that
+	// re-reaches tmpl through tmplRef while this instance is on the stack is
+	// flagged as a structural cycle.
+	conjuncts := make([]Conjunct, 0, 2)
+	conjuncts = append(conjuncts, MakeConjunct(callEnv, tmplRef, c.ci))
+	if len(argFields) > 0 {
+		argStruct := &StructLit{Src: call.Src, Decls: argFields}
+		conjuncts = append(conjuncts, MakeConjunct(callEnv, argStruct, c.ci))
+	}
+	inst := c.newInlineVertex(tmpl, nil, conjuncts...)
+	inst.Finalize(c)
+	// Scheduling the template's conjuncts into inst lazily allocates a transient
+	// nodeContext on the cached template vertex (it acts only as a notify anchor
+	// during scheduleVertexConjuncts and is never finalized). Because the
+	// template lives in the funcTemplates cache for the lifetime of the
+	// OpContext, that nodeContext would otherwise leak. Reclaim it once the call
+	// has consumed the conjuncts, unless it is still referenced on the current
+	// evaluation stack (refCount > 0), e.g. a recursive call sharing the same
+	// template. A subsequent call re-acquires it from the free list.
+	if s := tmpl.state; s != nil && s.refCount == 0 {
+		c.freeNodeContext(s)
+	}
+	if b := inst.Bottom(); b != nil && !b.IsIncomplete() {
+		return b
+	}
+
+	out := c.lookup(inst, Pos(call), c.funcOutLabel(), Flags{
+		status:    finalized,
+		condition: allKnown,
+		mode:      finalize,
+	})
+	if out == nil {
+		return inst
+	}
+	// inst.Finalize already finalized all of inst's arcs, including out, so an
+	// explicit out.Finalize here would be a no-op (its nodeContext is freed and
+	// re-entry returns immediately). We still surface any concrete error left on
+	// the finalized out arc.
+	if b := out.Bottom(); b != nil && !b.IsIncomplete() {
+		return b
+	}
+	return out
+}
+
+// funcTemplate returns the stable template vertex for the given function
+// literal captured in environment env. The template is the struct
+// {<param constraints>, out: Body & Ret}; building it once per (literal,
+// closure) and reusing it across (recursive) calls lets the structural cycle
+// detector observe re-entry, because every call reaches the same arc.
+func (c *OpContext) funcTemplate(fn *Function, env *Environment) *Vertex {
+	if c.funcTemplates == nil {
+		c.funcTemplates = map[funcTemplateKey]*Vertex{}
+	}
+	key := funcTemplateKey{fn: fn, env: env}
+	if v := c.funcTemplates[key]; v != nil {
+		return v
+	}
+
+	st := fn.template(c, env)
+	v := &Vertex{
+		Parent:    env.DerefVertex(c),
+		Label:     c.funcOutLabel(), // arbitrary stable label; the vertex is internal.
+		ArcType:   ArcMember,
+		IsDynamic: true,
+		Conjuncts: ConjunctGroup{MakeConjunct(env, st, c.ci)},
+	}
+	c.funcTemplates[key] = v
+	return v
+}
+
+// funcTemplateRef returns the stable reference used to reach the template
+// vertex from a particular call site. It is cached per (call site, closure) so
+// that re-entry through the SAME call site (recursion) is detected as a cycle
+// (r.Ref == x), while distinct call sites reaching the same template (nesting,
+// e.g. twice(twice(2))) are treated as ordinary structure (r.Ref != x).
+func (c *OpContext) funcTemplateRef(call *CallExpr, tmpl *Vertex, env *Environment) Resolver {
+	if c.funcTemplateRefs == nil {
+		c.funcTemplateRefs = map[funcTemplateRefKey]Resolver{}
+	}
+	key := funcTemplateRefKey{call: call, env: env}
+	if r := c.funcTemplateRefs[key]; r != nil {
+		return r
+	}
+	r := &funcTemplateRef{src: call.Source(), target: tmpl}
+	c.funcTemplateRefs[key] = r
+	return r
+}
+
 func (c *OpContext) validate(env *Environment, src ast.Node, x Expr, op Op, flags Flags) (r Value) {
 	state := flags.status
 
@@ -1576,9 +2006,10 @@ func (c *OpContext) verifyNonMonotonicResult(env *Environment, x Expr, expectErr
 //	len(x)
 //	strings.ToLower(x)
 type CallExpr struct {
-	Src  *ast.CallExpr
-	Fun  Expr
-	Args []Expr
+	Src       *ast.CallExpr
+	Fun       Expr
+	Args      []Expr
+	ArgLabels []Feature
 }
 
 func (x *CallExpr) Source() ast.Node {
@@ -1586,6 +2017,15 @@ func (x *CallExpr) Source() ast.Node {
 		return nil
 	}
 	return x.Src
+}
+
+func (x *CallExpr) hasArgLabels() bool {
+	for _, label := range x.ArgLabels {
+		if label != InvalidLabel {
+			return true
+		}
+	}
+	return false
 }
 
 func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
@@ -1596,9 +2036,20 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 	})
 	switch f := fun.(type) {
 	case *Builtin:
+		if x.hasArgLabels() {
+			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
+			return nil
+		}
 		return f.rawCall(c, x, state)
 
+	case *FuncValue:
+		return f.call(c, x, state)
+
 	case *BuiltinValidator:
+		if x.hasArgLabels() {
+			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
+			return nil
+		}
 		// We allow a validator that takes no arguments except the validated
 		// value to be called with zero arguments.
 		switch {

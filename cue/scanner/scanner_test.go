@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 const /* class */ (
@@ -168,6 +169,8 @@ var testTokens = [...]elt{
 	{tok: token.GTR, lit: ">", class: operator},
 	{tok: token.BIND, lit: "=", class: operator},
 	{tok: token.NOT, lit: "!", class: operator},
+	{tok: token.ARROW, lit: "<-", class: operator},
+	{tok: token.RARROW, lit: "->", class: operator},
 
 	{tok: token.NEQ, lit: "!=", class: operator},
 	{tok: token.LEQ, lit: "<=", class: operator},
@@ -248,6 +251,8 @@ func TestScan(t *testing.T) {
 	// verify scan
 	var s Scanner
 	s.Init(token.NewFile("", -1, len(source)), source, eh, ScanComments|DontInsertCommas)
+	// testTokens expects "->" to scan as a single RARROW token.
+	s.SetExperiments(&cueexperiment.File{Functions: true})
 
 	// set up expected position
 	epos := token.Position{
@@ -545,6 +550,40 @@ func TestInit(t *testing.T) {
 
 	if s.ErrorCount != 0 {
 		t.Errorf("found %d errors", s.ErrorCount)
+	}
+}
+
+// Verify that "->" scans as SUB, GTR by default and as a single RARROW
+// token only when the functions experiment is active.
+func TestFuncArrow(t *testing.T) {
+	testCases := []struct {
+		functions bool
+		want      []token.Token
+	}{
+		{false, []token.Token{token.INT, token.SUB, token.GTR, token.INT, token.EOF}},
+		{true, []token.Token{token.INT, token.RARROW, token.INT, token.EOF}},
+	}
+	for _, tc := range testCases {
+		t.Run(fmt.Sprint(tc.functions), func(t *testing.T) {
+			const src = "3->2"
+			var s Scanner
+			s.Init(token.NewFile("arrow", -1, len(src)), []byte(src), nil, DontInsertCommas)
+			s.SetExperiments(&cueexperiment.File{Functions: tc.functions})
+			var got []token.Token
+			for {
+				_, tok, _ := s.Scan()
+				got = append(got, tok)
+				if tok == token.EOF {
+					break
+				}
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Error(diff)
+			}
+			if s.ErrorCount != 0 {
+				t.Errorf("found %d errors", s.ErrorCount)
+			}
+		})
 	}
 }
 

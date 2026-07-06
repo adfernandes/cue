@@ -67,12 +67,13 @@ const (
 	LAND // &&
 	LOR  // ||
 
-	BIND  // =
-	EQL   // ==
-	LSS   // <
-	GTR   // >
-	NOT   // !
-	ARROW // <-
+	BIND   // =
+	EQL    // ==
+	LSS    // <
+	GTR    // >
+	NOT    // !
+	ARROW  // <-
+	RARROW // ->
 
 	NEQ // !=
 	LEQ // <=

@@ -360,6 +360,9 @@ func (e *baseError) Path() (a []string) {
 		return nil
 	}
 	for _, f := range appendPath(nil, e.v) {
+		if isFuncInternalLabel(f, e.r) {
+			continue
+		}
 		a = append(a, f.SelectorString(e.r))
 	}
 	return a
@@ -468,10 +471,13 @@ func (c *OpContext) makeAltPath() (a []string) {
 	}
 
 	for _, f := range appendPath(nil, c.altPath[0]) {
+		if isFuncInternalLabel(f, c) {
+			continue
+		}
 		a = append(a, f.SelectorString(c))
 	}
 	for _, v := range c.altPath[1:] {
-		if f := v.Label; f != 0 {
+		if f := v.Label; f != 0 && !isFuncInternalLabel(f, c) {
 			a = append(a, f.SelectorString(c))
 		}
 	}

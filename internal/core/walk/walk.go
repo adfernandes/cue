@@ -135,6 +135,23 @@ func (w *Visitor) node(n adt.Node) {
 			w.node(arg)
 		}
 
+	case *adt.Function:
+		// Parameter binding names are local to the body and surface as
+		// references while walking it; here we only descend into the
+		// expressions that may reference outer features: parameter
+		// types/defaults, the return type, and the body.
+		for i := range x.Params {
+			if v := x.Params[i].Value; v != nil {
+				w.node(v)
+			}
+		}
+		if x.Ret != nil {
+			w.node(x.Ret)
+		}
+		if x.Body != nil {
+			w.node(x.Body)
+		}
+
 	case *adt.DisjunctionExpr:
 		for _, d := range x.Values {
 			w.node(d.Val)

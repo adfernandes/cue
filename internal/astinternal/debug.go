@@ -506,7 +506,16 @@ func DebugStr(x interface{}) (out string) {
 	case *ast.CallExpr:
 		out := DebugStr(v.Fun)
 		out += "("
-		out += DebugStr(v.Args)
+		for i, arg := range v.Args {
+			if i > 0 {
+				out += sep
+			}
+			if i < len(v.ArgLabels) && v.ArgLabels[i] != nil {
+				out += DebugStr(v.ArgLabels[i])
+				out += ": "
+			}
+			out += DebugStr(arg)
+		}
 		out += ")"
 		return out
 
@@ -580,7 +589,49 @@ func DebugStr(x interface{}) (out string) {
 		return out
 
 	case *ast.Func:
-		return fmt.Sprintf("func(%v): %v", DebugStr(v.Args), DebugStr(v.Ret))
+		out := fmt.Sprintf("func(%v)", DebugStr(v.Parameters()))
+		if v.Ret != nil {
+			out += fmt.Sprintf(" -> %v", DebugStr(v.Ret))
+		}
+		if v.Body != nil {
+			out += fmt.Sprintf(": %v", DebugStr(v.Body))
+		}
+		return out
+
+	case *ast.FuncParam:
+		var out string
+		if v.Label != nil {
+			out = DebugStr(v.Label)
+			if v.Alias != nil {
+				out += "~"
+				if v.Alias.Label != nil {
+					out += "("
+					out += DebugStr(v.Alias.Label)
+					out += ","
+					out += DebugStr(v.Alias.Field)
+					out += ")"
+				} else {
+					out += DebugStr(v.Alias.Field)
+				}
+			}
+			if t := v.Constraint; t != token.ILLEGAL {
+				out += t.String()
+			}
+			out += ": "
+		}
+		out += DebugStr(v.Value)
+		return out
+
+	case []*ast.FuncParam:
+		if len(v) == 0 {
+			return ""
+		}
+		out := ""
+		for _, d := range v {
+			out += DebugStr(d)
+			out += sep
+		}
+		return out[:len(out)-len(sep)]
 
 	case []ast.Decl:
 		if len(v) == 0 {

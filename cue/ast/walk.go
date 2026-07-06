@@ -33,9 +33,12 @@ func walkIfNotNil[N NilableNode](node N, before func(Node) bool, after func(Node
 	}
 }
 
-func walkList[N Node](list []N, before func(Node) bool, after func(Node)) {
+func walkList[N NilableNode](list []N, before func(Node) bool, after func(Node)) {
+	var zero N // nil
 	for _, node := range list {
-		Walk(node, before, after)
+		if node != zero {
+			Walk(node, before, after)
+		}
 	}
 }
 
@@ -72,9 +75,19 @@ func Walk(node Node, before func(Node) bool, after func(Node)) {
 		walkIfNotNil(n.Value, before, after)
 		walkList(n.Attrs, before, after)
 
+	case *FuncParam:
+		walkIfNotNil(n.Label, before, after)
+		walkIfNotNil(n.Alias, before, after)
+		walkIfNotNil(n.Value, before, after)
+
 	case *Func:
-		walkList(n.Args, before, after)
-		Walk(n.Ret, before, after)
+		if len(n.Params) > 0 || len(n.Args) == 0 {
+			walkList(n.Params, before, after)
+		} else {
+			walkList(n.Args, before, after)
+		}
+		walkIfNotNil(n.Ret, before, after)
+		walkIfNotNil(n.Body, before, after)
 
 	case *StructLit:
 		walkList(n.Elts, before, after)
@@ -110,6 +123,7 @@ func Walk(node Node, before func(Node) bool, after func(Node)) {
 
 	case *CallExpr:
 		Walk(n.Fun, before, after)
+		walkList(n.ArgLabels, before, after)
 		walkList(n.Args, before, after)
 
 	case *UnaryExpr:

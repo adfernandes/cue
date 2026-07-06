@@ -119,8 +119,9 @@ const (
 
 	// ParseFuncs causes function declarations to be parsed.
 	//
-	// This is an experimental function and the API is likely to
-	// change or dissapear.
+	// Deprecated: enable the functions experiment with an
+	// @experiment(functions) file attribute instead. ParseFuncs remains
+	// honored while the experiment is in preview.
 	ParseFuncs
 
 	// Trace causes parsing to print a trace of parsed productions.
@@ -256,6 +257,7 @@ func ParseExpr(filename string, src any, mode ...Option) (_ ast.Expr, err error)
 		return nil, errors.Newf(token.NoPos, "parsing experiments: %v", expErr)
 	}
 	p.experiments = exp
+	p.scanner.SetExperiments(p.scannerExperiments(false))
 	// Set up pkg-level scopes to avoid nil-pointer errors.
 	// This is not needed for a correct expression x as the
 	// parser will be ok with a nil topScope, but be cautious

@@ -25,6 +25,7 @@ import (
 	"unicode/utf8"
 
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 // An ErrorHandler is a generic error handler used throughout CUE packages.
@@ -51,6 +52,7 @@ type Scanner struct {
 	spacesSinceLast int
 	insertEOL       bool // insert a comma before next newline
 	nextHasComma    bool // next token was preceded by an explicit comma
+	experiments     *cueexperiment.File
 
 	quoteStack []quoteInfo
 
@@ -141,6 +143,7 @@ func (s *Scanner) Init(file *token.File, src []byte, eh ErrorHandler, mode Mode)
 	s.offset = 0
 	s.rdOffset = 0
 	s.insertEOL = false
+	s.experiments = nil
 	s.ErrorCount = 0
 
 	s.next()
@@ -692,6 +695,19 @@ func (s *Scanner) Offset() int {
 	return s.offset
 }
 
+// hiddenScanner allows defining methods in Scanner that are hidden from
+// public documentation.
+type hiddenScanner = Scanner
+
+// NOTE: this is an internal API and may change at any time without notice.
+//
+// SetExperiments sets the active per-file experiments that affect scanning.
+// The parser calls this after parsing the file's leading experiment
+// attributes. Until then, no experiments are active.
+func (s *hiddenScanner) SetExperiments(experiments *cueexperiment.File) {
+	s.experiments = experiments
+}
+
 // Scan scans the next token and returns the token position, the token,
 // and its literal string if applicable. The source end is indicated by
 // EOF.
@@ -959,7 +975,12 @@ scanAgain:
 		case '+':
 			tok = token.ADD // Consider ++ for list concatenate.
 		case '-':
-			tok = token.SUB
+			if s.ch == '>' && s.experiments != nil && s.experiments.Functions {
+				s.next()
+				tok = token.RARROW
+			} else {
+				tok = token.SUB
+			}
 		case '*':
 			tok = token.MUL
 		case '/':

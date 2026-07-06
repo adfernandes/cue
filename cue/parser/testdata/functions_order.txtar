@@ -1,0 +1,41 @@
+-- in.cue --
+@experiment(functions)
+
+callAfterNamed: f(a: 1, 2)
+callAfterLaterNamed: f(1, b: 2, 3)
+callAfterMultipleNamed: f(a: 1, b: 2, 3)
+
+signatureAfterNamed: func(a: int, int) -> int: 1
+signatureAfterRequired: func(a!: int, int) -> int: 1
+signatureAfterOptional: func(a?: int, int) -> int: 1
+signatureBlankAfterNamed: func(a: int, _: int) -> int: 1
+signatureAliasAfterNamed: func(a: int, _~x: int) -> int: x
+signatureAliasAfterRequired: func(a!: int, _~x: int) -> int: x
+signatureAliasAfterOptional: func(a?: int, _~x: int) -> int: x
+signatureNamedAfterRequired: func(a!: int, b: int) -> int: b
+signatureNamedAfterOptional: func(a?: int, b: int) -> int: b
+-- out/errors --
+callAfterNamed: positional argument after labeled argument:
+    ./in.cue:3:25
+callAfterLaterNamed: positional argument after labeled argument:
+    ./in.cue:4:33
+callAfterMultipleNamed: positional argument after labeled argument:
+    ./in.cue:5:39
+signatureAfterNamed: positional parameter after named parameter:
+    ./in.cue:7:35
+signatureAfterRequired: positional parameter after named parameter:
+    ./in.cue:8:39
+signatureAfterOptional: positional parameter after named parameter:
+    ./in.cue:9:39
+signatureBlankAfterNamed: positional parameter after named parameter:
+    ./in.cue:10:40
+signatureAliasAfterNamed: positional parameter after named parameter:
+    ./in.cue:11:40
+signatureAliasAfterRequired: positional parameter after named parameter:
+    ./in.cue:12:44
+signatureAliasAfterOptional: positional parameter after named parameter:
+    ./in.cue:13:44
+signatureNamedAfterRequired: positional parameter after named parameter:
+    ./in.cue:14:44
+signatureNamedAfterOptional: positional parameter after named parameter:
+    ./in.cue:15:44

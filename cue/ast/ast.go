@@ -343,9 +343,9 @@ type Field struct {
 	Attrs []*Attribute
 
 	comments
-	decl
 }
 
+func (*Field) declNode()         {}
 func (d *Field) Pos() token.Pos  { return d.Label.Pos() }
 func (d *Field) pos() *token.Pos { return d.Label.pos() }
 func (d *Field) End() token.Pos {
@@ -591,16 +591,82 @@ func (x *Interpolation) Quotes() (first, last *BasicLit) {
 	return first, last
 }
 
-// A Func node represents a function type.
+// A FuncParam node represents a function parameter.
+//
+// If Label is nil, the parameter is anonymous and positional-only. Otherwise
+// Label, Alias, Constraint, and TokenPos have the same meaning as in Field.
+// FuncParam has Field's underlying representation so that their field-shaped
+// syntax stays in sync, but remains a distinct node type and is not a Decl.
+type FuncParam Field
+
+func (p *FuncParam) Pos() token.Pos {
+	if p.Label != nil {
+		return p.Label.Pos()
+	}
+	if p.Value != nil {
+		return p.Value.Pos()
+	}
+	return token.NoPos
+}
+func (p *FuncParam) pos() *token.Pos {
+	if p.Label != nil {
+		return p.Label.pos()
+	}
+	if p.Value != nil {
+		return p.Value.pos()
+	}
+	return nil
+}
+func (p *FuncParam) End() token.Pos {
+	if p.Value != nil {
+		return p.Value.End()
+	}
+	if p.Alias != nil {
+		return p.Alias.End()
+	}
+	if p.Label != nil {
+		return p.Label.End()
+	}
+	return token.NoPos
+}
+
+// A Func node represents a function type or native CUE function.
 //
 // This is an experimental type and the contents will change without notice.
 type Func struct {
-	Func token.Pos // position of "func"
-	Args []Expr    // list of elements; or nil
-	Ret  Expr      // return type, must not be nil
+	Func   token.Pos    // position of "func"
+	Lparen token.Pos    // position of "("
+	Params []*FuncParam // list of parameters; or nil
+	Rparen token.Pos    // position of ")"
+	Arrow  token.Pos    // position of "->"
+	Ret    Expr         // return type; nil means _
+	Colon  token.Pos    // position of ":" before Body
+	Body   Expr         // implementation body; or nil
+
+	// Args is kept for compatibility with older experimental users.
+	//
+	// Deprecated: use Params.
+	Args []Expr
 
 	comments
 	expr
+}
+
+// Parameters returns the function parameters, synthesizing positional-only
+// parameters from the legacy Args field for nodes that set Args instead of
+// Params. It is a convenience for code that only inspects parameter values;
+// callers that traverse or rewrite the parameter nodes themselves should
+// branch on Params versus Args directly, since the synthesized parameters
+// carry no label, alias, or comments.
+func (x *Func) Parameters() []*FuncParam {
+	if len(x.Params) > 0 || len(x.Args) == 0 {
+		return x.Params
+	}
+	params := make([]*FuncParam, len(x.Args))
+	for i, arg := range x.Args {
+		params[i] = &FuncParam{Value: arg}
+	}
+	return params
 }
 
 // A StructLit node represents a literal struct.
@@ -838,11 +904,20 @@ type SliceExpr struct {
 }
 
 // A CallExpr node represents an expression followed by an argument list.
+//
+// TODO(v1): join Args and ArgLabels into a single slice of a node type
+// that describes an optionally keyed expression, such as CallArg or
+// KeyedExpr.
 type CallExpr struct {
 	Fun    Expr      // function expression
 	Lparen token.Pos // position of "("
 	Args   []Expr    // function arguments; or nil
-	Rparen token.Pos // position of ")"
+	// ArgLabels optionally records argument labels aligned with Args. A nil
+	// label marks a positional argument, so f(1, b: 2) is represented as
+	// Args [1, 2] and ArgLabels [nil, b]. ArgLabels may be nil when all
+	// arguments are positional.
+	ArgLabels []Label
+	Rparen    token.Pos // position of ")"
 
 	comments
 	expr
@@ -960,7 +1035,24 @@ func (x *Ident) End() token.Pos {
 func (x *BasicLit) End() token.Pos { return x.ValuePos.Add(len(x.Value)) }
 
 func (x *Interpolation) End() token.Pos { return x.Elts[len(x.Elts)-1].End() }
-func (x *Func) End() token.Pos          { return x.Ret.End() }
+func (x *Func) End() token.Pos {
+	if x.Body != nil {
+		return x.Body.End()
+	}
+	if x.Ret != nil {
+		return x.Ret.End()
+	}
+	if x.Rparen != token.NoPos {
+		return x.Rparen.Add(1)
+	}
+	if x.Lparen != token.NoPos {
+		return x.Lparen.Add(1)
+	}
+	if x.Func != token.NoPos {
+		return x.Func.Add(len("func"))
+	}
+	return token.NoPos
+}
 func (x *StructLit) End() token.Pos {
 	if x.Rbrace == token.NoPos && len(x.Elts) > 0 {
 		return x.Elts[len(x.Elts)-1].End()
