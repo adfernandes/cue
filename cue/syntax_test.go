@@ -17,11 +17,13 @@ package cue_test
 import (
 	"strings"
 	"testing"
+	"testing/fstest"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
+	cueload "cuelang.org/go/cue/load"
 	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/core/runtime"
 )
@@ -308,6 +310,54 @@ func TestFragment(t *testing.T) {
 }`
 	got := strings.TrimSpace(string(b))
 	want := strings.TrimSpace(out)
+	if got != want {
+		t.Errorf("got: %v; want %v", got, want)
+	}
+}
+
+// TestSyntaxInlineImportsUnify tests that Syntax with InlineImports elides
+// imports when the value was composed through [cue.Value.Unify] rather than
+// built directly from an instance.
+// Issue: https://cuelang.org/issue/2495
+func TestSyntaxInlineImportsUnify(t *testing.T) {
+	fsys := fstest.MapFS{
+		"cue.mod/module.cue": &fstest.MapFile{Data: []byte(`module: "example.com"
+language: version: "v0.9.0"
+`)},
+		"config.cue": &fstest.MapFile{Data: []byte(`package config
+
+import "example.com/test"
+
+x: test.#x
+`)},
+		"test/test.cue": &fstest.MapFile{Data: []byte(`package test
+
+#x: {}
+`)},
+	}
+	insts := cueload.Instances([]string{"."}, &cueload.Config{FS: fsys})
+	if err := insts[0].Err; err != nil {
+		t.Fatal(err)
+	}
+	ctx := cuecontext.New()
+	v := ctx.BuildInstance(insts[0])
+	if err := v.Err(); err != nil {
+		t.Fatal(err)
+	}
+	v = v.Unify(ctx.CompileString(""))
+
+	syntax := v.Syntax(cue.InlineImports(true))
+	b, err := format.Node(syntax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// TODO: the output below still retains the import; fixed in the next
+	// commit.
+	want := strings.TrimSpace(`
+import "example.com/test"
+
+x: test.#x`)
+	got := strings.TrimSpace(string(b))
 	if got != want {
 		t.Errorf("got: %v; want %v", got, want)
 	}
