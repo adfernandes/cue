@@ -58,7 +58,7 @@ func ConfigDir(getenv func(string) string) (string, error) {
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("cannot determine system config directory: %v", err)
+		return "", fmt.Errorf("cannot determine system config directory (consider setting $CUE_CONFIG_DIR): %v", err)
 	}
 	return filepath.Join(dir, "cue"), nil
 }
@@ -69,7 +69,7 @@ func CacheDir(getenv func(string) string) (string, error) {
 	}
 	dir, err := os.UserCacheDir()
 	if err != nil {
-		return "", fmt.Errorf("cannot determine system cache directory: %v", err)
+		return "", fmt.Errorf("cannot determine system cache directory (consider setting $CUE_CACHE_DIR): %v", err)
 	}
 	return filepath.Join(dir, "cue"), nil
 }

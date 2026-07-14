@@ -35,20 +35,19 @@ cd ..
 # so we match a prefix of each error rather than its entirety.
 cd depmod
 ! exec cue export .
-stderr '^mod\.test/root@v0: import failed: cannot find package "remote\.com/bar": cannot fetch remote\.com/bar@v0\.1\.0: cannot determine system cache directory: '
+stderr '^mod\.test/root@v0: import failed: cannot find package "remote\.com/bar": cannot fetch remote\.com/bar@v0\.1\.0: cannot determine system cache directory \(consider setting \$CUE_CACHE_DIR\): '
 ! exec cue mod tidy
-stderr '^failed to resolve "remote\.com/bar": cannot fetch remote\.com/bar@v0\.1\.0: cannot determine system cache directory: '
+stderr '^failed to resolve "remote\.com/bar": cannot fetch remote\.com/bar@v0\.1\.0: cannot determine system cache directory \(consider setting \$CUE_CACHE_DIR\): '
 ! exec cue mod get remote.com/bar@v0.2.0
-stderr '^cannot determine system cache directory: '
+stderr '^cannot determine system cache directory \(consider setting \$CUE_CACHE_DIR\): '
 cd ..
 
 # Trying to publish a module does not work without cache or config.
 cd publishmod
 ! exec cue login
-stderr '^cannot find the path to store CUE registry logins: cannot determine system config directory: '
+stderr '^cannot find the path to store CUE registry logins: cannot determine system config directory \(consider setting \$CUE_CONFIG_DIR\): '
 ! exec cue mod publish v0.0.1
-stderr '^cannot determine system cache directory: '
-# TODO(mvdan): both errors above should mention the cue env var that can be set as well.
+stderr '^cannot determine system cache directory \(consider setting \$CUE_CACHE_DIR\): '
 cd ..
 -- standalone/foo.cue --
 foo: "bar"
