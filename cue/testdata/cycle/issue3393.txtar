@@ -1,0 +1,47 @@
+# A recursive "macro" definition that walks a nested struct via an inline
+# selection, (#makeOptionalFields & {base: v}).result, used to be reported
+# as a structural cycle when the input was more than one level deep.
+# Fixed by https://cuelang.org/cl/1211742, which disabled structure sharing
+# for non-rooted values; the sharing produced partially evaluated inline
+# values that were misdetected as cyclic.
+# https://cuelang.org/issue/3393
+-- in.cue --
+#makeOptionalFields: {
+	base: {...}
+	result: {
+		for k, v in base {
+			if (v & {...}) != _|_ {
+				"\(k)": (#makeOptionalFields & {
+					base: v
+				}).result
+			}
+			if (v & {...}) == _|_ {
+				"\(k)": *v | _
+			}
+		}
+	}
+}
+
+overlaid: (#makeOptionalFields & {base: _base}).result @test(eq, {
+	some: *"field" | _
+	yet: {another: *"field" | _}
+})
+
+_base: {
+	some: "field"
+	yet: {
+		another: "field"
+	}
+}
+-- out/eval/stats --
+Leaks:  0
+Freed:  34
+Reused: 15
+Allocs: 19
+Retain: 0
+
+Unifications: 27
+Conjuncts:    61
+Disjuncts:    4
+
+NumCloseIDs: 25
