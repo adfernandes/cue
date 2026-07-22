@@ -1,4 +1,4 @@
-// Copyright 2025 CUE Authors
+// Copyright 2026 CUE Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,28 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package opt
+package filetypes
 
-type Opt[T any] struct {
-	x       T
-	present bool
-}
-
-func (o Opt[T]) IsPresent() bool {
-	return o.present
-}
-
-func (o Opt[T]) Value() T {
-	return o.x
-}
-
-func Some[T any](x T) Opt[T] {
-	return Opt[T]{
-		x:       x,
-		present: true,
-	}
-}
-
-func None[T any]() Opt[T] {
-	return Opt[T]{}
+// AspectNamesForTest exposes the aspect-name table so external tests
+// can check it stays in one-to-one correspondence with the Boolean
+// aspect fields of types.cue's #FileInfo template.
+func AspectNamesForTest() []string {
+	return aspectNames[:]
 }

@@ -20,14 +20,10 @@ import (
 
 //go:generate go run -tags cuebootstrap ./generate.go
 
-func toFile(mode Mode, sc *scope, filename string) (*build.File, error) {
-	return toFileGenerated(mode, sc, filename)
-}
-
 // FromFile returns detailed file info for a given build file. It ignores b.Tags and
 // b.BoolTags, instead assuming that any tag handling has already been processed
 // by [ParseArgs] or similar.
 // The b.Encoding field must be non-empty.
 func FromFile(b *build.File, mode Mode) (*FileInfo, error) {
-	return fromFileGenerated(b, mode)
+	return fromFile(b, mode)
 }

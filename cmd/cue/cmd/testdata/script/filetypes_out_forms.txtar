@@ -1,48 +1,56 @@
 # Test the full matrix of output form qualifiers across the export,
-# eval, and def commands: every one of the four forms (data, graph,
-# dag, schema) is accepted as an output qualifier for a CUE file by
-# each of the three commands.
+# eval, and def commands. types.cue fixes the form of CUE output per
+# mode (export writes data, eval writes final, def writes schema), so
+# only the form qualifiers those forms admit are accepted: export
+# admits data, def admits graph and schema (schema may refine to
+# graph), and every other combination is contradictory and reports
+# which form the mode does not support. The earlier lookup tables
+# accepted all twelve cells because their generator dropped form-only
+# tags in every mode after input; see the parity record in
+# specs/ace8n-dynamic-filetypes/research.md.
 #
 # The input contains a definition and a reference so that the
 # per-command defaults are visible in the goldens: export resolves the
-# reference and drops the definition, eval resolves the reference but
-# keeps the definition, and def keeps both.
+# reference and drops the definition, and def keeps both.
 
-# export accepts all four form qualifiers.
+# export writes data, so only the data qualifier is accepted.
 exec cue export -o data:export-data.cue input.cue
 cmp export-data.cue out/export.cue
 
-exec cue export -o graph:export-graph.cue input.cue
-cmp export-graph.cue out/export.cue
+! exec cue export -o graph:export-graph.cue input.cue
+stderr 'form "graph" is not supported for encoding "cue" in export mode'
 
-exec cue export -o dag:export-dag.cue input.cue
-cmp export-dag.cue out/export.cue
+! exec cue export -o dag:export-dag.cue input.cue
+stderr 'form "dag" is not supported for encoding "cue" in export mode'
 
-exec cue export -o schema:export-schema.cue input.cue
-cmp export-schema.cue out/export.cue
+! exec cue export -o schema:export-schema.cue input.cue
+stderr 'form "schema" is not supported for encoding "cue" in export mode'
 
-# eval accepts all four form qualifiers.
-exec cue eval -o data:eval-data.cue input.cue
-cmp eval-data.cue out/eval.cue
+# eval writes the final form, which no form qualifier may override.
+! exec cue eval -o data:eval-data.cue input.cue
+stderr 'form "data" is not supported for encoding "cue" in eval mode'
 
-exec cue eval -o graph:eval-graph.cue input.cue
-cmp eval-graph.cue out/eval.cue
+! exec cue eval -o graph:eval-graph.cue input.cue
+stderr 'form "graph" is not supported for encoding "cue" in eval mode'
 
-exec cue eval -o dag:eval-dag.cue input.cue
-cmp eval-dag.cue out/eval.cue
+! exec cue eval -o dag:eval-dag.cue input.cue
+stderr 'form "dag" is not supported for encoding "cue" in eval mode'
 
-exec cue eval -o schema:eval-schema.cue input.cue
-cmp eval-schema.cue out/eval.cue
+! exec cue eval -o schema:eval-schema.cue input.cue
+stderr 'form "schema" is not supported for encoding "cue" in eval mode'
 
-# def accepts all four form qualifiers.
-exec cue def -o data:def-data.cue input.cue
-cmp def-data.cue out/def.cue
+# def writes schemas, which admit the schema and graph qualifiers.
+! exec cue def -o data:def-data.cue input.cue
+stderr 'form "data" is not supported for encoding "cue" in def mode'
 
+# The graph qualifier takes effect: references resolve and the
+# definition is dropped, unlike def's default schema output. The old
+# tables ignored the qualifier here and wrote the default output.
 exec cue def -o graph:def-graph.cue input.cue
-cmp def-graph.cue out/def.cue
+cmp def-graph.cue out/def-graph.cue
 
-exec cue def -o dag:def-dag.cue input.cue
-cmp def-dag.cue out/def.cue
+! exec cue def -o dag:def-dag.cue input.cue
+stderr 'form "dag" is not supported for encoding "cue" in def mode'
 
 exec cue def -o schema:def-schema.cue input.cue
 cmp def-schema.cue out/def.cue
@@ -61,14 +69,13 @@ b: a
 -- out/export.cue --
 a: 4
 b: 4
--- out/eval.cue --
-#D: x: int
-a: 4
-b: 4
 -- out/def.cue --
 #D: x: int
 a: 4
 b: a
+-- out/def-graph.cue --
+a: 4
+b: 4
 -- out/export.json --
 {
     "a": 4,

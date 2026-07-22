@@ -16,12 +16,6 @@
 
 package filetypes
 
-import "cuelang.org/go/cue/build"
+func newTagTypes() map[string]TagType { panic("never called") }
 
-func toFileGenerated(mode Mode, sc *scope, filename string) (*build.File, error) {
-	panic("never called")
-}
-
-func fromFileGenerated(b *build.File, mode Mode) (*FileInfo, error) {
-	panic("never called")
-}
+func newBuiltinRegistry() *registryData { panic("never called") }

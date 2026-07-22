@@ -16,6 +16,7 @@ package filetypes
 
 import (
 	_ "embed"
+	"sync"
 )
 
 //go:generate go tool stringer -type=TagType -linecomment
@@ -29,5 +30,14 @@ const (
 	TagSubsidiaryString
 )
 
-// initialized by types_gen.go
-var tagTypes map[string]TagType
+// tagTypes lazily materializes the built-in tag classification generated in
+// types_gen.go. Most users of the package never parse a file-type qualifier,
+// so avoid constructing this map during package initialization.
+var tagTypes = sync.OnceValue(newTagTypes)
+
+// typesCUE holds the types.cue source: the single source of truth for
+// built-in file types, and the template dynamic registrations are
+// validated against (see TypesCUESource).
+//
+//go:embed types.cue
+var typesCUE string

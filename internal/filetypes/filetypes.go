@@ -15,9 +15,12 @@
 package filetypes
 
 import (
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/errors"
@@ -37,6 +40,17 @@ const (
 	Eval
 	NumModes
 )
+
+// checkMode rejects a Mode outside the defined constants before it is
+// used to index the per-mode registry arrays, so a caller error
+// surfaces as an error rather than an index-out-of-range panic. The
+// earlier lookup tables degraded to a lookup miss for such modes.
+func checkMode(m Mode) error {
+	if m < 0 || m >= NumModes {
+		return errors.Newf(token.NoPos, "invalid mode %d", int(m))
+	}
+	return nil
+}
 
 func (m Mode) String() string {
 	switch m {
@@ -183,16 +197,136 @@ func ParseFileAndType(file, scope string, mode Mode) (*build.File, error) {
 // scope holds attributes that influence encoding and decoding.
 // Together with the mode and the file name, they determine
 // a number of properties of the encoding process.
+//
+// A parsed scope is cached and shared process-wide (parseScope returns
+// the same *scope for the same qualifier string, and emptyScope for
+// ""), so a scope and its maps must be treated as immutable once
+// parseScope has returned it; resolution only ever reads them.
 type scope struct {
 	topLevel         map[string]bool
 	subsidiaryBool   map[string]bool
 	subsidiaryString map[string]string
+
+	// canonicalKey is the resolution-cache identity for top-level and
+	// Boolean subsidiary tags. String-valued subsidiary tags are excluded
+	// because their value space is unbounded and disables result caching.
+	canonicalKey string
 }
+
+var emptyScope = &scope{}
+
+const (
+	// Keep the parsed-scope cache small in both entry count and retained
+	// bytes. Qualifiers longer than this remain valid but are parsed on
+	// every use. strings.Clone below prevents a short substring from
+	// retaining an arbitrarily large caller-owned backing string.
+	maxParsedScopeCacheEntries = 1024
+	maxParsedScopeKeyBytes     = 256
+)
+
+// boundedCache combines a lock-free read path with mutex-protected FIFO
+// admission. Once full, it evicts the oldest admitted key so a workload change
+// can replace stale entries while retained state remains strictly bounded.
+// Values must be immutable because a reader may still observe an entry while
+// a concurrent miss evicts it.
+type boundedCache[K comparable, V any] struct {
+	values sync.Map // K -> V
+
+	mu    sync.Mutex
+	keys  []K
+	next  int
+	limit int
+}
+
+func newBoundedCache[K comparable, V any](limit int) *boundedCache[K, V] {
+	if limit <= 0 {
+		panic("filetypes: bounded cache requires a positive limit")
+	}
+	return &boundedCache[K, V]{limit: limit}
+}
+
+func (c *boundedCache[K, V]) Load(key K) (V, bool) {
+	value, ok := c.values.Load(key)
+	if !ok {
+		var zero V
+		return zero, false
+	}
+	return value.(V), true
+}
+
+// LoadOrStore returns the existing value for key, or stores and returns value.
+// Admission and eviction are serialized so the FIFO and map cannot diverge.
+func (c *boundedCache[K, V]) LoadOrStore(key K, value V) (actual V, loaded bool) {
+	if actual, loaded := c.Load(key); loaded {
+		return actual, true
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if actual, loaded := c.Load(key); loaded {
+		return actual, true
+	}
+	if len(c.keys) < c.limit {
+		c.keys = append(c.keys, key)
+	} else {
+		c.values.Delete(c.keys[c.next])
+		c.keys[c.next] = key
+		c.next = (c.next + 1) % c.limit
+	}
+	c.values.Store(key, value)
+	return value, false
+}
+
+func (c *boundedCache[K, V]) Clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.values.Clear()
+	c.keys = nil
+	c.next = 0
+}
+
+func (c *boundedCache[K, V]) Len() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.keys)
+}
+
+func (c *boundedCache[K, V]) Range(f func(K, V) bool) {
+	c.values.Range(func(key, value any) bool {
+		return f(key.(K), value.(V))
+	})
+}
+
+var parsedScopeCache = newBoundedCache[string, *scope](maxParsedScopeCacheEntries)
 
 func parseScope(scopeStr string) (*scope, error) {
 	if scopeStr == "" {
-		return &scope{}, nil
+		return emptyScope, nil
 	}
+	cacheable := len(scopeStr) <= maxParsedScopeKeyBytes
+	if cacheable {
+		if cached, ok := parsedScopeCache.Load(scopeStr); ok {
+			return cached, nil
+		}
+		// The maps in scope retain substrings of their input. Clone before
+		// parsing so a cached short qualifier cannot retain a much larger
+		// string from ParseFile's combined qualifier-and-filename input.
+		scopeStr = strings.Clone(scopeStr)
+	}
+	sc, err := parseScopeUncached(scopeStr)
+	if err != nil {
+		return nil, err
+	}
+	// String-valued subsidiary tags have an unbounded value space and
+	// are intentionally kept out of every resolution-related cache.
+	if !cacheable || len(sc.subsidiaryString) != 0 {
+		return sc, nil
+	}
+	return cacheParsedScope(scopeStr, sc), nil
+}
+
+func parseScopeUncached(scopeStr string) (*scope, error) {
+	builtins := tagTypes()
 	sc := scope{
 		topLevel:         make(map[string]bool),
 		subsidiaryBool:   make(map[string]bool),
@@ -200,7 +334,13 @@ func parseScope(scopeStr string) (*scope, error) {
 	}
 	for tag := range strings.SplitSeq(scopeStr, "+") {
 		tagName, tagVal, hasValue := strings.Cut(tag, "=")
-		switch tagTypes[tagName] {
+		typ := builtins[tagName]
+		if typ == TagUnknown {
+			// Dynamically registered qualifiers and subsidiary tags
+			// extend the built-in classification (registry.go).
+			typ = dynSnapshot().tagKinds[tagName]
+		}
+		switch typ {
 		case TagTopLevel:
 			if hasValue {
 				return nil, errors.Newf(token.NoPos, "cannot specify value for tag %q", tagName)
@@ -225,7 +365,53 @@ func parseScope(scopeStr string) (*scope, error) {
 			return nil, errors.Newf(token.NoPos, "unknown filetype %s", tagName)
 		}
 	}
+	sc.canonicalKey = canonicalScopeKey(&sc)
 	return &sc, nil
+}
+
+func cacheParsedScope(raw string, sc *scope) *scope {
+	actual, _ := parsedScopeCache.LoadOrStore(raw, sc)
+	return actual
+}
+
+// clearParsedScopeCache is only used while tests or benchmarks have
+// exclusive control of the process-wide registry.
+func clearParsedScopeCache() {
+	parsedScopeCache.Clear()
+}
+
+// canonicalScopeKey returns an order- and spelling-independent cache
+// identity for the bounded-valued portion of sc: top-level tag membership and
+// Boolean subsidiary tags. String-valued subsidiary tags are excluded because
+// their values are arbitrary and any scope carrying one bypasses the result
+// cache. Length-prefixing names avoids delimiter ambiguities, including for
+// dynamically registered tags.
+func canonicalScopeKey(sc *scope) string {
+	if sc.canonicalKey != "" {
+		return sc.canonicalKey
+	}
+	if len(sc.topLevel) == 0 && len(sc.subsidiaryBool) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	writeName := func(kind byte, name string) {
+		b.WriteByte(kind)
+		b.WriteString(strconv.Itoa(len(name)))
+		b.WriteByte(':')
+		b.WriteString(name)
+	}
+	for _, name := range slices.Sorted(maps.Keys(sc.topLevel)) {
+		writeName('t', name)
+	}
+	for _, name := range slices.Sorted(maps.Keys(sc.subsidiaryBool)) {
+		writeName('b', name)
+		if sc.subsidiaryBool[name] {
+			b.WriteByte('1')
+		} else {
+			b.WriteByte('0')
+		}
+	}
+	return b.String()
 }
 
 // fileExt is like filepath.Ext except we don't treat file names starting with "." as having an extension

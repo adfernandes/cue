@@ -92,9 +92,11 @@ modes: input: {
 		attributes: *true | false
 	}
 	// encodings is unified to the file value when interpretation is empty.
-	encodings: cue: {
-		*forms.schema | _
-	}
+	//
+	// Note: deliberately not wrapped in a struct literal — the
+	// generator's disjunction extraction (generate.go findDisjunction)
+	// sees through conjunctions but not through struct embeddings.
+	encodings: cue: *forms.schema | _
 	extensions: "-": encoding:           *"cue" | _
 	extensions: ".json": interpretation: *"auto" | _
 	extensions: ".yaml": interpretation: *"auto" | _

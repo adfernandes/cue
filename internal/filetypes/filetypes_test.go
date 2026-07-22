@@ -36,6 +36,26 @@ func check(t *testing.T, want, x interface{}, err error) {
 	}
 }
 
+func TestAspectNames(t *testing.T) {
+	want := [numAspects]string{
+		aAttributes:   "attributes",
+		aConstraints:  "constraints",
+		aCycles:       "cycles",
+		aData:         "data",
+		aDefinitions:  "definitions",
+		aDocs:         "docs",
+		aIncomplete:   "incomplete",
+		aImports:      "imports",
+		aKeepDefaults: "keepDefaults",
+		aOptional:     "optional",
+		aReferences:   "references",
+		aStream:       "stream",
+	}
+	if diff := cmp.Diff(want, aspectNames); diff != "" {
+		t.Fatalf("aspect name mapping (-want +got):\n%s", diff)
+	}
+}
+
 func TestFromFile(t *testing.T) {
 	testCases := []struct {
 		name string
@@ -648,6 +668,83 @@ func TestParseArgs(t *testing.T) {
 			check(t, tc.out, files, err)
 		})
 	}
+}
+
+// TestRegisteredEncodingModeMatrix (T024, DYNFT-REG-002) checks that a
+// dynamically registered encoding resolves exactly like an
+// equivalently-configured built-in in all four modes, modulo the
+// encoding name itself, and that subsidiary-tag misuse on it yields
+// the built-in error phrasing.
+//
+// The reference built-in is jsonl: tagInfo.jsonl contributes only the
+// encoding, and encodings.jsonl is forms.data plus stream: true, with
+// no mode-specific extension overlays — a shape a dynamic registration
+// can declare exactly.
+func TestRegisteredEncodingModeMatrix(t *testing.T) {
+	ResetDynamicRegistryForTesting()
+	t.Cleanup(ResetDynamicRegistryForTesting)
+
+	streamTrue := true
+	err := RegisterEncoding(DynamicEncoding{
+		Name:       "kvjsonl",
+		Extensions: []string{".kvjsonl"},
+		Info: DynamicFileInfo{
+			Form:    "data",
+			Aspects: map[string]bool{"stream": streamTrue},
+		},
+	})
+	qt.Assert(t, qt.IsNil(err))
+
+	// mirror maps the registered encoding's names back to the
+	// built-in's so results can be compared field-by-field.
+	mirrorFile := func(f *build.File) *build.File {
+		c := *f
+		c.Filename = strings.ReplaceAll(c.Filename, "kvjsonl", "jsonl")
+		if c.Encoding == "kvjsonl" {
+			c.Encoding = build.JSONL
+		}
+		return &c
+	}
+
+	for mode := Input; mode < NumModes; mode++ {
+		t.Run(mode.String(), func(t *testing.T) {
+			// Resolution by extension.
+			got, err1 := ParseFileAndType("x.kvjsonl", "", mode)
+			want, err2 := ParseFileAndType("x.jsonl", "", mode)
+			qt.Assert(t, qt.IsNil(err1))
+			qt.Assert(t, qt.IsNil(err2))
+			qt.Assert(t, qt.CmpEquals(mirrorFile(got), want, cmpopts.EquateEmpty()))
+
+			// Resolution by explicit qualifier.
+			got, err1 = ParseFileAndType("x.data", "kvjsonl", mode)
+			want, err2 = ParseFileAndType("x.data", "jsonl", mode)
+			qt.Assert(t, qt.IsNil(err1))
+			qt.Assert(t, qt.IsNil(err2))
+			qt.Assert(t, qt.CmpEquals(mirrorFile(got), want, cmpopts.EquateEmpty()))
+
+			// Qualifier combined with a top-level form tag.
+			got, err1 = ParseFileAndType("x.data", "kvjsonl+schema", mode)
+			want, err2 = ParseFileAndType("x.data", "jsonl+schema", mode)
+			qt.Assert(t, qt.IsNil(err1))
+			qt.Assert(t, qt.IsNil(err2))
+			qt.Assert(t, qt.CmpEquals(mirrorFile(got), want, cmpopts.EquateEmpty()))
+
+			// FromFile reports the same detailed file info.
+			gotFI, err1 := FromFile(&build.File{Filename: "x.kvjsonl", Encoding: "kvjsonl"}, mode)
+			wantFI, err2 := FromFile(&build.File{Filename: "x.jsonl", Encoding: build.JSONL}, mode)
+			qt.Assert(t, qt.IsNil(err1))
+			qt.Assert(t, qt.IsNil(err2))
+			gotFI.Filename, gotFI.Encoding = wantFI.Filename, wantFI.Encoding
+			qt.Assert(t, qt.CmpEquals(gotFI, wantFI, cmpopts.EquateEmpty()))
+		})
+	}
+
+	// Subsidiary-tag misuse yields the built-in error phrasing, for a
+	// string tag and a bool tag alike.
+	_, err = ParseFileAndType("x.data", "kvjsonl+lang=js", Input)
+	qt.Assert(t, qt.ErrorMatches(err, `tag lang is not allowed in this context`))
+	_, err = ParseFileAndType("x.data", "kvjsonl+strict", Input)
+	qt.Assert(t, qt.ErrorMatches(err, `tag strict is not allowed in this context`))
 }
 
 func TestDefaultTagsForInterpretation(t *testing.T) {
