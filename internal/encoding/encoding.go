@@ -236,10 +236,15 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 	// Binary encodings should not be treated as UTF-8, so read directly from the file.
 	// Other encodings are interepted as UTF-8 with an optional BOM prefix.
 	//
-	// TODO: perhaps each encoding could have a "binary" boolean attribute
-	// so that we can use that here rather than hard-coding which encodings are binary.
-	// In the near future, others like [build.BinaryProto] should also be treated as binary.
-	if f.Encoding != build.Binary {
+	// The built-in binary encoding bypasses the transform; a dynamically
+	// registered encoding bypasses it when it declared itself binary (see
+	// cuelang.org/go/unstable/encodingregistry). Without this a custom
+	// binary decoder would receive BOM-stripped, UTF-16-transcoded, or
+	// U+FFFD-replaced bytes rather than the file's actual contents.
+	//
+	// TODO: in the near future, others like [build.BinaryProto] should
+	// also be treated as binary.
+	if !isBinaryEncoding(f.Encoding) {
 		// TODO: this code also allows UTF16, which is too permissive for some
 		// encodings. Switch to unicode.UTF8Sig once available.
 		t := unicode.BOMOverride(unicode.UTF8.NewDecoder())
@@ -322,10 +327,44 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 			i.expr, i.err = d.Parse(cfg.Schema, path, b)
 		}
 	default:
+		// Dynamically registered encodings (see
+		// cuelang.org/go/unstable/encodingregistry) are consulted after
+		// the built-in cases and before the error, so built-in behavior
+		// is never rerouted.
+		if codec, ok := filetypes.LookupCodec(string(f.Encoding)); ok {
+			if codec.NewDecoder == nil {
+				// Mirror the encoder side, which reports an unsupported
+				// encoding rather than calling a nil constructor.
+				i.err = fmt.Errorf("unsupported encoding %q", f.Encoding)
+				break
+			}
+			dec, err := codec.NewDecoder(f, r)
+			if err != nil {
+				i.err = err
+				break
+			}
+			i.next = dec.Decode
+			i.Next()
+			break
+		}
 		i.err = fmt.Errorf("unsupported encoding %q", f.Encoding)
 	}
 
 	return i
+}
+
+// isBinaryEncoding reports whether files of the encoding are read as
+// raw bytes rather than normalized as UTF-8 text. Among built-ins only
+// build.Binary qualifies; a dynamically registered encoding qualifies
+// when it declared itself binary.
+func isBinaryEncoding(enc build.Encoding) bool {
+	if enc == build.Binary {
+		return true
+	}
+	if codec, ok := filetypes.LookupCodec(string(enc)); ok {
+		return codec.Binary
+	}
+	return false
 }
 
 func jsonSchemaFunc(cfg *Config, f *build.File) interpretFunc {

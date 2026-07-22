@@ -276,7 +276,54 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 		}
 
 	default:
-		return nil, fmt.Errorf("unsupported encoding %q", f.Encoding)
+		// Dynamically registered encodings (see
+		// cuelang.org/go/unstable/encodingregistry) are consulted after
+		// the built-in cases and before the error. A registration
+		// without an encoder is decode-only and yields the same error
+		// an unencodable built-in produces.
+		codec, ok := filetypes.LookupCodec(string(f.Encoding))
+		if !ok || codec.NewEncoder == nil {
+			return nil, fmt.Errorf("unsupported encoding %q", f.Encoding)
+		}
+		enc, err := codec.NewEncoder(f, w)
+		if err != nil {
+			return nil, err
+		}
+		// Derive concreteness and the projection options from the
+		// resolved file info, exactly as the built-in CUE branch does,
+		// so a registration's declared form and aspects take effect
+		// instead of an unconditionally concrete projection.
+		fi, err := filetypes.FromFile(f, cfg.Mode)
+		if err != nil {
+			return nil, err
+		}
+		e.concrete = !fi.Incomplete
+		synOpts := []cue.Option{}
+		if !fi.KeepDefaults || !fi.Incomplete {
+			synOpts = append(synOpts, cue.Final())
+		}
+		synOpts = append(synOpts,
+			cue.Docs(fi.Docs),
+			cue.Attributes(fi.Attributes),
+			cue.Optional(fi.Optional),
+			cue.Concrete(!fi.Incomplete),
+			cue.Definitions(fi.Definitions),
+			cue.DisallowCycles(!fi.Cycles),
+			cue.InlineImports(cfg.InlineImports),
+		)
+		e.encValue = func(v cue.Value) error {
+			return enc.Encode(v.Syntax(synOpts...))
+		}
+		wclose := e.close
+		e.close = func() error {
+			err := enc.Close()
+			if wclose != nil {
+				if cerr := wclose(); err == nil {
+					err = cerr
+				}
+			}
+			return err
+		}
 	}
 
 	return e, nil

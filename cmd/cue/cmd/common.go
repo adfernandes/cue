@@ -429,11 +429,6 @@ func (p *buildPlan) getDecoders(b *build.Instance) (schemas, values []*decoderIn
 		switch f.Encoding {
 		case build.Protobuf, build.YAML, build.TOML, build.XML, build.JSON, build.JSONL,
 			build.Text, build.Binary, build.INI:
-			if f.Interpretation == build.ProtobufJSON {
-				// Need a schema.
-				values = append(values, &decoderInfo{f, nil})
-				continue
-			}
 		case build.TextProto:
 			if p.importing {
 				return schemas, values, errors.Newf(token.NoPos,
@@ -443,8 +438,21 @@ func (p *buildPlan) getDecoders(b *build.Instance) (schemas, values []*decoderIn
 			values = append(values, &decoderInfo{f, nil})
 			continue
 		default:
-			return schemas, values, errors.Newf(token.NoPos,
-				"unsupported encoding %q", f.Encoding)
+			// Dynamically registered encodings decode like the generic
+			// data encodings above; unregistered ones keep the error.
+			if _, ok := filetypes.LookupCodec(string(f.Encoding)); !ok {
+				return schemas, values, errors.Newf(token.NoPos,
+					"unsupported encoding %q", f.Encoding)
+			}
+		}
+		// Interpretations that need a schema delay creating the decoder
+		// so that it sees p.encConfig once the schema has been
+		// determined. This applies uniformly to built-in and registered
+		// encodings, and is the single place to extend when further
+		// schema-requiring interpretations are added.
+		if f.Interpretation == build.ProtobufJSON {
+			values = append(values, &decoderInfo{f, nil})
+			continue
 		}
 
 		// We add the module root to the path if there is a module defined.
