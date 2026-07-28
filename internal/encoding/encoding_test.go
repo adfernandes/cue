@@ -15,6 +15,7 @@
 package encoding
 
 import (
+	"errors"
 	"path"
 	"strings"
 	"testing"
@@ -22,6 +23,42 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 )
+
+func TestCloseAndCommit(t *testing.T) {
+	t.Run("codec failure aborts commit", func(t *testing.T) {
+		codecErr := errors.New("codec close failed")
+		committed := false
+		err := closeAndCommit(func() error {
+			return codecErr
+		}, func() error {
+			committed = true
+			return nil
+		})
+		if !errors.Is(err, codecErr) {
+			t.Fatalf("got error %v; want %v", err, codecErr)
+		}
+		if committed {
+			t.Fatal("committed output after codec close failed")
+		}
+	})
+
+	t.Run("successful codec close commits", func(t *testing.T) {
+		commitErr := errors.New("commit failed")
+		committed := false
+		err := closeAndCommit(func() error {
+			return nil
+		}, func() error {
+			committed = true
+			return commitErr
+		})
+		if !committed {
+			t.Fatal("did not commit output after successful codec close")
+		}
+		if !errors.Is(err, commitErr) {
+			t.Fatalf("got error %v; want %v", err, commitErr)
+		}
+	})
+}
 
 func TestValidate(t *testing.T) {
 	testCases := []struct {

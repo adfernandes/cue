@@ -41,6 +41,7 @@ import (
 	"cuelang.org/go/internal/filetypes"
 	"cuelang.org/go/internal/pretty"
 	"cuelang.org/go/internal/pretty/style"
+	"cuelang.org/go/internal/valuecodec"
 )
 
 // An Encoder converts CUE to various file formats, including CUE itself.
@@ -54,6 +55,7 @@ type Encoder struct {
 	encValue     func(cue.Value) error
 	autoSimplify bool
 	concrete     bool
+	valuePlane   bool
 }
 
 // IsConcrete reports whether the output is required to be concrete.
@@ -282,47 +284,65 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 		// without an encoder is decode-only and yields the same error
 		// an unencodable built-in produces.
 		codec, ok := filetypes.LookupCodec(string(f.Encoding))
-		if !ok || codec.NewEncoder == nil {
+		if !ok {
 			return nil, fmt.Errorf("unsupported encoding %q", f.Encoding)
 		}
-		enc, err := codec.NewEncoder(f, w)
-		if err != nil {
-			return nil, err
-		}
-		// Derive concreteness and the projection options from the
-		// resolved file info, exactly as the built-in CUE branch does,
-		// so a registration's declared form and aspects take effect
-		// instead of an unconditionally concrete projection.
+		// Both planes derive concreteness — and the syntax plane its
+		// projection options — from the resolved file info, exactly as
+		// the built-in CUE branch does, so a registration's declared
+		// form and aspects take effect.
 		fi, err := filetypes.FromFile(f, cfg.Mode)
 		if err != nil {
 			return nil, err
 		}
 		e.concrete = !fi.Incomplete
-		synOpts := []cue.Option{}
-		if !fi.KeepDefaults || !fi.Incomplete {
-			synOpts = append(synOpts, cue.Final())
-		}
-		synOpts = append(synOpts,
-			cue.Docs(fi.Docs),
-			cue.Attributes(fi.Attributes),
-			cue.Optional(fi.Optional),
-			cue.Concrete(!fi.Incomplete),
-			cue.Definitions(fi.Definitions),
-			cue.DisallowCycles(!fi.Cycles),
-			cue.InlineImports(cfg.InlineImports),
-		)
-		e.encValue = func(v cue.Value) error {
-			return enc.Encode(v.Syntax(synOpts...))
+		var closeCodec func() error
+		if vc, ok := codec.Value.(*valuecodec.Codec); ok && vc.NewValueEncoder != nil {
+			// Value-plane encoder: pass the raw cue.Value, preserving the
+			// lattice, and enforce concreteness only when the mode
+			// requires it (the resolved form's Incomplete aspect),
+			// mirroring the built-in CUE and wire encoders.
+			venc, err := vc.NewValueEncoder(f, w)
+			if err != nil {
+				return nil, err
+			}
+			e.valuePlane = true
+			e.encValue = venc.Encode
+			closeCodec = venc.Close
+		} else {
+			if codec.NewEncoder == nil {
+				return nil, fmt.Errorf("unsupported encoding %q", f.Encoding)
+			}
+			enc, err := codec.NewEncoder(f, w)
+			if err != nil {
+				return nil, err
+			}
+			// Mirror the built-in CUE branch's syntax options so the
+			// codec receives what the registration declared: docs,
+			// attributes, optional fields, definitions, and mode-driven
+			// concreteness, rather than an unconditionally concrete
+			// projection.
+			synOpts := []cue.Option{}
+			if !fi.KeepDefaults || !fi.Incomplete {
+				synOpts = append(synOpts, cue.Final())
+			}
+			synOpts = append(synOpts,
+				cue.Docs(fi.Docs),
+				cue.Attributes(fi.Attributes),
+				cue.Optional(fi.Optional),
+				cue.Concrete(!fi.Incomplete),
+				cue.Definitions(fi.Definitions),
+				cue.DisallowCycles(!fi.Cycles),
+				cue.InlineImports(cfg.InlineImports),
+			)
+			e.encValue = func(v cue.Value) error {
+				return enc.Encode(v.Syntax(synOpts...))
+			}
+			closeCodec = enc.Close
 		}
 		wclose := e.close
 		e.close = func() error {
-			err := enc.Close()
-			if wclose != nil {
-				if cerr := wclose(); err == nil {
-					err = cerr
-				}
-			}
-			return err
+			return closeAndCommit(closeCodec, wclose)
 		}
 	}
 
@@ -365,8 +385,13 @@ func (e *Encoder) EncodeFile(f *ast.File) error {
 func (e *Encoder) Encode(v cue.Value) error {
 	e.autoSimplify = true
 	if e.interpret == nil {
-		if err := v.Validate(cue.Concrete(e.concrete)); err != nil {
-			return err
+		// An incomplete value-plane format carries the full lattice,
+		// including bottom values. Let the codec serialize that value as-is.
+		// Concrete modes retain the usual validation requirement.
+		if !e.valuePlane || e.concrete {
+			if err := v.Validate(cue.Concrete(e.concrete)); err != nil {
+				return err
+			}
 		}
 		return e.encValue(v)
 	}
@@ -385,6 +410,19 @@ func (e *Encoder) Encode(v cue.Value) error {
 		return err
 	}
 	return e.encValue(v)
+}
+
+// closeAndCommit finishes a codec before publishing bytes buffered by writer.
+// A codec close error means its output is incomplete and must never replace the
+// destination file.
+func closeAndCommit(closeCodec, commit func() error) error {
+	if err := closeCodec(); err != nil {
+		return err
+	}
+	if commit != nil {
+		return commit()
+	}
+	return nil
 }
 
 func writer(f *build.File, cfg *Config) (_ io.Writer, close func() error) {

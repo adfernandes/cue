@@ -426,6 +426,12 @@ func (c *injector) decodeFile(file, scope string) (adt.Expr, errors.Error) {
 	defer d.Close()
 
 	n := d.File()
+	// File can record an error lazily (for example when projecting a
+	// value-plane document to syntax fails), so the earlier Err check
+	// does not cover it; recheck before using the file.
+	if err := d.Err(); err != nil {
+		return nil, errors.Promote(err, "failed to decode file")
+	}
 
 	if d.Next(); !d.Done() {
 		// TODO: support streaming values

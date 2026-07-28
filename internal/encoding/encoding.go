@@ -44,6 +44,7 @@ import (
 	"cuelang.org/go/internal/encoding/yaml"
 	"cuelang.org/go/internal/filetypes"
 	"cuelang.org/go/internal/source"
+	"cuelang.org/go/internal/valuecodec"
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 )
@@ -53,11 +54,16 @@ type Decoder struct {
 	cfg            *Config
 	closer         io.Closer
 	next           func() (ast.Expr, error)
+	nextValue      func() (cue.Value, error)
 	rewriteFunc    rewriteFunc
 	interpretFunc  interpretFunc
+	autoInterpret  bool
 	interpretation build.Interpretation
 	expr           ast.Expr
 	file           *ast.File
+	value          cue.Value
+	hasValue       bool
+	valueProjected bool
 	filename       string // may change on iteration for some formats
 	index          int
 	size           int // length of the source file if known; -1 otherwise
@@ -82,6 +88,30 @@ func (i *Decoder) Next() {
 	}
 	// Decoder level
 	i.file = nil
+	i.expr = nil
+	i.value = cue.Value{}
+	i.hasValue = false
+	i.valueProjected = false
+	if i.nextValue != nil {
+		i.value, i.err = i.nextValue()
+		i.index++
+		if i.err != nil {
+			return
+		}
+		if !i.value.Exists() {
+			// A non-existent value is a codec contract violation, not a
+			// semantic bottom: error values exist and remain valid payload
+			// (formats such as CUE wire intentionally carry them), whereas
+			// a zero cue.Value has no document behind it and would flow
+			// through as silently empty or, under a schema, be replaced by
+			// the schema entirely.
+			i.err = fmt.Errorf("value-plane decoder for %q returned a non-existent value", i.filename)
+			return
+		}
+		i.hasValue = true
+		i.doInterpret()
+		return
+	}
 	i.expr, i.err = i.next()
 	i.index++
 	if i.err != nil {
@@ -93,27 +123,113 @@ func (i *Decoder) Next() {
 func (i *Decoder) doInterpret() {
 	if i.rewriteFunc != nil {
 		i.file = i.File()
+		if i.err != nil {
+			return
+		}
 		var err error
 		i.file, err = i.rewriteFunc(i.file)
 		if err != nil {
 			i.err = err
 			return
 		}
+		// A syntax rewrite supersedes the directly decoded value.
+		i.value = cue.Value{}
+		i.hasValue = false
 	}
 	if i.interpretFunc != nil {
-		i.file = i.File()
-		v := i.ctx.BuildFile(i.file)
-		if err := v.Err(); err != nil {
+		var v cue.Value
+		if i.hasValue {
+			v = i.value
+		} else {
+			i.file = i.File()
+			v = i.ctx.BuildFile(i.file)
+		}
+		if !i.autoInterpret || !i.hasValue {
+			if err := v.Err(); err != nil {
+				i.err = err
+				return
+			}
+		}
+		file, err := i.interpretFunc(v)
+		if err != nil {
 			i.err = err
 			return
 		}
-		i.file, i.err = i.interpretFunc(v)
+		// Auto may inspect a direct bottom to decide that no interpretation
+		// applies. If it did recognize one, retain the historical rule that an
+		// interpreted value itself must be error-free.
+		if i.autoInterpret && i.hasValue && i.interpretation != "" {
+			if err := v.Err(); err != nil {
+				i.err = err
+				return
+			}
+		}
+		// Auto interpretation returns no file when it detected nothing. In
+		// that case retain a directly decoded value instead of forcing it
+		// through the compatibility syntax projection.
+		if file == nil {
+			return
+		}
+		if i.hasValue {
+			// The interpreted file becomes the current document, but callers
+			// such as --with-context still need the original, pre-interpretation
+			// source expression. Project it before replacing i.file.
+			i.setValueSyntax()
+			if i.err != nil {
+				return
+			}
+		}
+		i.file = file
+		i.value = cue.Value{}
+		i.hasValue = false
+	}
+}
+
+// setValueSyntax creates the compatibility syntax projection used by File and
+// SourceExpr. The exact decoded value remains available through DecodedValue;
+// in particular, callers that need structure sharing or original conjuncts
+// must use that direct path rather than rebuilding this syntax.
+func (i *Decoder) setValueSyntax() {
+	if i.valueProjected {
+		return
+	}
+	i.valueProjected = true
+	node := i.value.Syntax(
+		cue.Definitions(true),
+		cue.Hidden(true),
+		cue.Optional(true),
+		cue.Docs(true),
+		cue.Attributes(true),
+		cue.ErrorsAsValues(true),
+	)
+	switch x := node.(type) {
+	case *ast.File:
+		// Keep package and import declarations. Converting the file through
+		// internal.ToExpr would discard its preamble, so File retains x.
+		// SourceExpr remains an expression for legacy placement callers.
+		i.file = x
+		i.expr = internal.ToExpr(x)
+	case ast.Expr:
+		i.expr = x
+	default:
+		i.err = fmt.Errorf("value-plane decoder returned unexpected syntax node %T", node)
 	}
 }
 
 func (i *Decoder) File() *ast.File {
+	if i.hasValue && i.file == nil && i.expr == nil {
+		i.setValueSyntax()
+	}
 	if i.file != nil {
 		return i.file
+	}
+	if i.expr == nil {
+		// No syntax is available, for example when the projection in
+		// setValueSyntax failed after Done had already reported false.
+		// Return an empty file rather than nil so that callers which
+		// guard with Done before calling File never dereference nil;
+		// the error remains observable through Err.
+		return &ast.File{}
 	}
 	return internal.ToFile(i.expr, false)
 }
@@ -121,7 +237,18 @@ func (i *Decoder) File() *ast.File {
 // SourceExpr returns the expression decoded from the source, before any
 // interpretation such as JSON Schema is applied.
 func (i *Decoder) SourceExpr() ast.Expr {
+	if i.hasValue && i.file == nil && i.expr == nil {
+		i.setValueSyntax()
+	}
 	return i.expr
+}
+
+// DecodedValue returns the current document directly when it came from a
+// value-plane decoder. The returned value is the codec's original cue.Value,
+// without an intervening conversion through syntax. The bool reports whether
+// the direct value is available; syntax-plane decoders return false.
+func (i *Decoder) DecodedValue() (cue.Value, bool) {
+	return i.value, i.hasValue
 }
 
 func (i *Decoder) Err() error {
@@ -208,6 +335,7 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 	switch f.Interpretation {
 	case "":
 	case build.Auto:
+		i.autoInterpret = true
 		openAPI := openAPIFunc(cfg, f)
 		jsonSchema := jsonSchemaFunc(cfg, f)
 		i.interpretFunc = func(v cue.Value) (file *ast.File, err error) {
@@ -218,7 +346,7 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 			case build.OpenAPI:
 				return openAPI(v)
 			}
-			return i.file, i.err
+			return nil, nil
 		}
 	case build.OpenAPI:
 		i.interpretation = build.OpenAPI
@@ -332,9 +460,24 @@ func NewDecoder(ctx *cue.Context, f *build.File, cfg *Config) *Decoder {
 		// the built-in cases and before the error, so built-in behavior
 		// is never rerouted.
 		if codec, ok := filetypes.LookupCodec(string(f.Encoding)); ok {
+			if vc, ok := codec.Value.(*valuecodec.Codec); ok && vc.NewValueDecoder != nil {
+				// Retain each decoded cue.Value directly. File provides a
+				// compatibility syntax projection, but value-aware callers use
+				// DecodedValue so no lattice information is lost.
+				vdec, err := vc.NewValueDecoder(i.ctx, f, r)
+				if err != nil {
+					i.err = err
+					break
+				}
+				i.nextValue = vdec.Decode
+				i.Next()
+				break
+			}
 			if codec.NewDecoder == nil {
-				// Mirror the encoder side, which reports an unsupported
-				// encoding rather than calling a nil constructor.
+				// The registration API requires a decoder (NewDecoder or a
+				// value-plane decoder), so this is normally unreachable;
+				// guard against a nil constructor rather than calling it,
+				// mirroring the encoder side.
 				i.err = fmt.Errorf("unsupported encoding %q", f.Encoding)
 				break
 			}

@@ -145,7 +145,7 @@ func TestRegisterValidation(t *testing.T) {
 	err := encodingregistry.Register(encodingregistry.Encoding{
 		Name: "kvx",
 	})
-	qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "kvx": NewDecoder is required`))
+	qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "kvx": a decoder is required \(NewDecoder or NewValueDecoder\)`))
 
 	// An empty name is rejected.
 	err = encodingregistry.Register(encodingregistry.Encoding{

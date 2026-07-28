@@ -64,8 +64,10 @@ package encodingregistry
 import (
 	"io"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/internal/filetypes"
+	"cuelang.org/go/internal/valuecodec"
 )
 
 // A Decoder decodes documents of a registered encoding into CUE
@@ -78,6 +80,16 @@ type Decoder = filetypes.Decoder
 // Encode is called once per document; Close flushes any buffered
 // output but does not close the underlying writer.
 type Encoder = filetypes.Encoder
+
+// A ValueDecoder decodes documents of a registered encoding directly
+// into cue.Value, preserving the full value lattice. Decode returns one
+// value per document and io.EOF when no documents remain.
+type ValueDecoder = valuecodec.ValueDecoder
+
+// A ValueEncoder encodes cue.Value into a registered encoding,
+// preserving the value lattice. Close flushes buffered output but does
+// not close the underlying writer.
+type ValueEncoder = valuecodec.ValueEncoder
 
 // Mode identifies an overall mode CUE is being run in, for per-mode
 // property overlays. The zero value is not a valid mode.
@@ -201,19 +213,36 @@ type Encoding struct {
 	Tags     map[string]TagDecl
 	BoolTags map[string]BoolTagDecl
 
-	// NewDecoder returns a decoder reading documents of this
-	// encoding from r. It is required: a registration that cannot
-	// decode is not usable.
+	// NewDecoder returns a syntax-plane decoder reading documents of
+	// this encoding from r. Exactly one decoder is required: either
+	// NewDecoder or NewValueDecoder, not both.
 	//
 	// The build.File records the resolved file properties, including
 	// any subsidiary tag values in f.Tags and f.BoolTags.
 	NewDecoder func(f *build.File, r io.Reader) (Decoder, error)
 
-	// NewEncoder returns an encoder writing documents of this
-	// encoding to w. It is optional: when nil, the encoding is
-	// decode-only and using it as an output target fails with the
-	// same error an unencodable built-in encoding produces.
+	// NewEncoder returns a syntax-plane encoder writing documents of
+	// this encoding to w. It is optional: when nil (and NewValueEncoder
+	// is also nil), the encoding is decode-only and using it as an
+	// output target fails with the same error an unencodable built-in
+	// encoding produces. It is mutually exclusive with NewValueEncoder.
 	NewEncoder func(f *build.File, w io.Writer) (Encoder, error)
+
+	// NewValueDecoder returns a value-plane decoder that reads documents
+	// directly into cue.Value. Syntax can express constraints, defaults,
+	// definitions, and conjunctions, but rebuilding a value from syntax cannot
+	// preserve evaluated graph identity, structure sharing, or original
+	// conjunct provenance. The direct path preserves those properties. It is
+	// mutually exclusive with NewDecoder; exactly one decoder must be set. The
+	// decoder receives the *cue.Context to build values into.
+	NewValueDecoder func(ctx *cue.Context, f *build.File, r io.Reader) (ValueDecoder, error)
+
+	// NewValueEncoder returns a value-plane encoder that receives the
+	// raw cue.Value, preserving the full lattice. Concreteness is
+	// enforced only in modes that require it (the resolved form's
+	// Incomplete aspect), mirroring the built-in CUE and wire encoders.
+	// It is optional and mutually exclusive with NewEncoder.
+	NewValueEncoder func(f *build.File, w io.Writer) (ValueEncoder, error)
 }
 
 // A ConflictError reports a registration refused because its name or

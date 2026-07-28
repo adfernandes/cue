@@ -249,13 +249,23 @@ func (i *streamingIterator) scan() bool {
 	}
 
 	// compose value
-	i.f = i.dec.File()
-	v := i.b.cmd.ctx.BuildFile(i.f)
-	if err := v.Err(); err != nil {
-		i.e = err
-		return false
+	if v, ok := i.dec.DecodedValue(); ok {
+		// Keep value-plane documents on the value plane. Rebuilding File()
+		// would lose information that syntax cannot represent, such as
+		// structure sharing and original conjuncts. Semantic errors are left
+		// in the value for the requested operation to handle; formats such as
+		// CUE wire can intentionally carry bottom values.
+		i.v = v
+		i.f = nil
+	} else {
+		i.f = i.dec.File()
+		v := i.b.cmd.ctx.BuildFile(i.f)
+		if err := v.Err(); err != nil {
+			i.e = err
+			return false
+		}
+		i.v = v
 	}
-	i.v = v
 	if schema := i.b.encConfig.Schema; schema.Exists() {
 		i.v = i.v.Unify(schema) // TODO(required fields): don't merge in schema
 		i.e = i.v.Err()

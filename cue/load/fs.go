@@ -549,6 +549,9 @@ func (fc *fileCache) getCUESyntax(bf *build.File, cfg parser.Config) (*ast.File,
 	d := encoding.NewDecoder(fc.ctx, bf, &encodingCfg)
 	defer d.Close()
 	// Note: CUE files can never have multiple file parts.
+	// The evaluation order matters: File may record an error that only
+	// Err reports afterwards, so File must be evaluated first (Go
+	// evaluates the expressions left to right).
 	f, err := d.File(), d.Err()
 	if useCache {
 		src, _ := bf.Source.([]byte)
