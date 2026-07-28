@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -71,7 +72,7 @@ func register(e Encoding) error {
 	}
 	// Validate the declarative record against the types.cue #FileInfo
 	// template: the base properties and every per-mode overlay. This is
-	// the only step that compiles types.cue; RegisterPrecompiled skips it.
+	// the only step that compiles types.cue; RegisterWithoutFullValidation skips it.
 	if err := validateInfo(e.Name, e.Info); err != nil {
 		return err
 	}
@@ -87,9 +88,47 @@ func register(e Encoding) error {
 	return filetypes.RegisterEncoding(d)
 }
 
+// registerWithoutFullValidation registers e without the types.cue template
+// validation, so it never compiles types.cue. See RegisterWithoutFullValidation.
+func registerWithoutFullValidation(e Encoding) error {
+	if err := checkStructure(e); err != nil {
+		return err
+	}
+	d, err := buildDynamic(e)
+	if err != nil {
+		return err
+	}
+	return filetypes.RegisterEncoding(d)
+}
+
+// validateDeclaration runs the full declaration validation (structural,
+// template, resolution-entry, and built-in conflict checks) without
+// registering anything or consulting prior registrations. See Validate.
+func validateDeclaration(e Encoding) error {
+	if err := checkStructure(e); err != nil {
+		return err
+	}
+	if err := validateInfo(e.Name, e.Info); err != nil {
+		return err
+	}
+	for mode, info := range e.PerMode {
+		if _, ok := modeToInternal[mode]; !ok {
+			return fmt.Errorf("cannot register encoding %q: unknown mode %q", e.Name, mode)
+		}
+		if err := validateInfo(e.Name, info); err != nil {
+			return err
+		}
+	}
+	d, err := buildDynamic(e)
+	if err != nil {
+		return err
+	}
+	return filetypes.ValidateEncoding(d)
+}
+
 // checkStructure performs the evaluator-free structural validation of a
 // registration: it never compiles types.cue, so both register and
-// RegisterPrecompiled run it.
+// RegisterWithoutFullValidation run it.
 func checkStructure(e Encoding) error {
 	if e.Name == "" {
 		return fmt.Errorf("cannot register encoding: name must be non-empty")
@@ -208,9 +247,16 @@ func buildDynamic(e Encoding) (filetypes.DynamicEncoding, error) {
 	return d, nil
 }
 
+// validateInfoCalls counts calls to validateInfo — the only path that
+// compiles and unifies against the types.cue template. Tests use it to
+// assert RegisterWithoutFullValidation performs no template validation. It is
+// atomic because registrations may run concurrently.
+var validateInfoCalls atomic.Int64
+
 // validateInfo unifies one FileInfo declaration with the types.cue
 // #FileInfo template and reports any conflict as a registration error.
 func validateInfo(name string, info FileInfo) error {
+	validateInfoCalls.Add(1)
 	t, err := templateValue()
 	if err != nil {
 		return fmt.Errorf("cannot register encoding %q: internal template error: %v", name, err)

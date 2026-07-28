@@ -276,15 +276,6 @@ func TestConflicts(t *testing.T) {
 	})
 	qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "kvd": extension "\.kvc" already registered by encoding "kvc"`))
 
-	// A failed registration must not have left partial state behind:
-	// kvd's name is still free.
-	err = encodingregistry.Register(encodingregistry.Encoding{
-		Name:       "kvd",
-		Extensions: []string{".kvd"},
-		NewDecoder: dec,
-	})
-	qt.Assert(t, qt.IsNil(err))
-
 	// Collision with a prior registration's subsidiary tag: the
 	// reported owner is the encoding that declared the tag, not the
 	// colliding tag name itself.
@@ -302,6 +293,15 @@ func TestConflicts(t *testing.T) {
 	qt.Assert(t, qt.IsTrue(errors.As(err, &conflict)))
 	qt.Assert(t, qt.Equals(conflict.Owner, "kvowner"))
 	qt.Assert(t, qt.IsFalse(conflict.BuiltIn))
+
+	// A failed registration must not have left partial state behind:
+	// kvd's name is still free.
+	err = encodingregistry.Register(encodingregistry.Encoding{
+		Name:       "kvd",
+		Extensions: []string{".kvd"},
+		NewDecoder: dec,
+	})
+	qt.Assert(t, qt.IsNil(err))
 }
 
 // TestLateRegistration checks the registration-after-use semantics:
@@ -451,4 +451,200 @@ func TestRegisterUnusableDeclarations(t *testing.T) {
 		})
 		qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "foo": extension "\." .*`))
 	})
+	t.Run("extension-multiple-dots", func(t *testing.T) {
+		reset(t)
+		err := encodingregistry.Register(encodingregistry.Encoding{
+			Name:       "foo",
+			Extensions: []string{".tar.gz"},
+			NewDecoder: dec,
+		})
+		qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "foo": extension "\.tar\.gz" must name one suffix .*`))
+	})
+	t.Run("extension-path-fragment", func(t *testing.T) {
+		reset(t)
+		err := encodingregistry.Register(encodingregistry.Encoding{
+			Name:       "foo",
+			Extensions: []string{".foo/bar"},
+			NewDecoder: dec,
+		})
+		qt.Assert(t, qt.ErrorMatches(err, `cannot register encoding "foo": extension "\.foo/bar" must name one suffix .*`))
+	})
+	for _, name := range []string{"", "a+b", "a=b", "a:b"} {
+		t.Run("invalid-string-tag-"+name, func(t *testing.T) {
+			reset(t)
+			err := encodingregistry.Register(encodingregistry.Encoding{
+				Name:       "foo",
+				NewDecoder: dec,
+				Tags:       map[string]encodingregistry.TagDecl{name: {}},
+			})
+			qt.Assert(t, qt.IsNotNil(err))
+			qt.Assert(t, qt.StringContains(err.Error(), "tag"))
+		})
+	}
+	for _, name := range []string{"", "a+b", "a=b", "a:b"} {
+		t.Run("invalid-bool-tag-"+name, func(t *testing.T) {
+			reset(t)
+			err := encodingregistry.Register(encodingregistry.Encoding{
+				Name:       "foo",
+				NewDecoder: dec,
+				BoolTags:   map[string]encodingregistry.BoolTagDecl{name: {}},
+			})
+			qt.Assert(t, qt.IsNotNil(err))
+			qt.Assert(t, qt.StringContains(err.Error(), "tag"))
+		})
+	}
+}
+
+// TestRegistrationRejectsIncompatibleComposition checks that all three
+// public validation paths reject declarations whose individual names and
+// values are valid but whose interpretation, form, and aspects cannot be
+// unified during resolution.
+func TestRegistrationRejectsIncompatibleComposition(t *testing.T) {
+	dec := newKVDecoder
+	streamFalse := false
+	tests := []struct {
+		name    string
+		info    encodingregistry.FileInfo
+		perMode map[encodingregistry.Mode]encodingregistry.FileInfo
+	}{
+		{
+			name: "interpretation-form",
+			info: encodingregistry.FileInfo{Interpretation: "jsonschema", Form: "data"},
+		},
+		{
+			name: "interpretation-aspect",
+			info: encodingregistry.FileInfo{
+				Interpretation: "pb",
+				Form:           "data",
+				Aspects:        map[encodingregistry.Aspect]bool{encodingregistry.AspectStream: streamFalse},
+			},
+		},
+		{
+			name: "per-mode-composition",
+			info: encodingregistry.FileInfo{Interpretation: "jsonschema"},
+			perMode: map[encodingregistry.Mode]encodingregistry.FileInfo{
+				encodingregistry.Export: {Form: "data"},
+			},
+		},
+	}
+	entrypoints := []struct {
+		name string
+		call func(encodingregistry.Encoding) error
+	}{
+		{"Register", encodingregistry.Register},
+		{"RegisterWithoutFullValidation", encodingregistry.RegisterWithoutFullValidation},
+		{"Validate", encodingregistry.Validate},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for _, entrypoint := range entrypoints {
+				t.Run(entrypoint.name, func(t *testing.T) {
+					reset(t)
+					err := entrypoint.call(encodingregistry.Encoding{
+						Name:       "badcomposition",
+						Extensions: []string{".badcomposition"},
+						Info:       test.info,
+						PerMode:    test.perMode,
+						NewDecoder: dec,
+					})
+					qt.Assert(t, qt.IsNotNil(err))
+					qt.Assert(t, qt.StringContains(err.Error(), "interpretation"))
+					qt.Assert(t, qt.StringContains(err.Error(), "conflicts"))
+				})
+			}
+		})
+	}
+
+	// A compatible interpretation/form pair remains valid.
+	qt.Assert(t, qt.IsNil(encodingregistry.Validate(encodingregistry.Encoding{
+		Name:       "goodcomposition",
+		Info:       encodingregistry.FileInfo{Interpretation: "jsonschema", Form: "schema"},
+		NewDecoder: dec,
+	})))
+}
+
+// TestRegisterWithoutFullValidation checks that a prevalidated (trusted)
+// registration resolves identically to the same encoding registered the
+// normal way, in all four modes.
+func TestRegisterWithoutFullValidation(t *testing.T) {
+	reset(t)
+	e := encodingregistry.Encoding{
+		Name:       "pc",
+		Extensions: []string{".pc"},
+		Info:       encodingregistry.FileInfo{Form: "data"},
+		NewDecoder: newKVDecoder,
+	}
+	err := encodingregistry.RegisterWithoutFullValidation(e)
+	qt.Assert(t, qt.IsNil(err))
+
+	for _, mode := range []filetypes.Mode{filetypes.Input, filetypes.Export, filetypes.Def, filetypes.Eval} {
+		f, err := filetypes.ParseFile("x.pc", mode)
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(f.Encoding, build.Encoding("pc")))
+		fi, err := filetypes.FromFile(f, mode)
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(fi.Form, build.Data))
+	}
+}
+
+// TestValidateDeclaration checks that Validate accepts a well-formed
+// declaration and rejects a malformed one, so a consumer's build-time
+// test can guard a prevalidated registration.
+func TestValidateDeclaration(t *testing.T) {
+	ok := encodingregistry.Encoding{Name: "vd", Info: encodingregistry.FileInfo{Form: "data"}, NewDecoder: newKVDecoder}
+	qt.Assert(t, qt.IsNil(encodingregistry.Validate(ok)))
+
+	bad := encodingregistry.Encoding{Name: "vd", Info: encodingregistry.FileInfo{Form: "nope"}, NewDecoder: newKVDecoder}
+	qt.Assert(t, qt.IsNotNil(encodingregistry.Validate(bad)))
+}
+
+// TestValidateReportsBuiltinConflicts checks that Validate reports
+// collisions with built-in names and extensions as ConflictError. The
+// built-in file types are compile-time constants, so a build-time
+// Validate can catch such conflicts before shipping; conflicts with
+// other runtime registrations remain visible only to Register, keeping
+// Validate side-effect-free and independent of registry state.
+func TestValidateReportsBuiltinConflicts(t *testing.T) {
+	reset(t)
+	dec := newKVDecoder
+
+	// A built-in encoding name is a conflict at validation time.
+	var conflict *encodingregistry.ConflictError
+	err := encodingregistry.Validate(encodingregistry.Encoding{
+		Name:       "json",
+		NewDecoder: dec,
+	})
+	qt.Assert(t, qt.IsTrue(errors.As(err, &conflict)))
+	qt.Assert(t, qt.Equals(conflict.Kind, "name"))
+	qt.Assert(t, qt.IsTrue(conflict.BuiltIn))
+
+	// So is a built-in extension.
+	err = encodingregistry.Validate(encodingregistry.Encoding{
+		Name:       "kvfresh",
+		Extensions: []string{".json"},
+		NewDecoder: dec,
+	})
+	qt.Assert(t, qt.IsTrue(errors.As(err, &conflict)))
+	qt.Assert(t, qt.Equals(conflict.Kind, "extension"))
+	qt.Assert(t, qt.Equals(conflict.Owner, "json"))
+	qt.Assert(t, qt.IsTrue(conflict.BuiltIn))
+
+	// A Validate-accepted declaration with a fresh name still
+	// registers cleanly.
+	ok := encodingregistry.Encoding{
+		Name:       "kvfresh",
+		Extensions: []string{".kvfresh"},
+		Info:       encodingregistry.FileInfo{Form: "data"},
+		NewDecoder: dec,
+	}
+	qt.Assert(t, qt.IsNil(encodingregistry.Validate(ok)))
+	qt.Assert(t, qt.IsNil(encodingregistry.Register(ok)))
+
+	// Validate does not consult runtime registrations: the same
+	// declaration still validates after registration, while Register
+	// now reports the conflict.
+	qt.Assert(t, qt.IsNil(encodingregistry.Validate(ok)))
+	err = encodingregistry.Register(ok)
+	qt.Assert(t, qt.IsTrue(errors.As(err, &conflict)))
+	qt.Assert(t, qt.IsFalse(conflict.BuiltIn))
 }

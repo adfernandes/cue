@@ -245,6 +245,28 @@ func dynSnapshot() *dynRegistry {
 	return s
 }
 
+// ValidateEncoding reports whether a DynamicEncoding's declared
+// properties build valid resolution entries in every mode — a known
+// interpretation and form, valid aspect names, a usable codec, and
+// consistent per-mode overlays — and whether its name, extensions, and
+// tags are free of conflicts with the built-in file types. It neither
+// registers the encoding nor consults prior registrations: it is
+// state-independent and side-effect-free, so conflicts with other
+// runtime registrations are reported by [RegisterEncoding] alone. It
+// performs no CUE evaluation, so a caller can validate a declaration at
+// build time (see encodingregistry.Validate) as cheaply as at
+// registration.
+func ValidateEncoding(e DynamicEncoding) error {
+	if err := e.checkCodec(); err != nil {
+		return err
+	}
+	if err := e.checkBuiltinConflicts(); err != nil {
+		return err
+	}
+	_, _, err := e.modeEntries()
+	return err
+}
+
 // checkCodec rejects a codec that declares codec machinery without any
 // decoder: files of such an encoding could be selected but never read.
 // A decoder is either the syntax-plane NewDecoder or a value-plane
@@ -319,7 +341,7 @@ func (e DynamicEncoding) checkBuiltinConflicts() error {
 // tagInfo analog) and the encodings entry (the "encodings: name:
 // forms.X & {aspect overrides}" analog), composed from Info and any
 // PerMode overlay. It is shared by ValidateEncoding and
-// RegisterEncoding so the two cannot drift — the RegisterPrevalidated
+// RegisterEncoding so the two cannot drift — the RegisterWithoutFullValidation
 // contract relies on registration performing exactly these checks. It
 // performs no CUE evaluation or template compilation.
 func (e DynamicEncoding) modeEntries() (tagEntries, encEntries [NumModes]*entry, _ error) {
@@ -352,7 +374,7 @@ func (e DynamicEncoding) modeEntries() (tagEntries, encEntries [NumModes]*entry,
 // while being mutually exclusive (for example jsonschema and data), and an
 // aspect override can conflict with a concrete value from an interpretation.
 //
-// Keep this evaluator-free: RegisterPrevalidated relies on ValidateEncoding
+// Keep this evaluator-free: RegisterWithoutFullValidation relies on ValidateEncoding
 // using only the generated, pure-Go entry model.
 func (e DynamicEncoding) validateModeEntry(m Mode, info DynamicFileInfo, tagEntry, encEntry *entry) error {
 	builtins := builtinRegistry()
@@ -472,7 +494,7 @@ func RegisterEncoding(e DynamicEncoding) error {
 	// forms.X & {aspect overrides}" value and is what FromFile resolves
 	// aspects from. All are built from the per-mode info, so a PerMode
 	// overlay applies on the explicit-qualifier path (tagInfo) as well
-	// as the extension path. Public RegisterPrevalidated reaches this
+	// as the extension path. Public RegisterWithoutFullValidation reaches this
 	// path too; modeEntries uses no CUE evaluation or template
 	// compilation, and the entries it returns are reused for
 	// publication so prevalidated registration does not pay for a

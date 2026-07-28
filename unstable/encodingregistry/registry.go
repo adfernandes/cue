@@ -48,10 +48,11 @@
 // any case before the first use of the CUE API, as in the example
 // above.
 //
-// The declarative record is validated once, at registration time,
-// against the same internal template (types.cue) that defines the
-// built-in file types; failures are registration-time errors, never
-// resolution-time surprises.
+// [Register] validates the declarative record at registration time against the
+// same internal template (types.cue) that defines the built-in file types.
+// Latency-sensitive programs with fixed declarations may instead use
+// [RegisterWithoutFullValidation] and run [Validate] over those declarations in a
+// build-time test.
 //
 // The declarative properties describe capabilities used by file-type
 // resolution and the surrounding CUE pipeline; they are not per-call codec
@@ -269,4 +270,49 @@ type LateRegistrationError = filetypes.LateRegistrationError
 // template.
 func Register(e Encoding) error {
 	return register(e)
+}
+
+// RegisterWithoutFullValidation adds the encoding to the process-wide registry
+// without unifying its declarative record against the types.cue
+// file-type template. That template step guards against drift between
+// this package's evaluator-free checks and the types.cue #FileInfo
+// template; skipping it avoids compiling the template — the cost that
+// dominates a cold [Register] call — and avoids keeping the compiled
+// template's CUE context resident for the process lifetime. Register
+// and RegisterWithoutFullValidation otherwise accept and reject declarations
+// identically: the evaluator-free structural and composition checks
+// (name, decoder, extensions, tags, and compatible
+// interpretation/form/aspects) and the add-only, freeze-on-first-use,
+// conflict, and codec machinery are shared. A first call may still
+// perform the shared, one-time pure-Go materialization of generated
+// built-in file-type data.
+//
+// RegisterWithoutFullValidation is intended for latency-sensitive binaries (for
+// example a commercial build registering an encoding from an init
+// function) whose registrations are fixed; call [Validate] on the same
+// Encoding from a build-time test so that a malformed or drifted
+// declaration fails the build rather than shipping.
+//
+// It returns the same [*ConflictError] and [*LateRegistrationError] as
+// Register, plus any structural error, but performs no template
+// validation.
+func RegisterWithoutFullValidation(e Encoding) error {
+	return registerWithoutFullValidation(e)
+}
+
+// Validate reports whether e's declarative record is well formed and
+// free of conflicts with the built-in file types, without registering
+// anything. It runs the structural and pure-Go composition checks
+// shared by [Register] and [RegisterWithoutFullValidation], reports a collision
+// with a built-in name or extension as a [*ConflictError], and unifies
+// the base properties and every per-mode overlay against the types.cue
+// template — the drift protection that RegisterWithoutFullValidation skips.
+// Validate is side-effect-free and independent of registry state:
+// conflicts with other runtime registrations are observable only at
+// registration time. A consumer that registers with
+// [RegisterWithoutFullValidation] should call Validate over the same
+// declarations in a build-time test so a malformed or conflicting
+// declaration fails the build rather than shipping.
+func Validate(e Encoding) error {
+	return validateDeclaration(e)
 }
