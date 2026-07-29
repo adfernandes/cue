@@ -86,8 +86,10 @@ x: p2 & p3
 			expected: `
 package p1
 
-import "mod.com/p3"
-import "mod.com/p2"
+import (
+	"mod.com/p2"
+	"mod.com/p3"
+)
 
 x: p2 & p3
 `[1:],
@@ -131,7 +133,6 @@ x: p3
 package p1
 
 import "mod.com/p3"
-
 
 x: p3
 `[1:],
@@ -205,16 +206,11 @@ x: p1 & p4 & p7
 			expected: `
 package p1
 
-
-
-import "mod.com/p1"
-
 import (
+	"mod.com/p1"
 	"mod.com/p4"
 	"mod.com/p7"
 )
-
-
 
 x: p1 & p4 & p7
 `[1:],
@@ -279,6 +275,252 @@ package p1
 import "mod.com/p3" // pinned
 
 x: p3
+`[1:],
+		},
+
+		// Every comment placement kind exercised at once: detached
+		// paragraphs outside blocks (c8) concatenate in front of the
+		// merged declaration's doc block in source order; doc comments of
+		// merged declarations (c2, c9) concatenate; comments on the
+		// opening and closing parentheses (c3, c7) stay on their
+		// tokens; detached groups inside the block keep their block
+		// (c4 rides above its import, c6 collects at the end); a group
+		// following all imports (c11) stays behind.
+		{
+			name: "placement_worked_example_1",
+			input: `
+package p1
+
+// c1
+
+// c2
+import ( // c3
+
+	// c4
+
+	// c5
+	"math" // c5a
+
+	// c6
+) // c7
+
+// c8
+
+// c9
+import "strconv" // c10
+
+// c11
+
+x: math.Pi
+y: strconv.Quote("a")
+`[1:],
+			expected: `
+package p1
+
+// c1
+
+// c8
+
+// c2
+//
+// c9
+import ( // c3
+
+	// c4
+
+	// c5
+	"math" // c5a
+	"strconv" // c10
+
+	// c6
+) // c7
+
+// c11
+
+x: math.Pi
+y: strconv.Quote("a")
+`[1:],
+		},
+
+		// A comment trailing a declaration's closing parenthesis never
+		// crosses inward. The hosting declaration's group stays on the
+		// merged closing parenthesis; a merged-away declaration's group
+		// collects after the merged declaration on its own line.
+		{
+			name: "placement_worked_example_2",
+			input: `
+package p1
+
+import ( "math" ) // c1
+import ( "strconv" ) // c2
+
+x: math.Pi
+y: strconv.Quote("a")
+`[1:],
+			expected: `
+package p1
+
+import (
+	"math"
+	"strconv"
+) // c1
+// c2
+
+x: math.Pi
+y: strconv.Quote("a")
+`[1:],
+		},
+
+		// A detached (blank-line-separated) group inside a block
+		// belongs to the import that follows it and moves with that
+		// import when sorting reorders the list, keeping its paragraph
+		// spacing.
+		{
+			name: "placement_forward_association",
+			input: `
+package p1
+
+import (
+	"mod.com/p3"
+
+	// note for p2
+
+	"mod.com/p2"
+)
+
+x: p2 & p3
+`[1:],
+			expected: `
+package p1
+
+import (
+
+	// note for p2
+
+	"mod.com/p2"
+	"mod.com/p3"
+)
+
+x: p2 & p3
+`[1:],
+		},
+
+		// A detached group whose forward import is removed re-homes to
+		// the next surviving import, carrying the authored paragraph
+		// spacing across the removed import.
+		{
+			name: "placement_orphan_rehomes_forward",
+			input: `
+package p1
+
+import (
+	"mod.com/p3"
+
+	// section note
+
+	"mod.com/p2"
+	"mod.com/p4"
+)
+
+x: p3 & p4
+`[1:],
+			expected: `
+package p1
+
+import (
+	"mod.com/p3"
+
+	// section note
+
+	"mod.com/p4"
+)
+
+x: p3 & p4
+`[1:],
+		},
+
+		// A detached group with no surviving import after it, and a
+		// single survivor: the declaration takes the single-line form
+		// and the group lands on its own line after it.
+		{
+			name: "placement_orphan_collects_at_end",
+			input: `
+package p1
+
+import (
+	"mod.com/p3"
+
+	// trailing note
+
+	"mod.com/p2"
+)
+
+x: p3
+`[1:],
+			expected: `
+package p1
+
+import "mod.com/p3"
+
+// trailing note
+
+x: p3
+`[1:],
+		},
+
+		// Detached groups are never deleted, even when every import is
+		// removed: they concatenate where the imports were.
+		{
+			name: "placement_zero_survivors_keeps_detached",
+			input: `
+package p1
+
+import (
+	"mod.com/p3"
+
+	// keep me
+
+	"mod.com/p2"
+)
+
+x: 1
+`[1:],
+			expected: `
+package p1
+
+// keep me
+
+x: 1
+`[1:],
+		},
+
+		// A comment on a merged-away declaration's opening parenthesis
+		// stays inside the block, becoming a leading comment of that
+		// declaration's first import.
+		{
+			name: "placement_lparen_merged_away",
+			input: `
+package p1
+
+import ( // one
+	"mod.com/p3"
+)
+import ( // two
+	"mod.com/p2"
+)
+
+x: p2 & p3
+`[1:],
+			expected: `
+package p1
+
+import ( // one
+	// two
+	"mod.com/p2"
+	"mod.com/p3"
+)
+
+x: p2 & p3
 `[1:],
 		},
 

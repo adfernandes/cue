@@ -752,10 +752,9 @@ func (c *converter) docCommentBlock(cgs []*ast.CommentGroup, trailingRel token.R
 // Position 1 and is interior to the braces.
 //
 // The constants (and the comment helpers [FirstCommentAt],
-// [HasDocComment], and [LeadingRelPos]) are exported for
-// [cuelang.org/go/internal/pretty/style], whose AST rewrites must
-// classify comments and leading positions exactly as this converter
-// does.
+// [HasDocComment], and [LeadingRelPos]) are exported for packages
+// whose AST rewrites or construction must classify comments and
+// leading positions exactly as this converter does.
 const (
 	PosDoc         int8 = 0 // before the node's first token
 	PosPrefix      int8 = 1 // inside, just after the opener
@@ -767,6 +766,13 @@ const (
 	// closing parenthesis; the slot index does not scale with the
 	// number of specs.
 	posImportBeforeRparen int8 = 3
+
+	// PosImportAfterRparen is where the parser files a comment group
+	// that trails a parenthesised import declaration's closing
+	// parenthesis. Constructed ASTs use the same slot: at or above
+	// [PosTrailingMin], and distinct from [posImportBeforeRparen],
+	// whose non-Line groups render inside the parentheses.
+	PosImportAfterRparen int8 = 5
 )
 
 type commentSlots struct {
