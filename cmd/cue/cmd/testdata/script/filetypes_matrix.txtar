@@ -1,0 +1,184 @@
+# Test the extension-to-encoding resolution matrix: each supported data
+# file extension resolves to its expected input encoding, explicit
+# qualifiers override extensions, and output file extensions select the
+# expected output encodings. Each input file holds a tiny payload
+# distinct to its extension so that any encoding mix-up is visible.
+
+# Each extension decodes with its own encoding.
+exec cue export data.json
+cmp stdout out/json
+
+exec cue export data.yaml
+cmp stdout out/yaml
+
+exec cue export data.yml
+cmp stdout out/yml
+
+exec cue export data.toml
+cmp stdout out/toml
+
+# .jsonl, .ndjson, and .ldjson all resolve to the jsonl encoding.
+# The two documents in data.jsonl are unified into a single object.
+exec cue export data.jsonl
+cmp stdout out/jsonl
+
+exec cue export data.ndjson
+cmp stdout out/ndjson
+
+exec cue export data.ldjson
+cmp stdout out/ldjson
+
+# .txt resolves to the text encoding: the file contents become a string.
+exec cue export data.txt
+cmp stdout out/text
+
+# The text encoding can also be selected with an explicit qualifier for
+# a file that has no extension at all.
+cp data.txt noext
+exec cue export text: noext
+cmp stdout out/text
+
+# Writing to a .txt file requires the exported value to be a string.
+exec cue export str.cue -o out.txt
+cmp out.txt out/str.txt
+
+! exec cue export num.cue -o fail.txt
+stderr 'as string'
+
+# Reading from stdin with an explicit encoding qualifier.
+stdin data.json
+exec cue export json: -
+cmp stdout out/json
+
+# Writing to stdout via -o - defaults to JSON for export.
+exec cue export val.cue -o -
+cmp stdout out/val-json
+
+# An explicit encoding qualifier overrides a foreign file extension:
+# jdata.txt contains JSON and is decoded as such, not as text.
+exec cue export json: jdata.txt
+cmp stdout out/jdata
+
+# An unknown file extension is rejected.
+! exec cue export x.nosuch
+stderr 'unknown file extension \.nosuch'
+
+# A file without an extension has no encoding to derive; a form-only
+# qualifier does not supply one.
+! exec cue export data: noext
+stderr 'no encoding specified for file "noext"'
+
+# The same holds for an extensionless output file.
+! exec cue export str.cue -o noextout
+stderr 'no encoding specified for file "noextout"'
+
+# A qualifier naming the wrong encoding for the contents fails.
+! exec cue export json: data.yaml
+stderr 'invalid JSON'
+
+# Output encodings: the same value written through different output
+# file extensions and via --out to stdout.
+exec cue export val.cue -o out.json
+cmp out.json out/val-json
+
+exec cue export val.cue -o out.yaml
+cmp out.yaml out/val-yaml
+
+exec cue export val.cue -o out.toml
+cmp out.toml out/val-toml
+
+exec cue export val.cue --out yaml
+cmp stdout out/val-yaml
+
+-- data.json --
+{"a": 1}
+-- data.yaml --
+b: 2
+-- data.yml --
+c: 3
+-- data.toml --
+d = 4
+-- data.jsonl --
+{"e": 5}
+{"f": 6}
+-- data.ndjson --
+{"g": 7}
+-- data.ldjson --
+{"h": 8}
+-- data.txt --
+hello
+-- jdata.txt --
+{"txt": "json inside"}
+-- x.nosuch --
+x: 1
+-- str.cue --
+"str"
+-- num.cue --
+n: 42
+-- val.cue --
+v: {
+	msg: "hi"
+	n:   3
+}
+list: [1, 2]
+-- out/json --
+{
+    "a": 1
+}
+-- out/yaml --
+{
+    "b": 2
+}
+-- out/yml --
+{
+    "c": 3
+}
+-- out/toml --
+{
+    "d": 4
+}
+-- out/jsonl --
+{
+    "e": 5,
+    "f": 6
+}
+-- out/ndjson --
+{
+    "g": 7
+}
+-- out/ldjson --
+{
+    "h": 8
+}
+-- out/text --
+"hello\n"
+-- out/str.txt --
+str
+-- out/jdata --
+{
+    "txt": "json inside"
+}
+-- out/val-json --
+{
+    "v": {
+        "msg": "hi",
+        "n": 3
+    },
+    "list": [
+        1,
+        2
+    ]
+}
+-- out/val-yaml --
+v:
+  msg: hi
+  "n": 3
+list:
+  - 1
+  - 2
+-- out/val-toml --
+list = [1, 2]
+
+[v]
+msg = 'hi'
+n = 3

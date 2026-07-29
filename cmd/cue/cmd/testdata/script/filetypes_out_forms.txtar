@@ -1,0 +1,79 @@
+# Test the full matrix of output form qualifiers across the export,
+# eval, and def commands: every one of the four forms (data, graph,
+# dag, schema) is accepted as an output qualifier for a CUE file by
+# each of the three commands.
+#
+# The input contains a definition and a reference so that the
+# per-command defaults are visible in the goldens: export resolves the
+# reference and drops the definition, eval resolves the reference but
+# keeps the definition, and def keeps both.
+
+# export accepts all four form qualifiers.
+exec cue export -o data:export-data.cue input.cue
+cmp export-data.cue out/export.cue
+
+exec cue export -o graph:export-graph.cue input.cue
+cmp export-graph.cue out/export.cue
+
+exec cue export -o dag:export-dag.cue input.cue
+cmp export-dag.cue out/export.cue
+
+exec cue export -o schema:export-schema.cue input.cue
+cmp export-schema.cue out/export.cue
+
+# eval accepts all four form qualifiers.
+exec cue eval -o data:eval-data.cue input.cue
+cmp eval-data.cue out/eval.cue
+
+exec cue eval -o graph:eval-graph.cue input.cue
+cmp eval-graph.cue out/eval.cue
+
+exec cue eval -o dag:eval-dag.cue input.cue
+cmp eval-dag.cue out/eval.cue
+
+exec cue eval -o schema:eval-schema.cue input.cue
+cmp eval-schema.cue out/eval.cue
+
+# def accepts all four form qualifiers.
+exec cue def -o data:def-data.cue input.cue
+cmp def-data.cue out/def.cue
+
+exec cue def -o graph:def-graph.cue input.cue
+cmp def-graph.cue out/def.cue
+
+exec cue def -o dag:def-dag.cue input.cue
+cmp def-dag.cue out/def.cue
+
+exec cue def -o schema:def-schema.cue input.cue
+cmp def-schema.cue out/def.cue
+
+# Controls: form qualifiers also combine with non-CUE output encodings.
+exec cue export -o data:outj.json input.cue
+cmp outj.json out/export.json
+
+exec cue export -o schema:outy.yaml input.cue
+cmp outy.yaml out/export.yaml
+
+-- input.cue --
+#D: x: int
+a: 4
+b: a
+-- out/export.cue --
+a: 4
+b: 4
+-- out/eval.cue --
+#D: x: int
+a: 4
+b: 4
+-- out/def.cue --
+#D: x: int
+a: 4
+b: a
+-- out/export.json --
+{
+    "a": 4,
+    "b": 4
+}
+-- out/export.yaml --
+a: 4
+b: 4

@@ -1,0 +1,53 @@
+# Test the bare pb: qualifier. Unlike the explicit json+pb: and
+# yaml+pb: qualifiers covered by cmd_jsonpb, a bare pb: derives the
+# underlying encoding from the file extension and then applies the
+# protobuf interpretation to it.
+
+# A .json extension resolves pb: to json+pb.
+exec cue export schema.cue pb: data.json
+cmp stdout out/export
+
+# The protobuf interpretation also applies when validating.
+exec cue vet schema.cue pb: data.json
+
+# A .yaml extension resolves pb: to yaml+pb, decoding to the same value.
+exec cue export schema.cue pb: data.yaml
+cmp stdout out/export
+
+# With an unknown extension there is no encoding to interpret.
+! exec cue export schema.cue pb: data.nosuch
+stderr 'unknown file extension \.nosuch'
+
+-- schema.cue --
+a: int @protobuf(1,int64) // to string
+b: int @protobuf(2,int32) // also allow string
+c: int // also allow
+d: float
+s: string
+t: bytes
+
+-- data.json --
+{"a": "10", "b": "20", "c": 30, "d": "1.2",
+"s":"SGVsbG8sIOS4lueVjA==",
+"t": "SGVsbG8sIOS4lueVjA=="}
+
+-- data.yaml --
+a: "10"
+b: "20"
+c: 30
+d: "1.2"
+s: "SGVsbG8sIOS4lueVjA=="
+t: "SGVsbG8sIOS4lueVjA=="
+
+-- data.nosuch --
+{"a": "10"}
+
+-- out/export --
+{
+    "a": 10,
+    "b": 20,
+    "c": 30,
+    "d": 1.2,
+    "s": "SGVsbG8sIOS4lueVjA==",
+    "t": "SGVsbG8sIOS4lueVjA=="
+}
