@@ -19,8 +19,8 @@ package p
 import (
 	"a"
 	"b"
-)
 
-// c
+	// c
+)
 
 x: 1

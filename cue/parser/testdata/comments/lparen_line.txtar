@@ -13,8 +13,8 @@ ImportDecl(1 specs): "c" (doc=false line=true position=2)
 -- out/imports/lparen_line.roundtrip --
 package p
 
-import (
+import ( // c
 	"a"
-) // c
+)
 
 x: 1

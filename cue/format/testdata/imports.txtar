@@ -102,18 +102,18 @@ u: strings.ToUpper(s)
 -- out/format/lparen-comment.golden --
 package foo
 
-import (
+import ( // c
 	"cuelang.org/go/foo"
 	"time"
-) // c
+)
 
 a: time.time
 b: foo.foo
 -- out/format/lparen-rparen-comments.golden --
 package foo
 
-import (
+import ( // a
 	"time"
-) // a // b
+) // b
 
 x: time.time

@@ -16,9 +16,9 @@ ImportDecl(1 specs): "c" (doc=false line=false position=2)
 package p
 
 import (
+	// c
 
 	"a"
 )
-// c
 
 x: 1

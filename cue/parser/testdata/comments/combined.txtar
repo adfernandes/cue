@@ -37,15 +37,15 @@ ImportSpec("strconv"): "c11" (doc=false line=false position=2)
 // c1
 
 // c2
-import (
+import ( // c3
+
+	// c4
 
 	// c5
 	"math" // c5a
-) // c3
 
-// c4
-
-// c6 // c7
+	// c6
+) // c7
 
 // c8
 

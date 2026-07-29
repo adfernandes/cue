@@ -761,6 +761,12 @@ const (
 	PosPrefix      int8 = 1 // inside, just after the opener
 	PosSuffix      int8 = 2 // inside, just before the closer
 	PosTrailingMin int8 = 3 // first position counted as trailing
+
+	// posImportBeforeRparen is where the parser files a comment group
+	// sitting between an import declaration's last spec and its
+	// closing parenthesis; the slot index does not scale with the
+	// number of specs.
+	posImportBeforeRparen int8 = 3
 )
 
 type commentSlots struct {
@@ -838,6 +844,12 @@ func (c *converter) withComments(n ast.Node, body doc) doc {
 // withCommentsSlots is like [converter.withComments] but lets the
 // caller supply pre-computed (and possibly filtered) slots.
 func (c *converter) withCommentsSlots(n ast.Node, body doc, slots commentSlots) doc {
+	if x, ok := n.(*ast.ImportDecl); ok {
+		// [converter.importDecl] renders the paren-interior slots;
+		// doc and trailing are left for the generic rendering here.
+		p := partitionImportComments(x)
+		slots = commentSlots{doc: p.doc, trailing: p.trailing}
+	}
 	if !slots.any() {
 		return body
 	}
@@ -3397,7 +3409,7 @@ func (c *converter) importDecl(x *ast.ImportDecl) doc {
 	if len(x.Specs) == 0 {
 		return nil
 	}
-	if !x.Lparen.IsValid() && len(x.Specs) == 1 && !HasDocComment(x.Specs[0]) {
+	if !importDeclParenthesised(x) {
 		// Single import without parens. A doc comment on the spec
 		// forces the parenthesised form below: the no-parens form would
 		// hoist the comment before the `import` keyword (via
@@ -3407,7 +3419,12 @@ func (c *converter) importDecl(x *ast.ImportDecl) doc {
 		return c.withComments(s, body)
 	}
 
+	comments := partitionImportComments(x)
+
 	var bodyParts []doc
+	for _, cg := range comments.afterLparen {
+		bodyParts = append(bodyParts, c.commentSep(cg, c.commentGroup(cg)))
+	}
 	tableRows := make([]row, 0, len(x.Specs))
 	flushTable := func() {
 		if len(tableRows) == 0 {
@@ -3431,10 +3448,27 @@ func (c *converter) importDecl(x *ast.ImportDecl) doc {
 		tableRows = append(tableRows, r)
 	}
 	flushTable()
+	for _, cg := range comments.beforeRparen {
+		bodyParts = append(bodyParts, c.commentSep(cg, c.commentGroup(cg)))
+	}
 
 	closeBreak := relBreakOr(x.Rparen.RelPos(), lineBreakOrEmpty)
+	open := stringLit("import (")
+	if comments.hasInterior() {
+		// Comments inside the parentheses make the flat one-line
+		// rendering impossible (a group trailing the opening
+		// parenthesis would swallow the rest of the line, and
+		// own-line groups need their lines), so force the group to
+		// break.
+		parts := []doc{open}
+		for _, cg := range comments.lparenLine {
+			parts = append(parts, spaceLit, c.commentGroup(cg))
+		}
+		parts = append(parts, switchMode(nil, lineBreakHard))
+		open = cats(parts...)
+	}
 	return group(cats(
-		stringLit("import ("),
+		open,
 		nest(cats(bodyParts...)),
 		closeBreak,
 		rParenLit,
@@ -3659,6 +3693,72 @@ func FirstCommentAt(n ast.Node, pos int8) *ast.CommentGroup {
 // HasDocComment reports whether a node has any doc comments.
 func HasDocComment(n ast.Node) bool {
 	return hasCommentAt(n, PosDoc)
+}
+
+// importDeclParenthesised reports whether x has at least one spec
+// and either a valid Lparen, more than one spec, or a doc comment on
+// its sole spec - the declarations that render in the parenthesised
+// `import (...)` form rather than as a compact `import "path"`.
+func importDeclParenthesised(x *ast.ImportDecl) bool {
+	return len(x.Specs) > 0 &&
+		(x.Lparen.IsValid() || len(x.Specs) > 1 || HasDocComment(x.Specs[0]))
+}
+
+// importCommentSlots holds the comment groups attached to an
+// [*ast.ImportDecl], as partitioned by [partitionImportComments]:
+// every group lands in exactly one slot. Each slot has a single
+// consumer: [converter.importDecl] renders the paren-interior slots
+// inside the parentheses, and [converter.withCommentsSlots] renders
+// doc before the declaration and trailing after it.
+type importCommentSlots struct {
+	// doc holds the groups before the `import` keyword (PosDoc).
+	doc []*ast.CommentGroup
+	// lparenLine holds the groups trailing the opening parenthesis
+	// on its line (`import ( // c`): PosSuffix with Line set.
+	lparenLine []*ast.CommentGroup
+	// afterLparen holds the detached groups between the opening
+	// parenthesis and the first spec: PosSuffix without Line.
+	afterLparen []*ast.CommentGroup
+	// beforeRparen holds the groups between the last spec and the
+	// closing parenthesis: [posImportBeforeRparen] without Line.
+	beforeRparen []*ast.CommentGroup
+	// trailing holds every other group: those following the whole
+	// declaration, plus shapes the parser never files on an import
+	// declaration (a group between `import` and the parenthesis, or
+	// one at [posImportBeforeRparen] with Line set).
+	trailing []*ast.CommentGroup
+}
+
+// hasInterior reports whether any of the paren-interior slots
+// (lparenLine, afterLparen, beforeRparen) holds a group.
+func (s importCommentSlots) hasInterior() bool {
+	return len(s.lparenLine)+len(s.afterLparen)+len(s.beforeRparen) > 0
+}
+
+// partitionImportComments partitions the comment groups attached to x
+// into [importCommentSlots]. When [importDeclParenthesised] is false
+// the declaration has no paren interior, so every group other than
+// the doc groups lands in trailing.
+func partitionImportComments(x *ast.ImportDecl) importCommentSlots {
+	var s importCommentSlots
+	parens := importDeclParenthesised(x)
+	for _, cg := range ast.Comments(x) {
+		switch {
+		case cg.Position == PosDoc:
+			s.doc = append(s.doc, cg)
+		case !parens:
+			s.trailing = append(s.trailing, cg)
+		case cg.Position == PosSuffix && cg.Line:
+			s.lparenLine = append(s.lparenLine, cg)
+		case cg.Position == PosSuffix:
+			s.afterLparen = append(s.afterLparen, cg)
+		case cg.Position == posImportBeforeRparen && !cg.Line:
+			s.beforeRparen = append(s.beforeRparen, cg)
+		default:
+			s.trailing = append(s.trailing, cg)
+		}
+	}
+	return s
 }
 
 // appendAttrs concatenates a field's attributes after val, separated

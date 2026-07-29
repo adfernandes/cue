@@ -17,8 +17,8 @@ package p
 
 import (
 	"a"
-)
 
-// c
+	// c
+)
 
 x: 1

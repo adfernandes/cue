@@ -17,10 +17,10 @@ ImportDecl(2 specs): "c" (doc=false line=false position=2)
 package p
 
 import (
+	// c
 
 	"a"
 	"b"
 )
-// c
 
 x: 1
