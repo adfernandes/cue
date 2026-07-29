@@ -67,6 +67,24 @@ import (
 a: time.time
 b: foo.foo
 c: bar.Bar
+-- lparen-comment.input --
+package foo
+
+import ( // c
+	"cuelang.org/go/foo"
+	"time"
+)
+
+a: time.time
+b: foo.foo
+-- lparen-rparen-comments.input --
+package foo
+
+import ( // a
+	"time"
+) // b
+
+x: time.time
 -- issue1447.input --
 import "strings"
 
@@ -81,3 +99,21 @@ import "strings"
 
 s: string
 u: strings.ToUpper(s)
+-- out/format/lparen-comment.golden --
+package foo
+
+import (
+	"cuelang.org/go/foo"
+	"time"
+) // c
+
+a: time.time
+b: foo.foo
+-- out/format/lparen-rparen-comments.golden --
+package foo
+
+import (
+	"time"
+) // a // b
+
+x: time.time

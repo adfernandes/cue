@@ -1,0 +1,18 @@
+A comment trailing a one-line parenthesized import declaration.
+
+-- oneline_paren_trailing.input --
+package p
+
+import ( "math" ) // c
+
+x: 1
+-- out/imports/oneline_paren_trailing.attachment --
+ImportDecl(1 specs): "c" (doc=false line=true position=5)
+-- out/imports/oneline_paren_trailing.roundtrip --
+package p
+
+import (
+	"math"
+) // c
+
+x: 1

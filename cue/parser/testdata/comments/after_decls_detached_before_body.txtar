@@ -1,0 +1,20 @@
+A detached comment after the imports, before the file body.
+
+-- after_decls_detached_before_body.input --
+package p
+
+import "a"
+
+// c
+
+x: 1
+-- out/imports/after_decls_detached_before_body.attachment --
+ImportSpec("a"): "c" (doc=false line=false position=2)
+-- out/imports/after_decls_detached_before_body.roundtrip --
+package p
+
+import "a"
+
+// c
+
+x: 1

@@ -1,0 +1,24 @@
+Comments trailing two one-line parenthesized import declarations.
+
+-- two_oneline_parens_trailing.input --
+package p
+
+import ( "math" ) // c1
+import ( "strconv" ) // c2
+
+x: 1
+-- out/imports/two_oneline_parens_trailing.attachment --
+ImportDecl(1 specs): "c1" (doc=false line=true position=5)
+ImportDecl(1 specs): "c2" (doc=false line=true position=5)
+-- out/imports/two_oneline_parens_trailing.roundtrip --
+package p
+
+import (
+	"math"
+) // c1
+
+import (
+	"strconv"
+) // c2
+
+x: 1

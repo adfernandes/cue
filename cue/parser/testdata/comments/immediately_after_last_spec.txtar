@@ -1,0 +1,22 @@
+A comment directly after the last import, before the closing parenthesis.
+
+-- immediately_after_last_spec.input --
+package p
+
+import (
+	"a"
+	// c
+)
+
+x: 1
+-- out/imports/immediately_after_last_spec.attachment --
+ImportDecl(1 specs): "c" (doc=true line=false position=3)
+-- out/imports/immediately_after_last_spec.roundtrip --
+package p
+
+import (
+	"a"
+)
+// c
+
+x: 1

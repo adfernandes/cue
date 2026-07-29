@@ -1,0 +1,26 @@
+A detached comment after the last of several imports, before the closing parenthesis.
+
+-- detached_after_last_spec_multi.input --
+package p
+
+import (
+	"a"
+	"b"
+
+	// c
+)
+
+x: 1
+-- out/imports/detached_after_last_spec_multi.attachment --
+ImportDecl(2 specs): "c" (doc=true line=false position=3)
+-- out/imports/detached_after_last_spec_multi.roundtrip --
+package p
+
+import (
+	"a"
+	"b"
+)
+
+// c
+
+x: 1

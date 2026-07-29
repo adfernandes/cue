@@ -1,0 +1,16 @@
+A detached comment after the imports at end of file.
+
+-- after_decls_at_eof.input --
+package p
+
+import "a"
+
+// c
+-- out/imports/after_decls_at_eof.attachment --
+ImportSpec("a"): "c" (doc=false line=false position=2)
+-- out/imports/after_decls_at_eof.roundtrip --
+package p
+
+import "a"
+
+// c

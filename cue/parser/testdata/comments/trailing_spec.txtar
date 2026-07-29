@@ -1,0 +1,20 @@
+A trailing comment on an import inside a block.
+
+-- trailing_spec.input --
+package p
+
+import (
+	"a" // c
+)
+
+x: 1
+-- out/imports/trailing_spec.attachment --
+ImportSpec("a"): "c" (doc=false line=true position=2)
+-- out/imports/trailing_spec.roundtrip --
+package p
+
+import (
+	"a" // c
+)
+
+x: 1

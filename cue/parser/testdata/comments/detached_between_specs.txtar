@@ -1,0 +1,28 @@
+A detached comment between two imports in a block.
+
+-- detached_between_specs.input --
+package p
+
+import (
+	"a"
+
+	// c
+
+	"b"
+)
+
+x: 1
+-- out/imports/detached_between_specs.attachment --
+ImportSpec("a"): "c" (doc=false line=false position=2)
+-- out/imports/detached_between_specs.roundtrip --
+package p
+
+import (
+	"a"
+
+	// c
+
+	"b"
+)
+
+x: 1

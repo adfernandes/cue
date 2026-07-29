@@ -1,0 +1,16 @@
+A trailing comment on a single-line import declaration.
+
+-- trailing_single_decl.input --
+package p
+
+import "a" // c
+
+x: 1
+-- out/imports/trailing_single_decl.attachment --
+ImportSpec("a"): "c" (doc=false line=true position=2)
+-- out/imports/trailing_single_decl.roundtrip --
+package p
+
+import "a" // c
+
+x: 1

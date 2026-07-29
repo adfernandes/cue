@@ -1,0 +1,55 @@
+The comment positions combined in one file: every attachment kind at once.
+
+-- combined.input --
+// c1
+
+// c2
+import ( // c3
+
+	// c4
+
+	// c5
+	"math" // c5a
+
+	// c6
+) // c7
+
+// c8
+
+// c9
+import "strconv" // c10
+
+// c11
+-- out/imports/combined.attachment --
+File: "c1" (doc=false line=false position=0)
+ImportDecl(1 specs): "c2" (doc=true line=false position=0)
+ImportDecl(1 specs): "c3" (doc=false line=true position=2)
+ImportDecl(1 specs): "c4" (doc=false line=false position=2)
+ImportDecl(1 specs): "c6" (doc=true line=false position=3)
+ImportDecl(1 specs): "c7" (doc=false line=true position=5)
+ImportDecl(1 specs): "c8" (doc=false line=false position=5)
+ImportSpec("math"): "c5" (doc=true line=false position=0)
+ImportSpec("math"): "c5a" (doc=false line=true position=2)
+ImportDecl(1 specs): "c9" (doc=true line=false position=0)
+ImportSpec("strconv"): "c10" (doc=false line=true position=2)
+ImportSpec("strconv"): "c11" (doc=false line=false position=2)
+-- out/imports/combined.roundtrip --
+// c1
+
+// c2
+import (
+
+	// c5
+	"math" // c5a
+) // c3
+
+// c4
+
+// c6 // c7
+
+// c8
+
+// c9
+import "strconv" // c10
+
+// c11

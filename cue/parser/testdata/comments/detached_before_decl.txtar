@@ -1,0 +1,20 @@
+A detached (blank-line-separated) comment above the import declaration.
+
+-- detached_before_decl.input --
+package p
+
+// c
+
+import "a"
+
+x: 1
+-- out/imports/detached_before_decl.attachment --
+Package: "c" (doc=false line=false position=3)
+-- out/imports/detached_before_decl.roundtrip --
+package p
+
+// c
+
+import "a"
+
+x: 1

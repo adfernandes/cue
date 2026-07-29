@@ -1,0 +1,22 @@
+A comment immediately above the second of two import declarations.
+
+-- between_decls_doc_next.input --
+package p
+
+import "a"
+
+// c
+import "b"
+
+x: 1
+-- out/imports/between_decls_doc_next.attachment --
+ImportDecl(1 specs): "c" (doc=true line=false position=0)
+-- out/imports/between_decls_doc_next.roundtrip --
+package p
+
+import "a"
+
+// c
+import "b"
+
+x: 1

@@ -1,0 +1,24 @@
+A doc comment immediately above the second import in a block.
+
+-- doc_second_spec.input --
+package p
+
+import (
+	"a"
+	// c
+	"b"
+)
+
+x: 1
+-- out/imports/doc_second_spec.attachment --
+ImportSpec("b"): "c" (doc=true line=false position=0)
+-- out/imports/doc_second_spec.roundtrip --
+package p
+
+import (
+	"a"
+	// c
+	"b"
+)
+
+x: 1

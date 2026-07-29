@@ -1,0 +1,24 @@
+A detached comment before the first import in a block.
+
+-- detached_before_first_spec.input --
+package p
+
+import (
+	// c
+
+	"a"
+)
+
+x: 1
+-- out/imports/detached_before_first_spec.attachment --
+ImportDecl(1 specs): "c" (doc=false line=false position=2)
+-- out/imports/detached_before_first_spec.roundtrip --
+package p
+
+import (
+
+	"a"
+)
+// c
+
+x: 1
