@@ -306,11 +306,20 @@ func (w *Workspace) CodeActionOrganizeImports(ctx context.Context, params *proto
 		return nil, err
 	}
 
+	content := f.tokFile.Content()
+
+	// Organize only when the entire buffer parses cleanly: usage
+	// analysis over a partial parse could classify a used import as
+	// unused and silently delete it.
+	if fh, err := w.overlayFS.ReadFile(fileUri); err != nil {
+		return nil, nil
+	} else if _, _, err := fh.ReadCUE(standaloneParserConfig); err != nil {
+		return nil, nil
+	}
+
 	if delayEdit {
 		return &protocol.WorkspaceEdit{}, nil
 	}
-
-	content := f.tokFile.Content()
 	start := 0
 	var organisedContent strings.Builder
 

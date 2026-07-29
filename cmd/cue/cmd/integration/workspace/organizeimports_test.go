@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
@@ -14,7 +15,39 @@ func TestCodeActionOrganizeImports(t *testing.T) {
 		name     string
 		input    string
 		expected string
+		// check, when set, is used to validate the resulting buffer
+		// instead of comparing it to expected.
+		check func(t *testing.T, after string)
+		// actionOptional tolerates the Organize Imports code action
+		// not being offered; the buffer is then unchanged.
+		actionOptional bool
 	}
+
+	// Body used by the outside_region_untouched case: deliberately
+	// badly formatted, so its verbatim survival shows that organizing
+	// does not reformat bytes outside the imports region.
+	outsideBody := `
+y: {
+    z:   42    // body comment
+	}
+
+x:p2&p3
+`
+	// A file that does not parse cleanly in its entirety is not
+	// organized: usage analysis over a partial parse could classify a
+	// used import as unused and delete it. The code action is not
+	// offered, leaving the buffer unchanged.
+	parseErrorInput := `
+package p1
+
+import (
+	"mod.com/p3"
+	"mod.com/p2"
+)
+
+x: p3 &
+`[1:]
+
 	testCases := []testCase{
 		{
 			name:     "empty",
@@ -248,6 +281,73 @@ import "mod.com/p3" // pinned
 x: p3
 `[1:],
 		},
+
+		{
+			name: "comment_presence",
+			input: `
+package p1
+
+// decl doc comment
+import (
+	// p3 doc comment
+	"mod.com/p3" // p3 trailing
+
+	// between the specs
+
+	"mod.com/p2"
+)
+
+// between decls
+
+import "mod.com/p4" // p4 trailing
+
+x: p2 & p3 & p4
+`[1:],
+			check: func(t *testing.T, after string) {
+				for _, comment := range []string{
+					"// decl doc comment",
+					"// p3 doc comment",
+					"// p3 trailing",
+					"// between the specs",
+					"// between decls",
+					"// p4 trailing",
+				} {
+					qt.Check(t, qt.StringContains(after, comment))
+				}
+			},
+		},
+
+		{
+			name:  "crlf_not_mixed",
+			input: "package p1\r\n\r\nimport (\r\n\t\"mod.com/p3\"\r\n\t\"mod.com/p2\"\r\n)\r\n\r\nx: p2 & p3\r\n",
+			check: func(t *testing.T, after string) {
+				qt.Check(t, qt.Equals(strings.Count(after, "\n"), strings.Count(after, "\r\n")),
+					qt.Commentf("organized buffer mixes line endings: %q", after))
+			},
+		},
+
+		{
+			name: "outside_region_untouched",
+			input: `
+package p1
+
+import (
+	"mod.com/p3"
+	"mod.com/p2"
+)
+`[1:] + outsideBody,
+			check: func(t *testing.T, after string) {
+				qt.Check(t, qt.StringContains(after, outsideBody))
+				qt.Check(t, qt.Equals(strings.HasPrefix(after, "package p1\n"), true))
+			},
+		},
+
+		{
+			name:           "parse_error_gate",
+			input:          parseErrorInput,
+			expected:       parseErrorInput,
+			actionOptional: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -276,18 +376,24 @@ x: p3
 				}
 				return false
 			})
-			if !found {
+			if !found && !tc.actionOptional {
 				t.Fatal("Failed to find Organize Imports code action")
 			}
-			// If we advertised to the LSP that we support lazy
-			// resolution for codeactions, we should have been sent back
-			// a nil-Edit property.
-			qt.Assert(t, qt.Equals(action.Edit == nil, resolveSupport))
-			// Calling ApplyCodeAction will make the additional call to
-			// resolve the Edit property if necessary.
-			env.ApplyCodeAction(action)
+			if found {
+				// If we advertised to the LSP that we support lazy
+				// resolution for codeactions, we should have been sent
+				// back a nil-Edit property.
+				qt.Assert(t, qt.Equals(action.Edit == nil, resolveSupport))
+				// Calling ApplyCodeAction will make the additional call
+				// to resolve the Edit property if necessary.
+				env.ApplyCodeAction(action)
+			}
 			after := env.BufferText("input.cue")
-			qt.Check(t, qt.Equals(after, tc.expected))
+			if tc.check != nil {
+				tc.check(t, after)
+			} else {
+				qt.Check(t, qt.Equals(after, tc.expected))
+			}
 		}
 
 		t.Run(tc.name+"/eager", func(t *testing.T) {
