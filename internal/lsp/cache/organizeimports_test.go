@@ -22,6 +22,7 @@ import (
 	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/astinternal"
 )
@@ -88,17 +89,36 @@ y: str.Quote("a")
 
 // organizeTestOutput parses src, organizes its imports treating the
 // given quoted paths as unused, and returns the resulting content.
+// Every organized result is additionally held to the stability
+// guarantees: a second application produces no further change, and
+// the formatter has nothing to rewrite (the corpus keeps file bodies
+// canonical so whole-file formatting isolates the imports region).
 func organizeTestOutput(t *testing.T, src string, unused ...string) string {
 	t.Helper()
-	f, err := parser.ParseFile("test.cue", src, parser.ParseComments)
-	qt.Assert(t, qt.IsNil(err))
 	used := func(s *ast.ImportSpec) bool {
 		return !slices.Contains(unused, s.Path.Value)
 	}
-	out := organizeImports(f, []byte(src), "\n", used)
-	if out == nil {
-		return src
+	organize := func(src []byte) []byte {
+		f, err := parser.ParseFile("test.cue", src, parser.ParseComments)
+		qt.Assert(t, qt.IsNil(err))
+		out := organizeImports(f, src, "\n", used)
+		if out == nil {
+			out = src
+		}
+		return out
 	}
+
+	out := organize([]byte(src))
+
+	again := organize(out)
+	qt.Check(t, qt.Equals(string(again), string(out)),
+		qt.Commentf("organizing is not idempotent"))
+
+	formatted, err := format.Source(out)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Check(t, qt.Equals(string(formatted), string(out)),
+		qt.Commentf("organized output is not format-stable"))
+
 	return string(out)
 }
 
@@ -478,6 +498,33 @@ import (
 package p
 
 import "mod.com/a"
+`,
+		},
+
+		{
+			// A flat sorted list — the convention this change
+			// supersedes — is a single group: one application
+			// introduces the split (and the harness verifies the
+			// result is stable).
+			name: "migration_flat_list_gains_split",
+			src: `
+package p
+
+import (
+	"mod.com/a"
+	"mod.com/b"
+	"strings"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+	"mod.com/b"
+)
 `,
 		},
 	}
