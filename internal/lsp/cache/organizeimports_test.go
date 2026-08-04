@@ -16,7 +16,10 @@ package cache
 
 import (
 	"bytes"
+	"slices"
 	"testing"
+
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
@@ -80,5 +83,413 @@ y: str.Quote("a")
 	// output.
 	if organized2 := organizeImports(f, []byte(src), "\n", used); !bytes.Equal(organized, organized2) {
 		t.Fatalf("organizeImports is not stable over an unchanged AST:\nfirst:\n%s\nsecond:\n%s", organized, organized2)
+	}
+}
+
+// organizeTestOutput parses src, organizes its imports treating the
+// given quoted paths as unused, and returns the resulting content.
+func organizeTestOutput(t *testing.T, src string, unused ...string) string {
+	t.Helper()
+	f, err := parser.ParseFile("test.cue", src, parser.ParseComments)
+	qt.Assert(t, qt.IsNil(err))
+	used := func(s *ast.ImportSpec) bool {
+		return !slices.Contains(unused, s.Path.Value)
+	}
+	out := organizeImports(f, []byte(src), "\n", used)
+	if out == nil {
+		return src
+	}
+	return string(out)
+}
+
+// organizeCase is a golden organize-imports test case: src organizes
+// to want, with the unused quoted paths treated as unreferenced.
+type organizeCase struct {
+	name string
+	// The first byte of src is thrown away and is not part of the test.
+	src    string
+	unused []string
+	// The first byte of want is thrown away and is not part of the test.
+	want string
+}
+
+// TestOrganizeImportsGrouping exercises the grouping of the merged
+// declaration: imports that were textually adjacent in the source
+// share a group; blank lines and declaration boundaries separate
+// groups; groups keep their source order and never exchange imports;
+// and within every group standard-library imports (dotless first path
+// segment) precede module imports, each side sorted by import path.
+func TestOrganizeImportsGrouping(t *testing.T) {
+	testCases := []organizeCase{
+		{
+			name: "split_single_mixed_run",
+			src: `
+package p
+
+import (
+	"mod.com/b"
+	"strings"
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name: "join_adjacent_single_line_decls",
+			src: `
+package p
+
+import "mod.com/b"
+import "mod.com/a"
+`,
+			want: `
+package p
+
+import (
+	"mod.com/a"
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name: "split_adjacent_single_line_decls_mixed",
+			src: `
+package p
+
+import "mod.com/a"
+import "strings"
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name: "preserve_blank_between_single_line_decls",
+			src: `
+package p
+
+import "mod.com/b"
+
+import "strings"
+`,
+			want: `
+package p
+
+import (
+	"mod.com/b"
+
+	"strings"
+)
+`,
+		},
+
+		{
+			name: "split_block_plus_adjacent_decl",
+			src: `
+package p
+
+import (
+	"strings"
+	"mod.com/a"
+)
+import "list"
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+
+	"list"
+)
+`,
+		},
+
+		{
+			name: "preserve_block_blank_decl",
+			src: `
+package p
+
+import (
+	"mod.com/a"
+	"mod.com/b"
+)
+
+import "strings"
+`,
+			want: `
+package p
+
+import (
+	"mod.com/a"
+	"mod.com/b"
+
+	"strings"
+)
+`,
+		},
+
+		{
+			name: "no_fuse_adjacent_blocks",
+			src: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/b"
+)
+import (
+	"list"
+
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/b"
+
+	"list"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name: "split_hand_made_mixed_groups",
+			src: `
+package p
+
+import (
+	"mod.com/b"
+	"strings"
+
+	"mod.com/a"
+	"list"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/b"
+
+	"list"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name:   "removal_inside_run_no_boundary",
+			unused: []string{`"strings"`},
+			src: `
+package p
+
+import (
+	"mod.com/b"
+	"strings"
+	"list"
+)
+`,
+			want: `
+package p
+
+import (
+	"list"
+
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name:   "removal_of_whole_group",
+			unused: []string{`"list"`},
+			src: `
+package p
+
+import (
+	"mod.com/b"
+	"strings"
+
+	"list"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name: "all_std_single_group",
+			src: `
+package p
+
+import (
+	"strings"
+	"math"
+	"list"
+)
+`,
+			want: `
+package p
+
+import (
+	"list"
+	"math"
+	"strings"
+)
+`,
+		},
+
+		{
+			name: "split_two_imports",
+			src: `
+package p
+
+import (
+	"mod.com/a"
+	"strings"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name: "qualifier_ignored_for_classification",
+			src: `
+package p
+
+import (
+	"mod.com/a:q"
+	"strings:s"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings:s"
+
+	"mod.com/a:q"
+)
+`,
+		},
+
+		{
+			name: "doc_comment_joins_run",
+			src: `
+package p
+
+import (
+	"mod.com/a"
+	// chosen codec
+	"strings"
+)
+`,
+			want: `
+package p
+
+import (
+	// chosen codec
+	"strings"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name: "trailing_comment_in_run",
+			src: `
+package p
+
+import (
+	"strings" // core
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings" // core
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name:   "single_survivor_single_line_form",
+			unused: []string{`"strings"`},
+			src: `
+package p
+
+import (
+	"mod.com/a"
+	"strings"
+)
+`,
+			want: `
+package p
+
+import "mod.com/a"
+`,
+		},
+	}
+
+	runOrganizeCases(t, testCases)
+}
+
+func runOrganizeCases(t *testing.T, testCases []organizeCase) {
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := organizeTestOutput(t, tc.src[1:], tc.unused...)
+			qt.Check(t, qt.Equals(got, tc.want[1:]))
+		})
 	}
 }

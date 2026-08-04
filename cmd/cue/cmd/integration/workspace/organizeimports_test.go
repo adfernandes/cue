@@ -208,11 +208,46 @@ package p1
 
 import (
 	"mod.com/p1"
+
 	"mod.com/p4"
 	"mod.com/p7"
 )
 
 x: p1 & p4 & p7
+`[1:],
+		},
+
+		{
+			// Within a group, standard-library imports (dotless first
+			// path segment) come first, then module imports, separated
+			// by a blank line and each sorted by path.
+			name: "split_std_module",
+			input: `
+package p1
+
+import (
+	"strconv"
+	"mod.com/p2"
+	"math"
+)
+
+x: p2
+y: math.Pi
+z: strconv.Quote("a")
+`[1:],
+			expected: `
+package p1
+
+import (
+	"math"
+	"strconv"
+
+	"mod.com/p2"
+)
+
+x: p2
+y: math.Pi
+z: strconv.Quote("a")
 `[1:],
 		},
 
@@ -285,7 +320,9 @@ x: p3
 		// opening and closing parentheses (c3, c7) stay on their
 		// tokens; detached groups inside the block keep their block
 		// (c4 rides above its import, c6 collects at the end); a group
-		// following all imports (c11) stays behind.
+		// following all imports (c11) stays behind. math and strconv
+		// were not textually adjacent in the source, so they keep
+		// separate import groups in the merged declaration.
 		{
 			name: "placement_worked_example_1",
 			input: `
@@ -330,6 +367,7 @@ import ( // c3
 
 	// c5
 	"math" // c5a
+
 	"strconv" // c10
 
 	// c6
@@ -371,10 +409,10 @@ y: strconv.Quote("a")
 `[1:],
 		},
 
-		// A detached (blank-line-separated) group inside a block
-		// belongs to the import that follows it and moves with that
-		// import when sorting reorders the list, keeping its paragraph
-		// spacing.
+		// Import groups follow the source's blank-line structure and
+		// keep their order, and a detached (blank-line-separated)
+		// comment group stays with the import group that follows it,
+		// so an already grouped block organizes to itself.
 		{
 			name: "placement_forward_association",
 			input: `
@@ -394,11 +432,11 @@ x: p2 & p3
 package p1
 
 import (
+	"mod.com/p3"
 
 	// note for p2
 
 	"mod.com/p2"
-	"mod.com/p3"
 )
 
 x: p2 & p3
@@ -496,7 +534,9 @@ x: 1
 
 		// A comment on a merged-away declaration's opening parenthesis
 		// stays inside the block, becoming a leading comment of that
-		// declaration's first import.
+		// declaration's first import. The two declarations' imports
+		// were not textually adjacent, so each keeps its own import
+		// group, in source order.
 		{
 			name: "placement_lparen_merged_away",
 			input: `
@@ -515,9 +555,10 @@ x: p2 & p3
 package p1
 
 import ( // one
+	"mod.com/p3"
+
 	// two
 	"mod.com/p2"
-	"mod.com/p3"
 )
 
 x: p2 & p3

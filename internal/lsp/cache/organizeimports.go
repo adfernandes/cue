@@ -22,9 +22,11 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/golangorgx/tools/diff"
+	"cuelang.org/go/internal/mod/modpkgload"
 	"cuelang.org/go/internal/pretty"
 )
 
@@ -33,8 +35,11 @@ import (
 //
 //  1. Imports which are not used in the file are removed;
 //  2. All import declarations are merged into a single declaration at
-//     the location of the first, sorted lexicographically by import
-//     path as one flat list;
+//     the location of the first. The merged imports are grouped the
+//     way goimports groups them: imports that were textually adjacent
+//     in the source share a group, blank lines separate groups, and
+//     within every group standard-library imports precede module
+//     imports, each side sorted lexicographically by import path;
 //  3. The organized imports region is constructed via the AST and
 //     rendered by cue/format, so its layout is canonical by
 //     construction; the rest of the file is untouched.
@@ -202,8 +207,12 @@ func importsRegion(decls []*ast.ImportDecl) (start, end int) {
 // nil when nothing survives (no imports kept and no comments to
 // preserve).
 //
-// The kept specs are sorted lexicographically by import path (stable,
-// so duplicate paths keep their source order). Comment groups are
+// The kept specs are ordered by source run (importRuns): runs keep
+// their source order, and within every run standard-library imports
+// precede module imports, each side sorted lexicographically by
+// import path (stable, so duplicate paths keep their source order).
+// Each run boundary — and the standard-library/module boundary inside
+// a mixed run — renders as a single blank line. Comment groups are
 // re-placed by their source position, never by raw parser attachment
 // (the parser attaches detached groups backward to the preceding
 // spec, not forward as the placement rules require):
@@ -341,7 +350,7 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 	slices.SortStableFunc(front, func(a, b placed) int { return cmp.Compare(a.off, b.off) })
 
 	// Authored leading separation of every spec (kept or removed),
-	// read before the flat-list normalization below.
+	// read before the grouped normalization below.
 	authoredRel := make(map[*ast.ImportSpec]token.RelPos)
 	for _, d := range decls {
 		for _, s := range d.Specs {
@@ -349,9 +358,38 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		}
 	}
 
-	slices.SortStableFunc(kept, func(a, b *ast.ImportSpec) int {
-		return cmp.Compare(a.Path.Value, b.Path.Value)
-	})
+	// Order the survivors by source run: runs keep their source order,
+	// and within every run standard-library imports sort before module
+	// imports, each side ordered by path (stable, so duplicate paths
+	// keep their source order). anchor maps every kept spec to its
+	// run's first output spec: a survivor whose anchor or rank differs
+	// from its predecessor's opens a new output group.
+	rank := func(s *ast.ImportSpec) int {
+		if isStdlibImportPath(s.Path.Value) {
+			return 0
+		}
+		return 1
+	}
+	anchor := make(map[*ast.ImportSpec]*ast.ImportSpec)
+	ordered := kept[:0]
+	for _, run := range importRuns(decls) {
+		start := len(ordered)
+		for _, s := range run {
+			if keptSet[s] {
+				ordered = append(ordered, s)
+			}
+		}
+		slices.SortStableFunc(ordered[start:], func(a, b *ast.ImportSpec) int {
+			return cmp.Or(
+				cmp.Compare(rank(a), rank(b)),
+				cmp.Compare(a.Path.Value, b.Path.Value),
+			)
+		})
+		for _, s := range ordered[start:] {
+			anchor[s] = ordered[start]
+		}
+	}
+	kept = ordered
 
 	// Forward association: a detached group belongs to the import that
 	// follows it in its block; with none surviving there, it collects
@@ -387,17 +425,28 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		pairedRel[target] = authoredRel[follower]
 	}
 
-	// Flatten the merged list: every spec starts on a plain new line.
-	// A spec receiving forwarded paragraphs keeps the groups' authored
-	// spacing instead: the paragraph's own separation above, and the
-	// original group-to-import separation below (unless the spec's own
-	// doc comment already provides it).
-	for _, spec := range kept {
+	// Lay out the merged list: a spec opening an output group starts a
+	// new section (a leading blank line); every other spec starts on a
+	// plain new line. A spec receiving forwarded comment paragraphs
+	// keeps their authored spacing instead: each paragraph's own
+	// separation above (raised to a section break when the spec opens
+	// an import group), and the original paragraph-to-import
+	// separation below (unless the spec's own doc comment already
+	// provides it).
+	for i, spec := range kept {
 		c := clone[spec]
+		opens := i > 0 && (anchor[kept[i-1]] != anchor[spec] || rank(kept[i-1]) != rank(spec))
+		lead := token.Newline
+		if opens {
+			lead = token.NewSection
+		}
 		groups := forwarded[spec]
 		if len(groups) == 0 {
-			setSpecRelPos(c, token.Newline)
+			setSpecRelPos(c, lead)
 			continue
+		}
+		if opens {
+			ast.SetRelPos(groups[0], token.NewSection)
 		}
 		own := ast.Comments(c)
 		hasOwnDoc := pretty.HasDocComment(c)
@@ -499,6 +548,60 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		parts = append(parts, merged)
 	}
 	return parts
+}
+
+// isStdlibImportPath reports whether a quoted import path names a
+// standard-library package, classifying its path with any package
+// qualifier removed.
+func isStdlibImportPath(quoted string) bool {
+	path, err := literal.Unquote(quoted)
+	if err != nil {
+		path = quoted
+	}
+	return modpkgload.IsStdlibPackage(ast.ParseImportPath(path).Path)
+}
+
+// importRuns partitions the declarations' import specs into maximal
+// runs of textual adjacency: consecutive specs share a run exactly
+// when no line — blank or otherwise — lies between them.
+func importRuns(decls []*ast.ImportDecl) [][]*ast.ImportSpec {
+	breaks := func(p token.Pos) int {
+		switch p.RelPos() {
+		case token.Newline:
+			return 1
+		case token.NewSection:
+			return 2
+		default:
+			return 0
+		}
+	}
+	var runs [][]*ast.ImportSpec
+	sep := 2 // line breaks since the previous spec's last line
+	for _, d := range decls {
+		for _, cg := range ast.Comments(d) {
+			if cg.Position == pretty.PosDoc {
+				sep += breaks(cg.Pos())
+			}
+		}
+		sep += breaks(d.Import) + breaks(d.Lparen)
+		for _, s := range d.Specs {
+			lead := s.Pos()
+			for _, cg := range ast.Comments(s) {
+				if cg.Position == pretty.PosDoc && cg.Doc {
+					lead = cg.Pos()
+					break
+				}
+			}
+			sep += breaks(lead)
+			if sep != 1 {
+				runs = append(runs, nil)
+			}
+			runs[len(runs)-1] = append(runs[len(runs)-1], s)
+			sep = 0
+		}
+		sep += breaks(d.Rparen)
+	}
+	return runs
 }
 
 // cloneImportSpec returns a copy of s with no comments attached; the
