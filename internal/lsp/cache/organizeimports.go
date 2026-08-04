@@ -222,11 +222,16 @@ func importsRegion(decls []*ast.ImportDecl) (start, end int) {
 //   - doc comments of the merged declarations concatenate, in source
 //     order, into the merged declaration's doc comment, with an empty
 //     comment line separating the original groups;
-//   - a detached (blank-line-separated) group inside a block belongs
-//     to the import that follows it in that block and moves with it;
-//     when that import is removed it re-homes to the next surviving
-//     import of the block, or collects at the end of the declaration
-//     when none follows - it never crosses the closing parenthesis;
+//   - a comment group glued to the line below an import travels with
+//     that import; when the import is removed the comment group
+//     re-homes as a detached comment group instead of being deleted;
+//   - a detached (blank-line-separated) comment group inside a block
+//     is a header of the import group that follows it in that block:
+//     it stays at that import group's head while the imports sort
+//     beneath it; when that whole import group is removed the header
+//     re-homes to the block's next surviving import group, or
+//     collects at the end of the declaration when none follows - it
+//     never crosses the closing parenthesis;
 //   - a comment on the hosting declaration's parentheses stays on the
 //     merged declaration's parentheses; a merged-away declaration's
 //     closing-parenthesis comment collects after the merged
@@ -265,6 +270,7 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		cg    *ast.CommentGroup // a clone, free to modify
 		block int
 		off   int
+		glued bool // renders glued above its import, not blank-line-separated
 	}
 	var docGroups []*ast.CommentGroup // doc groups merging, in source order
 	var hostParen []*ast.CommentGroup // host `(` / `)` groups, kept as-is
@@ -272,11 +278,11 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 	var detached []placed             // in-block detached groups
 	var front []placed                // paragraphs outside blocks
 
-	addDetached := func(cg *ast.CommentGroup, off int) {
+	addDetached := func(cg *ast.CommentGroup, off int, glued bool) {
 		if b := blockOf(off); b >= 0 {
-			detached = append(detached, placed{cg, b, off})
+			detached = append(detached, placed{cg, b, off, glued})
 		} else {
-			front = append(front, placed{cg, -1, off})
+			front = append(front, placed{cg, -1, off, false})
 		}
 	}
 
@@ -300,8 +306,7 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 					// the block, becoming a leading comment of the
 					// block's first surviving import.
 					cg.Line = false
-					ast.SetRelPos(cg, token.Newline)
-					addDetached(cg, off)
+					addDetached(cg, off, true)
 				}
 			case cg.Line && cg.Position >= pretty.PosTrailingMin:
 				if i == 0 {
@@ -315,7 +320,7 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 					afterDecl = append(afterDecl, cg)
 				}
 			default:
-				addDetached(cg, off)
+				addDetached(cg, off, false)
 			}
 		}
 		for _, spec := range d.Specs {
@@ -336,9 +341,19 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 					}
 					continue
 				}
+				if keptSet[spec] && off > spec.Pos().Offset() &&
+					cg.Pos().RelPos() == token.Newline {
+					// Glued to the line below its import: attached, so
+					// it travels with the import. A removed import's
+					// glued comment group falls through and re-homes
+					// as a detached comment group instead of being
+					// deleted.
+					direct = append(direct, cloneCommentGroup(cg))
+					continue
+				}
 				// Detached: the parser attached it backward; re-place
 				// it by source position.
-				addDetached(cloneCommentGroup(cg), off)
+				addDetached(cloneCommentGroup(cg), off, false)
 			}
 			if c, ok := clone[spec]; ok {
 				ast.SetComments(c, direct)
@@ -361,9 +376,10 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 	// Order the survivors by source run: runs keep their source order,
 	// and within every run standard-library imports sort before module
 	// imports, each side ordered by path (stable, so duplicate paths
-	// keep their source order). anchor maps every kept spec to its
-	// run's first output spec: a survivor whose anchor or rank differs
-	// from its predecessor's opens a new output group.
+	// keep their source order). anchor maps every spec of a run — kept
+	// or removed — to the run's first output spec, when the run has
+	// one: headers bind to it, and a survivor whose anchor or rank
+	// differs from its predecessor's opens a new output group.
 	rank := func(s *ast.ImportSpec) int {
 		if isStdlibImportPath(s.Path.Value) {
 			return 0
@@ -385,32 +401,32 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 				cmp.Compare(a.Path.Value, b.Path.Value),
 			)
 		})
-		for _, s := range ordered[start:] {
-			anchor[s] = ordered[start]
+		if len(ordered) > start {
+			for _, s := range run {
+				anchor[s] = ordered[start]
+			}
 		}
 	}
 	kept = ordered
 
-	// Forward association: a detached group belongs to the import that
-	// follows it in its block; with none surviving there, it collects
-	// at the end of the merged declaration. The separation between the
-	// group and the import it lands on pairs with the group's original
-	// follower, so re-homing past removed imports keeps the authored
-	// paragraph spacing.
-	forwarded := make(map[*ast.ImportSpec][]*ast.CommentGroup)
-	pairedRel := make(map[*ast.ImportSpec]token.RelPos)
+	// Header binding: a detached comment group is a header of the
+	// import group that follows it in its block. It anchors to the
+	// first output spec of the first run at or after it with surviving
+	// imports, staying at that import group's head while the imports
+	// sort beneath it; with no such run in the block, it collects at
+	// the end of the merged declaration. A single survivor takes the
+	// single-line form, so headers keep their detachment as paragraphs
+	// in front of the declaration instead.
+	headers := make(map[*ast.ImportSpec][]placed)
 	var endGroups []*ast.CommentGroup
 	for _, pd := range detached {
-		var target, follower *ast.ImportSpec
+		var target *ast.ImportSpec
 		for _, spec := range decls[pd.block].Specs {
 			if spec.Pos().Offset() <= pd.off {
 				continue
 			}
-			if follower == nil {
-				follower = spec
-			}
-			if keptSet[spec] {
-				target = spec
+			if t, ok := anchor[spec]; ok {
+				target = t
 				break
 			}
 		}
@@ -418,21 +434,29 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 			endGroups = append(endGroups, pd.cg)
 			continue
 		}
+		if len(kept) == 1 && !pd.glued {
+			front = append(front, placed{pd.cg, -1, pd.off, false})
+			continue
+		}
 		pd.cg.Position = pretty.PosDoc
 		pd.cg.Doc = false
 		pd.cg.Line = false
-		forwarded[target] = append(forwarded[target], pd.cg)
-		pairedRel[target] = authoredRel[follower]
+		headers[target] = append(headers[target], pd)
 	}
 
 	// Lay out the merged list: a spec opening an output group starts a
 	// new section (a leading blank line); every other spec starts on a
-	// plain new line. A spec receiving forwarded comment paragraphs
-	// keeps their authored spacing instead: each paragraph's own
-	// separation above (raised to a section break when the spec opens
-	// an import group), and the original paragraph-to-import
-	// separation below (unless the spec's own doc comment already
-	// provides it).
+	// plain new line. Headers stack above their import group's first
+	// spec, each blank-line-separated — except a glued
+	// opening-parenthesis comment, which stays glued — and the spec
+	// (or its own doc comment) keeps the last header's separation
+	// below.
+	sep := func(glued bool) token.RelPos {
+		if glued {
+			return token.Newline
+		}
+		return token.NewSection
+	}
 	for i, spec := range kept {
 		c := clone[spec]
 		opens := i > 0 && (anchor[kept[i-1]] != anchor[spec] || rank(kept[i-1]) != rank(spec))
@@ -440,25 +464,23 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		if opens {
 			lead = token.NewSection
 		}
-		groups := forwarded[spec]
-		if len(groups) == 0 {
+		pre := headers[spec]
+		if len(pre) == 0 {
 			setSpecRelPos(c, lead)
 			continue
 		}
-		if opens {
-			ast.SetRelPos(groups[0], token.NewSection)
+		cgs := make([]*ast.CommentGroup, len(pre))
+		for j, pg := range pre {
+			rel := sep(pg.glued)
+			if j == 0 && opens {
+				rel = token.NewSection
+			}
+			ast.SetRelPos(pg.cg, rel)
+			cgs[j] = pg.cg
 		}
 		own := ast.Comments(c)
-		hasOwnDoc := pretty.HasDocComment(c)
-		ast.SetComments(c, append(groups, own...))
-		if !hasOwnDoc {
-			rel := pairedRel[spec]
-			if c.Name != nil {
-				c.Name.NamePos = c.Name.NamePos.WithRel(rel)
-			} else {
-				c.Path.ValuePos = c.Path.ValuePos.WithRel(rel)
-			}
-		}
+		setSpecRelPos(c, sep(pre[len(pre)-1].glued))
+		ast.SetComments(c, append(cgs, own...))
 	}
 
 	merged := &ast.ImportDecl{}
@@ -478,17 +500,6 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 		}
 		ast.SetComments(c, rest)
 		setSpecRelPos(c, token.NoRelPos)
-	} else if len(kept) > 1 && len(endGroups) > 0 {
-		// End-of-block groups anchor after the final spec, inside the
-		// closing parenthesis (they never cross it).
-		lastSpec := clone[kept[len(kept)-1]]
-		for _, cg := range endGroups {
-			cg.Position = pretty.PosSuffix
-			cg.Line = false
-			cg.Doc = false
-			ast.AddComment(lastSpec, cg)
-		}
-		endGroups = nil
 	}
 
 	merged.Specs = make([]*ast.ImportSpec, len(kept))
@@ -515,17 +526,24 @@ func buildOrganizedDecls(decls []*ast.ImportDecl, kept []*ast.ImportSpec, region
 	for _, cg := range hostParen {
 		ast.AddComment(merged, cg)
 	}
-	// End groups with no spec to anchor to (single or zero survivors)
-	// land after the declaration, keeping their authored separation,
-	// rather than being dropped.
+	// End-of-block groups never cross the closing parenthesis: they
+	// anchor after the final spec, inside the parentheses. The
+	// single-line form has no parentheses, so they land after the
+	// declaration instead, and with no declaration at all they render
+	// as front paragraphs — keeping their authored separation rather
+	// than being dropped.
 	for _, cg := range endGroups {
-		cg.Position = pretty.PosImportAfterRparen
 		cg.Line = false
 		cg.Doc = false
-		if len(kept) > 0 {
+		switch {
+		case len(kept) > 1:
+			cg.Position = pretty.PosSuffix
+			ast.AddComment(merged.Specs[len(merged.Specs)-1], cg)
+		case len(kept) == 1:
+			cg.Position = pretty.PosImportAfterRparen
 			ast.AddComment(merged, cg)
-		} else {
-			front = append(front, placed{cg, -1, cg.Pos().Offset()})
+		default:
+			front = append(front, placed{cg, -1, cg.Pos().Offset(), false})
 		}
 	}
 	for _, cg := range afterDecl {

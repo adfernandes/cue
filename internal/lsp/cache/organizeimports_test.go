@@ -485,6 +485,204 @@ import "mod.com/a"
 	runOrganizeCases(t, testCases)
 }
 
+// TestOrganizeImportsComments exercises comment placement under
+// grouping: a standalone comment group blank-line-separated from the
+// import below it is a header of the import group that starts there
+// and stays at that import group's head, while doc and trailing
+// comments — and a comment group glued to the line below an import —
+// travel with their import.
+func TestOrganizeImportsComments(t *testing.T) {
+	testCases := []organizeCase{
+		{
+			name: "header_stays_while_imports_sort",
+			src: `
+package p
+
+import (
+	"strings"
+
+	// business schemas
+
+	"mod.com/b"
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	// business schemas
+
+	"mod.com/a"
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name: "header_stays_above_split_import_group",
+			src: `
+package p
+
+import (
+	"list"
+
+	// section
+
+	"mod.com/b"
+	"strings"
+)
+`,
+			want: `
+package p
+
+import (
+	"list"
+
+	// section
+
+	"strings"
+
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name:   "header_rehomes_when_import_group_removed",
+			unused: []string{`"mod.com/p2"`},
+			src: `
+package p
+
+import (
+	"mod.com/p3"
+
+	// section note
+
+	"mod.com/p2"
+
+	"mod.com/p4"
+)
+`,
+			want: `
+package p
+
+import (
+	"mod.com/p3"
+
+	// section note
+
+	"mod.com/p4"
+)
+`,
+		},
+
+		{
+			name: "glued_below_previous_travels",
+			src: `
+package p
+
+import (
+	"mod.com/b"
+	// b footnote
+
+	"strings"
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+import (
+	"mod.com/b"
+	// b footnote
+
+	"strings"
+
+	"mod.com/a"
+)
+`,
+		},
+
+		{
+			name: "attached_comments_travel_across_split",
+			src: `
+package p
+
+import (
+	"strings"
+	// why b
+	"mod.com/b"
+	"mod.com/a" // trailing a
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a" // trailing a
+	// why b
+	"mod.com/b"
+)
+`,
+		},
+
+		{
+			name: "end_of_block_comment_group_stays",
+			src: `
+package p
+
+import (
+	"strings"
+	"mod.com/a"
+
+	// tail note
+)
+`,
+			want: `
+package p
+
+import (
+	"strings"
+
+	"mod.com/a"
+
+	// tail note
+)
+`,
+		},
+
+		{
+			name:   "header_single_survivor_stays_detached",
+			unused: []string{`"strings"`},
+			src: `
+package p
+
+import (
+	"strings"
+
+	// note
+
+	"mod.com/a"
+)
+`,
+			want: `
+package p
+
+// note
+
+import "mod.com/a"
+`,
+		},
+	}
+
+	runOrganizeCases(t, testCases)
+}
+
 func runOrganizeCases(t *testing.T, testCases []organizeCase) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
