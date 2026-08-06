@@ -1,0 +1,68 @@
+# When a cue.mod/local-module.cue file is present but is missing an
+# entry for a dependency declared in cue.mod/module.cue, that dependency
+# cannot be resolved. The error should hint that "cue mod tidy" can fix
+# the local-module.cue file.
+#
+# Issue: https://cuelang.org/issue/4457
+
+! exec cue export .
+cmp stderr want-stderr
+
+# As the hint says, "cue mod tidy" restores the missing entry.
+exec cue mod tidy
+exec cue export .
+cmp stdout want-export
+
+-- cue.mod/module.cue --
+module: "example.com/main@v0"
+language: version: "v0.17.0"
+
+deps: {
+	"example.com/alpha@v0": {
+		v: "v0.1.0"
+	}
+	"example.com/dep@v0": {
+		v: "v0.1.0"
+	}
+}
+-- cue.mod/local-module.cue --
+deps: {
+	"example.com/dep@v0": {
+		v: "v0.1.0"
+		replaceWith: "./local_dep"
+	}
+}
+-- main.cue --
+package main
+
+import "example.com/alpha@v0"
+
+output: alpha.value
+-- local_dep/cue.mod/module.cue --
+module: "example.com/dep@v0"
+language: version: "v0.9.0"
+-- local_dep/lib.cue --
+package lib
+
+value: "from local directory"
+-- _registry/example.com_alpha_v0.1.0/cue.mod/module.cue --
+module: "example.com/alpha@v0"
+language: version: "v0.9.0"
+-- _registry/example.com_alpha_v0.1.0/alpha.cue --
+package alpha
+
+value: "from registry"
+-- _registry/example.com_dep_v0.1.0/cue.mod/module.cue --
+module: "example.com/dep@v0"
+language: version: "v0.9.0"
+-- _registry/example.com_dep_v0.1.0/lib.cue --
+package lib
+
+value: "from registry (should not see this)"
+-- want-stderr --
+example.com/main@v0: import failed: cannot find package "example.com/alpha@v0": cannot find module providing package example.com/alpha@v0 (module example.com/alpha@v0 is declared in cue.mod/module.cue but missing from cue.mod/local-module.cue; try running "cue mod tidy"):
+    ./main.cue:3:8
+-- want-export --
+{
+    "output": "from registry"
+}

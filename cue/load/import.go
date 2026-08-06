@@ -499,10 +499,10 @@ func (l *loader) absDirFromImportPath1(pos token.Pos, p importPath) (absDir stri
 	// should we not be using either the original path or the canonical path?
 	// The unqualified import path should only be used for filepath.FromSlash further below.
 	if pkg == nil {
-		return failf("no dependency found for package %q", unqualified)
+		return failf("no dependency found for package %q%s", unqualified, l.cfg.localModuleHint(string(p)))
 	}
 	if err := pkg.Error(); err != nil {
-		return failf("cannot find package %q: %v", unqualified, err)
+		return failf("cannot find package %q: %v%s", unqualified, err, l.cfg.localModuleHint(string(p)))
 	}
 	if mv := pkg.Mod(); mv.IsLocal() {
 		// It's a local package that's present inside one or both of the gen, usr or pkg

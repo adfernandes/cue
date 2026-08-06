@@ -155,6 +155,11 @@ type Config struct {
 	// equal to Module.
 	modFile *modfile.File
 
+	// baseModFile holds the contents of cue.mod/module.cue when a
+	// cue.mod/local-module.cue file is present and hence modFile holds
+	// the main-module view derived from both files. It is nil otherwise.
+	baseModFile *modfile.File
+
 	// parserConfig holds the configuration that will be passed
 	// when parsing CUE files. It includes the version from
 	// the module file.
@@ -605,6 +610,7 @@ func (c *Config) loadModule() error {
 		if err != nil {
 			return err
 		}
+		c.baseModFile = mf
 		c.modFile = localMF
 	} else if !errors.Is(cerr, fs.ErrNotExist) && runtime.GOOS != "windows" {
 		// On Windows we cannot reliably distinguish "does not exist" from
@@ -690,6 +696,29 @@ func (c *Config) checkReplaceDirModulePath(wantPath string, dir string) error {
 		return fmt.Errorf("replacement directory %s has module path %q, want %q", dir, got, wantPath)
 	}
 	return nil
+}
+
+// localModuleHint returns a parenthesized hint to append to the error
+// reported when the package with the given import path cannot be found,
+// or the empty string if there is no useful hint to give.
+//
+// A cue.mod/local-module.cue file replaces module.cue's dependencies
+// entirely rather than adding to them, so a dependency that it omits
+// cannot be resolved even though module.cue declares it. That is easy to
+// mistake for a broken cache or registry, so point at the file and at
+// "cue mod tidy", which restores the missing entry.
+func (c *Config) localModuleHint(importPath string) string {
+	if c.baseModFile == nil {
+		return ""
+	}
+	mv, ok := c.baseModFile.ModuleForImportPath(importPath)
+	if !ok {
+		return ""
+	}
+	if _, ok := c.modFile.ModuleForImportPath(importPath); ok {
+		return ""
+	}
+	return fmt.Sprintf(" (module %s is declared in cue.mod/%s but missing from cue.mod/%s; try running \"cue mod tidy\")", mv.Path(), moduleFile, localModuleFile)
 }
 
 func (c Config) isModRoot(dir string) bool {
