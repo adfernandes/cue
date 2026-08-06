@@ -17,7 +17,11 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"iter"
+	"slices"
+	"strconv"
 
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/unstable/lsp/eval"
@@ -136,6 +140,11 @@ type standaloneFile struct {
 	// whenever the file is reloaded.
 	definitions *eval.Evaluator
 
+	// imports contains the standard library packages imported by this
+	// file; standalone files resolve no other imports. It is rebuilt
+	// on every reload.
+	imports []*Package
+
 	file *File
 }
 
@@ -166,11 +175,54 @@ func (f *standaloneFile) activeFilesAndDirs(files map[protocol.DocumentURI][]pac
 
 var standaloneParserConfig = parser.NewConfig(parser.ParseComments)
 
+// evaluator implements [evalGraphMember]
+func (f *standaloneFile) evaluator() *eval.Evaluator {
+	return f.definitions
+}
+
+// evalNeighbours implements [evalGraphMember]
+func (f *standaloneFile) evalNeighbours() iter.Seq[evalGraphMember] {
+	return func(yield func(evalGraphMember) bool) {
+		for _, pkg := range f.imports {
+			if !yield(pkg) {
+				return
+			}
+		}
+	}
+}
+
+// forPackage is a callback for the evaluator. See
+// [eval.Config.ForPackage]
+func (f *standaloneFile) forPackage(importPath ast.ImportPath) *eval.Evaluator {
+	for _, importedPkg := range f.imports {
+		if importedPkg.importPath == importPath {
+			return importedPkg.eval
+		}
+	}
+	return nil
+}
+
+// resetImports resets the connected component containing the file,
+// and severs the file's import edges. It is called when the file's
+// evaluator is about to be discarded: the usage records it left in
+// the evaluators of the packages it imports die with it.
+func (f *standaloneFile) resetImports() {
+	if len(f.imports) == 0 {
+		return
+	}
+	resetEvalComponent(f)
+	for _, pkg := range f.imports {
+		pkg.RemoveImportedBy(f)
+	}
+	f.imports = nil
+}
+
 // delete removes the standalone file from the workspace.
 func (f *standaloneFile) delete() {
 	delete(f.standalone.files, f.uri)
 	f.file.removeUser(f)
 	w := f.standalone.workspace
+	f.resetImports()
 	w.invalidateActiveFilesAndDirs()
 	w.debugLogf("%v Deleted", f)
 }
@@ -192,6 +244,8 @@ func (f *standaloneFile) reload() error {
 	f.isDirty = false
 
 	w := f.standalone.workspace
+	// The file's current evaluator is discarded on every path below.
+	f.resetImports()
 	fh, err := w.overlayFS.ReadFile(f.uri)
 	if err != nil {
 		w.debugLogf("%v Error when reloading: %v", f, err)
@@ -225,7 +279,25 @@ func (f *standaloneFile) reload() error {
 		}
 	}
 
-	f.definitions = eval.New(eval.Config{}, syntax)
+	// Standard library packages are the only imports a standalone
+	// file can resolve. The import edges are built eagerly: searching
+	// for the usages of a standard library package's member must
+	// reach every importer, including those whose evaluators have not
+	// yet run.
+	for spec := range syntax.ImportSpecs() {
+		str, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		pkg := w.ensureStdlibPkg(ast.ParseImportPath(str).Canonical())
+		if pkg == nil || slices.Contains(f.imports, pkg) {
+			continue
+		}
+		f.imports = append(f.imports, pkg)
+		pkg.EnsureImportedBy(f)
+	}
+
+	f.definitions = eval.New(eval.Config{ForPackage: f.forPackage}, syntax)
 	w.debugLogf("%v Reloaded", f)
 	return nil
 }

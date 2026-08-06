@@ -98,16 +98,20 @@ func (w *Workspace) References(file *File, fe *eval.FileEvaluator, srcMapper *pr
 		return nil
 	}
 
-	locations := make([]protocol.Location, len(targets))
-	for i, target := range targets {
+	var locations []protocol.Location
+	for _, target := range targets {
 		startPos := target.Pos().Position()
 		endPos := target.End().Position()
 
 		targetFile := target.Pos().File()
 		targetMapper := w.mappers[targetFile]
 		if targetMapper == nil {
+			// The target may have no mapper, such as a declaration
+			// within a standard library package, which has no on-disk
+			// location an editor could open. Skip it and report the
+			// rest.
 			w.debugLog("mapper not found: " + targetFile.Name())
-			return nil
+			continue
 		}
 		r, err := targetMapper.OffsetRange(startPos.Offset, endPos.Offset)
 		if err != nil {
@@ -115,10 +119,10 @@ func (w *Workspace) References(file *File, fe *eval.FileEvaluator, srcMapper *pr
 			return nil
 		}
 
-		locations[i] = protocol.Location{
+		locations = append(locations, protocol.Location{
 			URI:   protocol.URIFromPath(startPos.Filename),
 			Range: r,
-		}
+		})
 	}
 
 	// Although not required by the LSP spec, general advice seems to

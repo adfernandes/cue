@@ -17,6 +17,7 @@ package cache
 import (
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 	"strings"
 
@@ -49,6 +50,16 @@ type packageOrModule interface {
 	// active directory, as are all of its ancestors, up to the module
 	// root (inclusive).
 	activeFilesAndDirs(files map[protocol.DocumentURI][]packageOrModule, dirs map[protocol.DocumentURI]struct{})
+}
+
+// evalGraphMember is anything owning an evaluator in the shared
+// evaluator graph: currently packages, and standalone files.
+type evalGraphMember interface {
+	// evaluator returns the member's evaluator, or nil if it has none.
+	evaluator() *eval.Evaluator
+	// evalNeighbours yields every member whose evaluator is entangled
+	// with this member's evaluator.
+	evalNeighbours() iter.Seq[evalGraphMember]
 }
 
 // embedding couples an [embed.Embed] embed attribute with the results
@@ -85,9 +96,10 @@ type Package struct {
 
 	// mutable fields:
 
-	// importedBy contains the packages that directly import this
-	// package.
-	importedBy []*Package
+	// importedBy contains the graph members - packages and, for
+	// standard library packages, standalone files - that directly
+	// import this package.
+	importedBy []evalGraphMember
 
 	// imports contains the packages that are imported by this package.
 	imports []*Package
@@ -220,31 +232,58 @@ func (pkg *Package) resetEval(recursive bool) {
 		}
 		return
 	}
+	resetEvalComponent(pkg)
+}
 
-	seen := map[*Package]struct{}{pkg: {}}
-	worklist := []*Package{pkg}
-	enqueue := func(pkgs ...*Package) {
-		for _, p := range pkgs {
-			if _, found := seen[p]; !found {
-				seen[p] = struct{}{}
-				worklist = append(worklist, p)
+// resetEvalComponent resets the evaluators of the connected component
+// containing member.
+func resetEvalComponent(member evalGraphMember) {
+	seen := map[evalGraphMember]struct{}{member: {}}
+	worklist := []evalGraphMember{member}
+	for len(worklist) > 0 {
+		m := worklist[0]
+		worklist = worklist[1:]
+		if e := m.evaluator(); e != nil {
+			e.Reset()
+		}
+		for n := range m.evalNeighbours() {
+			if _, found := seen[n]; !found {
+				seen[n] = struct{}{}
+				worklist = append(worklist, n)
 			}
 		}
 	}
-	for len(worklist) > 0 {
-		p := worklist[0]
-		worklist = worklist[1:]
-		if p.eval != nil {
-			p.eval.Reset()
-		}
+}
 
-		enqueue(p.imports...)
-		enqueue(p.importedBy...)
-		enqueue(p.embeddedBy...)
-		for _, embedding := range p.embeddings {
+// evaluator implements [evalGraphMember]
+func (pkg *Package) evaluator() *eval.Evaluator {
+	return pkg.eval
+}
+
+// evalNeighbours implements [evalGraphMember]
+func (pkg *Package) evalNeighbours() iter.Seq[evalGraphMember] {
+	return func(yield func(evalGraphMember) bool) {
+		for _, p := range pkg.imports {
+			if !yield(p) {
+				return
+			}
+		}
+		for _, m := range pkg.importedBy {
+			if !yield(m) {
+				return
+			}
+		}
+		for _, p := range pkg.embeddedBy {
+			if !yield(p) {
+				return
+			}
+		}
+		for _, embedding := range pkg.embeddings {
 			for _, embedded := range embedding.results {
 				if embeddedPkg := embedded.pkg; embeddedPkg != nil {
-					enqueue(embeddedPkg)
+					if !yield(embeddedPkg) {
+						return
+					}
 				}
 			}
 		}
@@ -332,10 +371,19 @@ func (pkg *Package) update(modpkg *modpkgload.Package) error {
 	importCanonicalisation[ast.ParseImportPath(modpkg.ImportPath()).Canonical().String()] = pkg.importPath
 
 	for _, importedModpkg := range modpkg.Imports() {
+		ip := normalizeImportPath(importedModpkg)
 		if importedModpkg.IsStdlibPackage() {
+			// Standard library packages live in the workspace's
+			// sentinel stdlib module, loaded on demand from embedded
+			// definition files, rather than being loaded through
+			// modpkgload like the packages below.
+			if stdlibPkg := w.ensureStdlibPkg(ip); stdlibPkg != nil {
+				stdlibPkg.EnsureImportedBy(pkg)
+				pkg.imports = append(pkg.imports, stdlibPkg)
+				importCanonicalisation[importedModpkg.ImportPath()] = stdlibPkg.importPath
+			}
 			continue
 		}
-		ip := normalizeImportPath(importedModpkg)
 		if !importedModpkg.Mod().IsValid() {
 			// The import could not be resolved to any module,
 			// e.g. the imported package does not exist (yet).
@@ -499,10 +547,9 @@ func (pkg *Package) linkWithEmbeddedFiles() {
 // [eval.Config.ForPackage]
 func (pkg *Package) forPackage(importPath ast.ImportPath) *eval.Evaluator {
 	for _, importedPkg := range pkg.imports {
-		if importedPkg.importPath != importPath {
-			continue
+		if importedPkg.importPath == importPath {
+			return importedPkg.eval
 		}
-		return importedPkg.eval
 	}
 	return nil
 }
@@ -513,9 +560,11 @@ func (pkg *Package) pkgImporters() []*eval.Evaluator {
 	if len(pkg.importedBy) == 0 {
 		return nil
 	}
-	evals := make([]*eval.Evaluator, len(pkg.importedBy))
-	for i, pkg := range pkg.importedBy {
-		evals[i] = pkg.eval
+	evals := make([]*eval.Evaluator, 0, len(pkg.importedBy))
+	for _, importer := range pkg.importedBy {
+		if e := importer.evaluator(); e != nil {
+			evals = append(evals, e)
+		}
 	}
 	return evals
 }
@@ -589,7 +638,7 @@ func (pkg *Package) markImportUnresolved(ip ast.ImportPath) {
 
 // EnsureImportedBy ensures that importer is recorded as a user of
 // this package. This method is idempotent.
-func (pkg *Package) EnsureImportedBy(importer *Package) {
+func (pkg *Package) EnsureImportedBy(importer evalGraphMember) {
 	if slices.Contains(pkg.importedBy, importer) {
 		return
 	}
@@ -598,9 +647,9 @@ func (pkg *Package) EnsureImportedBy(importer *Package) {
 
 // RemoveImportedBy ensures that importer is not recorded as a user of
 // this package. This method is idempotent.
-func (pkg *Package) RemoveImportedBy(importer *Package) {
-	pkg.importedBy = slices.DeleteFunc(pkg.importedBy, func(p *Package) bool {
-		return p == importer
+func (pkg *Package) RemoveImportedBy(importer evalGraphMember) {
+	pkg.importedBy = slices.DeleteFunc(pkg.importedBy, func(m evalGraphMember) bool {
+		return m == importer
 	})
 }
 

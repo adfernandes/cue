@@ -58,6 +58,11 @@ type Workspace struct {
 	modules map[protocol.DocumentURI]*Module
 	mappers map[*token.File]*protocol.Mapper
 
+	// stdlibModule is the sentinel module owning the standard library
+	// packages in use, loaded on demand. It is deliberately not a
+	// member of modules. See [newStdlibModule].
+	stdlibModule *Module
+
 	// These are cached values. Do not use these directly, instead, use
 	// [Workspace.ActiveFilesAndDirs]
 	activeFiles map[protocol.DocumentURI][]packageOrModule
@@ -103,6 +108,7 @@ func NewWorkspace(cache *Cache, client protocol.Client, debugLog func(string), e
 		enqueue:          enqueue,
 		diagnosticsDelay: diagnosticsDelay,
 	}
+	w.stdlibModule = newStdlibModule(w)
 	w.standalone = NewStandalone(w)
 	if extProfile := cache.extProfile; extProfile != nil {
 		w.extValidatorMgr = extvalidator.NewManager(extProfile, overlayFS, debugLog)
@@ -916,7 +922,10 @@ func (w *Workspace) reloadPackages() {
 		repeatReload := false
 		for _, pkg := range deletedPkgs {
 			for _, downstream := range pkg.importedBy {
-				downstream.markDirty()
+				// Standalone files import only standard library
+				// packages, which are never deleted, so every importer
+				// of a deleted package is itself a Package.
+				downstream.(*Package).markDirty()
 				repeatReload = true
 			}
 			for _, downstream := range pkg.embeddedBy {
