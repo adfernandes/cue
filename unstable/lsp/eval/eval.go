@@ -718,6 +718,24 @@ func (fe *FileEvaluator) DefinitionsForOffset(offset int) []ast.Node {
 	return nodes
 }
 
+// DefinitionNodesForOffset is very similar to DefinitionsForOffset.
+// It reports the [Node]s denoted by the definitions that the file
+// offset (number of bytes from the start of the file) resolves to.
+func (fe *FileEvaluator) DefinitionNodesForOffset(offset int) NodeSet {
+	var nodes NodeSet
+
+	navs := fe.definitionsForOffset(offset)
+	if fe.evaluator.config.PackageIsEmbedded {
+		navs = maps.Keys(expandNavigablesViaPath(slices.Collect(navs)))
+	}
+
+	for nav := range navs {
+		nodes = append(nodes, (*Node)(nav))
+	}
+
+	return nodes
+}
+
 // DocCommentsForOffset is very similar to DefinitionsForOffset. It
 // reports the doc comments associated with the definitions that the
 // file offset (number of bytes from the start of the file) resolves
@@ -796,15 +814,16 @@ type Completion struct {
 
 // CompletionsForOffset reports the set of strings that can form a new
 // path element following the path element indicated by the offset
-// (number of bytes from the start of the file).
-func (fe *FileEvaluator) CompletionsForOffset(offset int) map[Completion]map[string]struct{} {
-	var completions map[Completion]map[string]struct{}
-	addCompletions := func(completion Completion, nameSet map[string]struct{}) {
+// (number of bytes from the start of the file). Each string maps to
+// the [Node] it denotes, or nil if that is not known.
+func (fe *FileEvaluator) CompletionsForOffset(offset int) map[Completion]map[string]*Node {
+	var completions map[Completion]map[string]*Node
+	addCompletions := func(completion Completion, nameSet map[string]*Node) {
 		if len(nameSet) == 0 {
 			return
 		}
 		if completions == nil {
-			completions = make(map[Completion]map[string]struct{})
+			completions = make(map[Completion]map[string]*Node)
 		}
 		names, found := completions[completion]
 		if !found {
@@ -899,13 +918,9 @@ nextFrame:
 				}
 			} else {
 				// We're in some component of a path, but not at the start.
-				nameSet := make(map[string]struct{})
+				nameSet := make(map[string]*Node)
 				for nav := range expandNavigables(pc.unexpanded) {
-					for name := range nav.bindings {
-						if !strings.HasPrefix(name, "__") {
-							nameSet[name] = struct{}{}
-						}
-					}
+					addBindings(nameSet, nav.bindings)
 				}
 				if len(nameSet) > 0 {
 					embedCompletions.Kind = protocol.VariableCompletion
@@ -971,16 +986,22 @@ nextFrame:
 
 	processedEmbedFrames := make(map[*frame]struct{})
 	for fr, embedCompletions := range suggestEmbedsFrom {
-		nameSet := make(map[string]struct{})
+		nameSet := make(map[string]*Node)
 		for childFr, parentFr := fr, fr.parent; parentFr != nil; childFr, parentFr = parentFr, parentFr.parent {
 			if _, seen := processedEmbedFrames[childFr]; seen {
 				break
 			}
 			processedEmbedFrames[childFr] = struct{}{}
-			for name := range parentFr.bindings {
-				if !strings.HasPrefix(name, "__") {
-					nameSet[name] = struct{}{}
+			for name, frames := range parentFr.bindings {
+				if strings.HasPrefix(name, "__") {
+					continue
 				}
+				if _, found := nameSet[name]; found {
+					// The walk runs from inner to outer scopes, so the
+					// binding already seen shadows this one.
+					continue
+				}
+				nameSet[name] = (*Node)(frames[0].navigable)
 			}
 		}
 		if len(nameSet) == 0 {
@@ -996,13 +1017,9 @@ nextFrame:
 	}
 
 	for nav, fieldCompletions := range suggestFieldsFrom {
-		nameSet := make(map[string]struct{})
+		nameSet := make(map[string]*Node)
 		for nav := range expander([]*navigable{nav}) {
-			for name := range nav.bindings {
-				if !strings.HasPrefix(name, "__") {
-					nameSet[name] = struct{}{}
-				}
-			}
+			addBindings(nameSet, nav.bindings)
 		}
 		if len(nameSet) == 0 {
 			continue
@@ -1012,6 +1029,20 @@ nextFrame:
 	}
 
 	return completions
+}
+
+// addBindings adds the given bindings to nameSet, mapping each name
+// to the [Node] it denotes. Names that are already present, and names
+// starting with "__", are left alone.
+func addBindings(nameSet map[string]*Node, bindings map[string]*navigable) {
+	for name, binding := range bindings {
+		if strings.HasPrefix(name, "__") {
+			continue
+		}
+		if _, found := nameSet[name]; !found {
+			nameSet[name] = (*Node)(binding)
+		}
+	}
 }
 
 // UsagesForOffset reports the nodes that make use of whatever the

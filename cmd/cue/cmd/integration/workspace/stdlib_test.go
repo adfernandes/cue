@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"strings"
 	"testing"
 
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
@@ -57,13 +58,20 @@ js:    json.Marshal
 				Range: protocol.Range{Start: tc.pos.pos},
 			})
 			qt.Assert(t, qt.IsNotNil(completions), qt.Commentf("%v", &tc.pos))
-			labels := make(map[string]bool, len(completions.Items))
+			items := make(map[string]protocol.CompletionItem, len(completions.Items))
 			for _, item := range completions.Items {
-				labels[item.Label] = true
+				items[item.Label] = item
 			}
 			for _, expected := range tc.expect {
-				qt.Assert(t, qt.IsTrue(labels[expected]),
+				item, found := items[expected]
+				qt.Assert(t, qt.IsTrue(found),
 					qt.Commentf("%v: missing %q in %v", &tc.pos, expected, completions.Items))
+				// Builtin functions complete as functions, with their
+				// signature as the detail.
+				qt.Check(t, qt.Equals(item.Kind, protocol.FunctionCompletion),
+					qt.Commentf("%v: %q", &tc.pos, expected))
+				qt.Check(t, qt.StringContains(item.Detail, "func("),
+					qt.Commentf("%v: %q", &tc.pos, expected))
 			}
 		}
 
@@ -106,7 +114,12 @@ out: strings.ToUpper
 		})
 		qt.Assert(t, qt.IsNotNil(got))
 		qt.Assert(t, qt.StringContains(got.Value,
+			"```cue\nfunc(_~s: string) -> string\n```"))
+		qt.Assert(t, qt.StringContains(got.Value,
 			"ToUpper returns s with all Unicode letters mapped to their"))
+		// The signature replaces the "Unified with" value section,
+		// which for a builtin would only show `_`.
+		qt.Assert(t, qt.IsFalse(strings.Contains(got.Value, "Unified with")))
 
 		// Jumping to the definition of a stdlib member is not yet
 		// supported: the definition files have no on-disk location for

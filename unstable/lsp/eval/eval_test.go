@@ -5693,8 +5693,8 @@ func (tc *testCase) testCompletions(t *testing.T, files []*ast.File, analysis te
 			ranges.Add(filename, curRange.from, curRange.to)
 
 			for i := curRange.from; i < curRange.to; i++ {
-				fieldCompletionGot := make(map[string]struct{})
-				embedCompletionGot := make(map[string]struct{})
+				fieldCompletionGot := make(map[string]*eval.Node)
+				embedCompletionGot := make(map[string]*eval.Node)
 				for completions, names := range fe.CompletionsForOffset(i) {
 					if completions.Kind == protocol.FieldCompletion {
 						maps.Copy(fieldCompletionGot, names)
@@ -5739,8 +5739,8 @@ func (tc *testCase) dumpCompletions(t *testing.T, files []*ast.File, evalByFilen
 		var curRange *offsetRange
 		var prevFields, prevEmbeds []string
 		for i := range content {
-			fieldCompletionGot := make(map[string]struct{})
-			embedCompletionGot := make(map[string]struct{})
+			fieldCompletionGot := make(map[string]*eval.Node)
+			embedCompletionGot := make(map[string]*eval.Node)
 			for completions, names := range fe.CompletionsForOffset(i) {
 				if completions.Kind == protocol.FieldCompletion {
 					maps.Copy(fieldCompletionGot, names)

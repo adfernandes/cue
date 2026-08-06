@@ -25,6 +25,7 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/lsp/hover"
 	"cuelang.org/go/internal/pretty"
@@ -137,10 +138,13 @@ func (w *Workspace) References(file *File, fe *eval.FileEvaluator, srcMapper *pr
 
 // Hover is very similar to Definition. It attempts to resolve the
 // given position, within the file definitions, to one or more ast
-// nodes, and returns the doc comments attached to those ast nodes.
-// Additionally, it appends a "Unified with:" section showing the
-// expressions with which the value at the position is unified.
-// Either part can be absent; if both are, there is no hover.
+// nodes, and returns the doc comments attached to those ast nodes,
+// preceded by the signature if the position resolves to a builtin
+// function. Additionally, it appends a "Unified with:" section
+// showing the expressions with which the value at the position is
+// unified; for builtin functions this section is omitted, as the
+// signature already describes the value. Any part can be absent; if
+// all are, there is no hover.
 func (w *Workspace) Hover(file *File, fe *eval.FileEvaluator, srcMapper *protocol.Mapper, pos protocol.Position) *protocol.Hover {
 	offset, err := srcMapper.PositionOffset(pos)
 	if err != nil {
@@ -149,12 +153,23 @@ func (w *Workspace) Hover(file *File, fe *eval.FileEvaluator, srcMapper *protoco
 	}
 
 	docs := w.hoverDocs(file, fe, offset)
-	value, tooBig := w.hoverUnifiedValue(fe, offset)
-	if docs == "" && value == "" && !tooBig {
+	sig := w.hoverBuiltinSig(fe, offset)
+	var value string
+	var tooBig bool
+	if sig == "" {
+		value, tooBig = w.hoverUnifiedValue(fe, offset)
+	}
+	if docs == "" && sig == "" && value == "" && !tooBig {
 		return nil
 	}
 
 	var sb strings.Builder
+	if sig != "" {
+		fmt.Fprintf(&sb, "```cue\n%s\n```", sig)
+		if docs != "" {
+			sb.WriteString("\n\n")
+		}
+	}
 	sb.WriteString(docs)
 	if value != "" || tooBig {
 		if docs != "" {
@@ -235,6 +250,40 @@ func (w *Workspace) hoverDocs(file *File, fe *eval.FileEvaluator, offset int) st
 	}
 
 	return strings.TrimRight(sb.String(), "\n")
+}
+
+// hoverBuiltinSig returns the signature of the builtin function that
+// the given offset resolves to, or "" if the offset does not denote
+// one.
+func (w *Workspace) hoverBuiltinSig(fe *eval.FileEvaluator, offset int) string {
+	for _, node := range fe.DefinitionNodesForOffset(offset) {
+		if sig := builtinSig(node); sig != "" {
+			return sig
+		}
+	}
+	return ""
+}
+
+// builtinSig returns the signature recorded by a @stdlib attribute
+// on any of the node's declarations, or "" if there is none. A name
+// can be declared several times, and any one of its declarations may
+// carry the attribute. Fields carrying the attribute declare standard
+// library functions; see [cuelang.org/go/pkg.Source].
+func builtinSig(node *eval.Node) string {
+	if node == nil {
+		return ""
+	}
+	for decl := range node.Decls() {
+		for _, attr := range decl.Attrs() {
+			if name, _ := attr.Split(); name != "stdlib" {
+				continue
+			}
+			if sig, err := internal.ParseAttr(attr).String(0); err == nil && sig != "" {
+				return sig
+			}
+		}
+	}
+	return ""
 }
 
 // hoverUnifiedValue renders the logical value at the given offset:
@@ -331,13 +380,17 @@ func (w *Workspace) Completion(file *File, fe *eval.FileEvaluator, srcMapper *pr
 		// can be used to get the behaviour we really want here.
 		completionRange.End = pos
 
-		for name := range names {
+		for name, node := range names {
 			if isJsonSrc || !ast.IsValidIdent(name) {
 				name = strconv.Quote(name)
 			}
 			item := protocol.CompletionItem{
 				Label: name,
 				Kind:  completion.Kind,
+			}
+			if sig := builtinSig(node); sig != "" {
+				item.Kind = protocol.FunctionCompletion
+				item.Detail = sig
 			}
 			if rangeErr == nil {
 				item.TextEdit = &protocol.TextEdit{

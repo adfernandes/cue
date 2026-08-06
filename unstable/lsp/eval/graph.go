@@ -1124,6 +1124,12 @@ func (d *Decl) Kind() DeclKind {
 	return d.kind
 }
 
+// Attrs returns the attributes attached to the declaration that this
+// Decl models, or nil if there are none.
+func (d *Decl) Attrs() []*ast.Attribute {
+	return d.attrs
+}
+
 // Fields yields the fields that this declaration alone contributes to
 // its node, in lexical order of name. Whereas [Node.Fields] merges
 // the contributions of every declaration, this is the per-declaration
