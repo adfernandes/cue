@@ -1,0 +1,29 @@
+# A tightened builtin must not materialize a list merely to re-check parameter
+# and result constraints that restrict only the value kind. The two list sizes
+# exercise the motivating case without making the regression test expensive;
+# without the optimization, each call adds avoidable evaluator work.
+#inlinetest:exclude skip — performance regression guarded by out/eval/stats
+-- in.cue --
+@experiment(functions)
+
+import "list"
+
+#Len: func([..._], ...) -> int
+length: #Len & len
+
+small: length(list.Repeat([0], 64))
+large: length(list.Repeat([0], 128))
+-- out/compile --
+--- in.cue
+{
+  #Len: func([
+    ..._,
+  ], ...) -> int
+  length: (〈0;#Len〉 & len)
+  small: 〈0;length〉(〈import;list〉.Repeat([
+    0,
+  ], 64))
+  large: 〈0;length〉(〈import;list〉.Repeat([
+    0,
+  ], 128))
+}

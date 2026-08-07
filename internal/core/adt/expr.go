@@ -2440,6 +2440,14 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 			if tp.Value == nil || i >= len(args) {
 				continue
 			}
+			// A constraint that only restricts the kind is already enforced
+			// by the builtin's own parameter kind, which was checked against
+			// the type when the two were unified. Skip it rather than
+			// materialize the argument (see kindOnlyConstraint).
+			if k, ok := kindOnlyConstraint(tp.Value); ok &&
+				i < len(builtin.Params) && builtin.Params[i].Kind()&^k == 0 {
+				continue
+			}
 			w := c.newInlineVertex(nil, nil,
 				MakeConjunct(t.Env, tp.Value, c.ci),
 				MakeConjunct(nil, args[i], c.ci))
@@ -2483,6 +2491,12 @@ func (x *Builtin) applyResultTypes(c *OpContext, v Value) Value {
 	a = append(a, MakeConjunct(nil, v, c.ci))
 	for _, t := range x.Types {
 		if t.Fn.Ret == nil {
+			continue
+		}
+		// As for arguments: a constraint that only restricts the kind cannot
+		// reject a result the builtin can produce, since its result kind was
+		// checked against the type at unification (see kindOnlyConstraint).
+		if k, ok := kindOnlyConstraint(t.Fn.Ret); ok && x.Result&^k == 0 {
 			continue
 		}
 		a = append(a, MakeConjunct(t.Env, t.Fn.Ret, c.ci))

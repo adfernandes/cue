@@ -249,6 +249,52 @@ func staticKind(x Expr) (Kind, bool) {
 	return BottomKind, false
 }
 
+// kindOnlyConstraint reports the kind a constraint restricts its value to,
+// when restricting the kind is all it does. A basic type qualifies by
+// definition, and so does an open list whose element constraint is top, as it
+// admits every list. Anything that restricts more than the kind — a bound, a
+// struct, a list with element constraints or a fixed length — does not, and
+// the caller must enforce it.
+//
+// This is what makes a signature constraint skippable at call time: a builtin
+// already knows the kind of each parameter and of its result, and
+// [CheckBuiltinTightening] verified those kinds against the type when the two
+// were unified. Re-checking a kind-only constraint against the value can only
+// succeed, but doing so materializes the value — which for a large list means
+// building a vertex per element.
+func kindOnlyConstraint(x Expr) (Kind, bool) {
+	switch t := x.(type) {
+	case *BasicType:
+		return t.K, true
+
+	case *Top:
+		// `_` admits everything, so it constrains nothing at all.
+		return TopKind, true
+
+	case *ListLit:
+		// `[...T]` restricts only the kind exactly when T admits everything:
+		// `[..._]` and `[...]` do, `[...int]` does not.
+		if len(t.Elems) != 1 {
+			return BottomKind, false
+		}
+		e, ok := t.Elems[0].(*Ellipsis)
+		if !ok {
+			return BottomKind, false
+		}
+		switch v := e.Value.(type) {
+		case nil:
+			return ListKind, true
+		case *Top:
+			return ListKind, true
+		case *BasicType:
+			if v.K == TopKind {
+				return ListKind, true
+			}
+		}
+	}
+	return BottomKind, false
+}
+
 // CheckBuiltinTightening verifies that builtin b may be tightened by the
 // function type typ. It is exported for use by internal/core/subsume, which
 // applies the same static check to decide whether a function type subsumes a
