@@ -220,7 +220,7 @@ Errors:
 invalidVersion.config.version: conflicting values "3.0.0" and "invalid.version":
     ./in.cue:158:10
     ./in.cue:159:12
-    encoding/openapi:3:21
+    encoding/openapi:3:20
 
 Result:
 import (

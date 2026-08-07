@@ -164,61 +164,60 @@ var _ = adt.TopKind // in case the adt package isn't used
 
 var p = &pkg.Package{
 	Native: []*pkg.Builtin{},
-	CUE: `{
-	Read: {
-		$id:      _id
-		_id:      "tool/file.Read"
-		filename: !=""
-		contents: *bytes | string
-	}
-	Append: {
-		$id:         _id
-		_id:         "tool/file.Append"
-		filename:    !=""
-		permissions: int | *0o666
-		contents:    bytes | string
-	}
-	Create: {
-		$id:         _id
-		_id:         "tool/file.Create"
-		filename:    !=""
-		permissions: int | *0o666
-		contents:    bytes | string
-	}
-	Symlink: {
-		$id:      _id
-		_id:      "tool/file.Symlink"
-		filename: !=""
-		target:   !=""
-	}
-	Glob: {
-		$id:   _id
-		_id:   "tool/file.Glob"
-		glob:  !=""
-		files: [...string]
-	}
-	Mkdir: {
-		$id:           _id
-		_id:           "tool/file.Mkdir"
-		path:          string
-		createParents: bool | *false
-		permissions:   int | *0o777
-	}
-	MkdirAll: Mkdir & {
-		createParents: true
-	}
-	MkdirTemp: {
-		$id:     _id
-		_id:     "tool/file.MkdirTemp"
-		dir:     string | *""
-		pattern: string | *""
-		path:    string
-	}
-	RemoveAll: {
-		$id:     _id
-		_id:     "tool/file.RemoveAll"
-		path:    string
-		success: bool
-	}
+	CUE: `
+Read: {
+	$id:      _id
+	_id:      "tool/file.Read"
+	filename: !=""
+	contents: *bytes | string
+}
+Append: {
+	$id:         _id
+	_id:         "tool/file.Append"
+	filename:    !=""
+	permissions: int | *0o666
+	contents:    bytes | string
+}
+Create: {
+	$id:         _id
+	_id:         "tool/file.Create"
+	filename:    !=""
+	permissions: int | *0o666
+	contents:    bytes | string
+}
+Symlink: {
+	$id:      _id
+	_id:      "tool/file.Symlink"
+	filename: !=""
+	target:   !=""
+}
+Glob: {
+	$id:   _id
+	_id:   "tool/file.Glob"
+	glob:  !=""
+	files: [...string]
+}
+Mkdir: {
+	$id:           _id
+	_id:           "tool/file.Mkdir"
+	path:          string
+	createParents: bool | *false
+	permissions:   int | *0o777
+}
+MkdirAll: Mkdir & {
+	createParents: true
+}
+MkdirTemp: {
+	$id:     _id
+	_id:     "tool/file.MkdirTemp"
+	dir:     string | *""
+	pattern: string | *""
+	path:    string
+}
+RemoveAll: {
+	$id:     _id
+	_id:     "tool/file.RemoveAll"
+	path:    string
+	success: bool
 }`,
 }

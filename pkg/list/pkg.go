@@ -308,26 +308,25 @@ var p = &pkg.Package{
 			}
 		},
 	}},
-	CUE: `{
-	Comparer: {
-		T:    _
-		x:    T
-		y:    T
-		less: bool
-	}
-	Ascending: {
-		Comparer
-		T:    number | string
-		x:    T
-		y:    T
-		less: x < y
-	}
-	Descending: {
-		Comparer
-		T:    number | string
-		x:    T
-		y:    T
-		less: x > y
-	}
+	CUE: `
+Comparer: {
+	T:    _
+	x:    T
+	y:    T
+	less: bool
+}
+Ascending: {
+	Comparer
+	T:    number | string
+	x:    T
+	y:    T
+	less: x < y
+}
+Descending: {
+	Comparer
+	T:    number | string
+	x:    T
+	y:    T
+	less: x > y
 }`,
 }

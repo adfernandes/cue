@@ -46,17 +46,16 @@ var _ = adt.TopKind // in case the adt package isn't used
 
 var p = &pkg.Package{
 	Native: []*pkg.Builtin{},
-	CUE: `{
-	Print: {
-		$id:  _id
-		_id:  *"tool/cli.Print" | "print"
-		text: string
-	}
-	Ask: {
-		$id:      _id
-		_id:      "tool/cli.Ask"
-		prompt:   string
-		response: string | bool
-	}
+	CUE: `
+Print: {
+	$id:  _id
+	_id:  *"tool/cli.Print" | "print"
+	text: string
+}
+Ask: {
+	$id:      _id
+	_id:      "tool/cli.Ask"
+	prompt:   string
+	response: string | bool
 }`,
 }

@@ -221,59 +221,58 @@ var _ = adt.TopKind // in case the adt package isn't used
 
 var p = &pkg.Package{
 	Native: []*pkg.Builtin{},
-	CUE: `{
-	Get:    Do & {method: "GET"}
-	Post:   Do & {method: "POST"}
-	Put:    Do & {method: "PUT"}
-	Delete: Do & {method: "DELETE"}
-	Do: {
-		$id:             _id
-		_id:             *"tool/http.Do" | "http"
-		method:          string
-		url:             string
-		followRedirects: *true | bool
-		timeout?:        string
-		tls: {
-			verify:  *true | bool
-			caCert?: bytes | string
-		}
-		request: {
-			body?: bytes | string
-			header: [string]:  string | [...string]
-			trailer: [string]: string | [...string]
-		}
-		response: {
-			status:     string
-			statusCode: int
-			body:       *bytes | string
-			header: [string]:  string | [...string]
-			trailer: [string]: string | [...string]
-		}
+	CUE: `
+Get:    Do & {method: "GET"}
+Post:   Do & {method: "POST"}
+Put:    Do & {method: "PUT"}
+Delete: Do & {method: "DELETE"}
+Do: {
+	$id:             _id
+	_id:             *"tool/http.Do" | "http"
+	method:          string
+	url:             string
+	followRedirects: *true | bool
+	timeout?:        string
+	tls: {
+		verify:  *true | bool
+		caCert?: bytes | string
 	}
-	Serve: {
-		$id:         _id
-		_id:         "tool/http.Serve"
-		listenAddr!: string
-		routing: {
-			path:    *"/" | =~"^/"
-			method?: string
-		}
-		request: {
-			method: string
-			url:    string
-			body:   *bytes | string
-			value?: _
-			pathValues: [string]: string
-			form: [string]:       [string, ...string]
-			header: [string]:     [string, ...string]
-			trailer: [string]:    [string, ...string]
-		}
-		response: {
-			statusCode?: int & >=100 & <=999
-			body?:       *bytes | string
-			header?: [string]:  string | [string, ...string]
-			trailer?: [string]: string | [string, ...string]
-		}
+	request: {
+		body?: bytes | string
+		header: [string]:  string | [...string]
+		trailer: [string]: string | [...string]
+	}
+	response: {
+		status:     string
+		statusCode: int
+		body:       *bytes | string
+		header: [string]:  string | [...string]
+		trailer: [string]: string | [...string]
+	}
+}
+Serve: {
+	$id:         _id
+	_id:         "tool/http.Serve"
+	listenAddr!: string
+	routing: {
+		path:    *"/" | =~"^/"
+		method?: string
+	}
+	request: {
+		method: string
+		url:    string
+		body:   *bytes | string
+		value?: _
+		pathValues: [string]: string
+		form: [string]:       [string, ...string]
+		header: [string]:     [string, ...string]
+		trailer: [string]:    [string, ...string]
+	}
+	response: {
+		statusCode?: int & >=100 & <=999
+		body?:       *bytes | string
+		header?: [string]:  string | [string, ...string]
+		trailer?: [string]: string | [string, ...string]
 	}
 }`,
 }

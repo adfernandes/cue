@@ -63,18 +63,17 @@ var _ = adt.TopKind // in case the adt package isn't used
 
 var p = &pkg.Package{
 	Native: []*pkg.Builtin{},
-	CUE: `{
-	Run: {
-		$id:         _id
-		_id:         *"tool/exec.Run" | "exec"
-		cmd:         string | [string, ...string]
-		dir?:        string
-		env:         *{[string]: string} | [...=~"="]
-		stdout:      *null | string | bytes
-		stderr:      *null | string | bytes
-		stdin:       *null | string | bytes
-		success:     bool
-		mustSucceed: bool | *true
-	}
+	CUE: `
+Run: {
+	$id:         _id
+	_id:         *"tool/exec.Run" | "exec"
+	cmd:         string | [string, ...string]
+	dir?:        string
+	env:         *{[string]: string} | [...=~"="]
+	stdout:      *null | string | bytes
+	stderr:      *null | string | bytes
+	stdin:       *null | string | bytes
+	success:     bool
+	mustSucceed: bool | *true
 }`,
 }

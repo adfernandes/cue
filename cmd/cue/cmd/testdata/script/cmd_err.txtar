@@ -15,12 +15,12 @@ stderr 'error in call to encoding/json.Marshal'
 -- cmd_badfields.out --
 command.ref.task.display.contents: invalid bytes argument: non-concrete value (string|bytes):
     ./task_tool.cue:6:8
-    tool/file:20:3
+    tool/file:20:2
 command.ref.task.display.filename: invalid string argument: non-concrete value string:
     ./task_tool.cue:6:8
     ./task_tool.cue:7:9
-    tool/file:18:3
-    tool/file:18:16
+    tool/file:18:2
+    tool/file:18:15
 -- task_tool.cue --
 package home
 

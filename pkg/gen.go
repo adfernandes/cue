@@ -47,7 +47,6 @@ import (
 	"cuelang.org/go/cue/ast"
 	cueformat "cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
-	"cuelang.org/go/internal"
 )
 
 const pkgParent = "cuelang.org/go/pkg"
@@ -123,11 +122,11 @@ type emitter interface {
 	// function records an exported function usable as a builtin.
 	function(fn *types.Func)
 
-	// supplementalCUE records the package's supplemental CUE file,
-	// maintained alongside its Go sources; expr is its parsed form (a
-	// single expression wrapping the file's declarations), src their
-	// verbatim source.
-	supplementalCUE(expr ast.Expr, src []byte) error
+	// supplementalCUE records the package's supplemental CUE files,
+	// maintained alongside its Go sources; file is their parsed form (the
+	// file-level attributes they declare followed by their declarations),
+	// src their verbatim source.
+	supplementalCUE(file *ast.File, src []byte) error
 
 	// close formats the accumulated file and writes it to the
 	// package's directory.
@@ -149,9 +148,9 @@ func (es emitters) function(fn *types.Func) {
 	}
 }
 
-func (es emitters) supplementalCUE(expr ast.Expr, src []byte) error {
+func (es emitters) supplementalCUE(file *ast.File, src []byte) error {
 	for _, e := range es {
-		if err := e.supplementalCUE(expr, src); err != nil {
+		if err := e.supplementalCUE(file, src); err != nil {
 			return err
 		}
 	}
@@ -217,12 +216,12 @@ func generate(pkg *packages.Package, written map[string]bool) error {
 
 		emitMembers(pkg, cuePkg, emits)
 
-		expr, src, err := loadSupplementalCUE(pkgDir)
+		file, src, err := loadSupplementalCUE(pkgDir)
 		if err != nil {
 			return fmt.Errorf("error processing %s: %v", cuePkg, err)
 		}
-		if expr != nil {
-			if err := emits.supplementalCUE(expr, src); err != nil {
+		if file != nil {
+			if err := emits.supplementalCUE(file, src); err != nil {
 				return err
 			}
 		}
@@ -302,16 +301,26 @@ func emitMembers(pkg *packages.Package, cuePkgPath string, e emitter) {
 	}
 }
 
-// loadSupplementalCUE parses the directory's supplemental CUE file and
-// returns its contents as an expression, typically a struct holding all
-// of the file's declarations, along with the verbatim source of those
-// declarations: everything following the package clause.
+// loadSupplementalCUE parses the directory's supplemental CUE files and
+// returns their combined contents as a file: the file-level attributes the
+// sources declare, followed by every file's declarations. The files form one
+// CUE package, so their declarations are concatenated in sorted filename
+// order, which keeps the generated output stable. It also returns the
+// verbatim source of those declarations: for each file, everything following
+// its preamble.
 // If the directory has no such file, it returns (nil, nil, nil).
+//
+// The result is a file rather than a bare expression because file-level
+// attributes such as @experiment(functions) have no other place to live, and
+// both the formatter here and [pkg.Package.MustCompile] must see them to
+// accept the syntax they enable. The package clause and any imports are
+// dropped: the blob is unified into the package vertex, which supplies the
+// name, and imports have never been supported here.
 //
 // It avoids the cue/load and cuecontext packages because they depend
 // on the standard library which is what this command is generating -
 // cyclic dependencies are undesirable in general.
-func loadSupplementalCUE(dir string) (ast.Expr, []byte, error) {
+func loadSupplementalCUE(dir string) (*ast.File, []byte, error) {
 	cuefiles, err := filepath.Glob(filepath.Join(dir, "*.cue"))
 	if err != nil {
 		return nil, nil, err
@@ -324,24 +333,49 @@ func loadSupplementalCUE(dir string) (ast.Expr, []byte, error) {
 	if len(cuefiles) == 0 {
 		return nil, nil, nil
 	}
-	if len(cuefiles) > 1 {
-		// Supporting multiple CUE files would require merging declarations.
-		return nil, nil, fmt.Errorf("multiple CUE files not supported in this generator")
+	slices.Sort(cuefiles)
+
+	var attrs, decls []ast.Decl
+	var src []byte
+	seenAttr := map[string]bool{}
+	for _, name := range cuefiles {
+		b, err := os.ReadFile(name)
+		if err != nil {
+			return nil, nil, err
+		}
+		file, err := parser.ParseFile(name, b)
+		if err != nil {
+			return nil, nil, err
+		}
+		preamble := file.Preamble()
+		if len(preamble) == 0 {
+			return nil, nil, fmt.Errorf("no package clause in %s", name)
+		}
+		for _, d := range preamble {
+			// Hoist file-level attributes, deduplicating those that several
+			// files declare; drop the package clause and imports.
+			a, ok := d.(*ast.Attribute)
+			if !ok || seenAttr[a.Text] {
+				continue
+			}
+			seenAttr[a.Text] = true
+			attrs = append(attrs, &ast.Attribute{Text: a.Text})
+		}
+		decls = append(decls, file.Decls[len(preamble):]...)
+
+		rest := bytes.TrimSpace(b[preamble[len(preamble)-1].End().Offset():])
+		if len(rest) == 0 {
+			continue
+		}
+		if len(src) > 0 {
+			src = append(src, "\n\n"...)
+		}
+		src = append(src, rest...)
 	}
-	src, err := os.ReadFile(cuefiles[0])
-	if err != nil {
-		return nil, nil, err
+	if len(decls) == 0 {
+		return nil, nil, nil
 	}
-	file, err := parser.ParseFile(cuefiles[0], src)
-	if err != nil {
-		return nil, nil, err
-	}
-	clause, _ := internal.Package(file)
-	if clause == nil {
-		return nil, nil, fmt.Errorf("no package clause in %s", cuefiles[0])
-	}
-	decls := src[clause.End().Offset():]
-	return internal.ToExpr(file), decls, nil
+	return &ast.File{Decls: append(attrs, decls...)}, src, nil
 }
 
 // pruneGeneratedCUE removes pkg.cue files that were not written by
@@ -516,8 +550,8 @@ func (g *goEmitter) function(fn *types.Func) {
 // supplementalCUE renders the supplemental declarations as the
 // package's CUE field, which the runtime mixes in with the native
 // builtins.
-func (g *goEmitter) supplementalCUE(expr ast.Expr, _ []byte) error {
-	b, err := cueformat.Node(expr)
+func (g *goEmitter) supplementalCUE(file *ast.File, _ []byte) error {
+	b, err := cueformat.Node(file)
 	if err != nil {
 		return err
 	}
@@ -531,12 +565,14 @@ func (g *goEmitter) supplementalCUE(expr ast.Expr, _ []byte) error {
 	}
 	b = bytes.TrimSpace(b) // no trailing newline
 
-	// Try to use a Go string with backquotes, for readability.
+	// Try to use a Go string with backquotes, for readability. The string
+	// opens with a newline so that every top-level declaration, including
+	// the first, starts at the same column in the generated source.
 	// If not possible due to cueSrc itself having backquotes,
 	// use a single-line double-quoted string, removing tabs for brevity.
 	// We don't use strconv.CanBackquote as it is for quoting as a single line.
 	if cueSrc := string(b); !strings.Contains(cueSrc, "`") {
-		g.cue = fmt.Sprintf("CUE: `%s`,\n", cueSrc)
+		g.cue = fmt.Sprintf("CUE: `\n%s`,\n", cueSrc)
 	} else {
 		cueSrc = strings.ReplaceAll(cueSrc, "\t", "")
 		g.cue = fmt.Sprintf("CUE: %q,\n", cueSrc)
@@ -671,37 +707,51 @@ func (g *goEmitter) adtKind(typ types.Type) string {
 type cueEmitter struct {
 	filename   string
 	cuePkgPath string
-	def        *bytes.Buffer
-	docs       map[token.Pos]string
+	pkg        *packages.Package
+	// docTxt, when non-empty, is the contents of the package's doc.txt
+	// file, which already holds comment lines.
+	docTxt string
+	// attrs holds the file-level attributes of the package's
+	// supplemental CUE, which the declarations copied from it may need
+	// in order to parse.
+	attrs []string
+	def   *bytes.Buffer
+	docs  map[token.Pos]string
 	// written records the name of each pkg.cue file written, shared
 	// with pruneGeneratedCUE so that stale files can be removed.
 	written map[string]bool
 }
 
 func newCUEEmitter(dir, cuePkgPath string, pkg *packages.Package, docTxt string, written map[string]bool) *cueEmitter {
-	e := &cueEmitter{
+	return &cueEmitter{
 		filename:   filepath.Join(dir, "pkg.cue"),
 		cuePkgPath: cuePkgPath,
+		pkg:        pkg,
+		docTxt:     docTxt,
 		def:        &bytes.Buffer{},
 		docs:       objectDocs(pkg),
 		written:    written,
 	}
-	e.defHeader(pkg, docTxt)
-	return e
 }
 
-// defHeader emits the header of the CUE definition file: the generated
-// code marker, the package documentation, and the package clause.
-// docTxt, when non-empty, is the contents of the package's doc.txt
-// file, which already holds comment lines.
-func (e *cueEmitter) defHeader(pkg *packages.Package, docTxt string) {
-	fmt.Fprintf(e.def, "// Code generated by cuelang.org/go/pkg/gen. DO NOT EDIT.\n\n")
-	if docTxt != "" {
-		fmt.Fprintf(e.def, "%s\n", strings.TrimRight(docTxt, "\n"))
-	} else if doc := packageDoc(pkg); doc != "" {
-		writeDefComment(e.def, doc)
+// defHeader writes the header of the CUE definition file: the generated
+// code marker, the file-level attributes, the package documentation,
+// and the package clause. It is written at close, once the supplemental
+// CUE has reported which attributes the file needs.
+func (e *cueEmitter) defHeader(w *bytes.Buffer) {
+	fmt.Fprintf(w, "// Code generated by cuelang.org/go/pkg/gen. DO NOT EDIT.\n\n")
+	for _, attr := range e.attrs {
+		fmt.Fprintf(w, "%s\n", attr)
 	}
-	fmt.Fprintf(e.def, "package %s\n\n", path.Base(e.cuePkgPath))
+	if len(e.attrs) > 0 {
+		fmt.Fprintf(w, "\n")
+	}
+	if e.docTxt != "" {
+		fmt.Fprintf(w, "%s\n", strings.TrimRight(e.docTxt, "\n"))
+	} else if doc := packageDoc(e.pkg); doc != "" {
+		writeDefComment(w, doc)
+	}
+	fmt.Fprintf(w, "package %s\n\n", path.Base(e.cuePkgPath))
 }
 
 func (e *cueEmitter) constant(obj *types.Const, value string) {
@@ -751,8 +801,18 @@ func (e *cueEmitter) defEntry(pos token.Pos, name, value string) {
 
 // supplementalCUE carries the supplemental declarations over verbatim,
 // including their comments; only the license header and package clause
-// are dropped.
-func (e *cueEmitter) supplementalCUE(_ ast.Expr, src []byte) error {
+// are dropped. The file-level attributes are kept, as the declarations
+// may need the syntax they enable.
+func (e *cueEmitter) supplementalCUE(file *ast.File, src []byte) error {
+	// The file has no package clause of its own, so File.Preamble does
+	// not apply: the attributes are the leading declarations.
+	for _, d := range file.Decls {
+		attr, ok := d.(*ast.Attribute)
+		if !ok {
+			break
+		}
+		e.attrs = append(e.attrs, attr.Text)
+	}
 	e.def.Write(bytes.TrimSpace(src))
 	e.def.WriteString("\n")
 	return nil
@@ -761,9 +821,13 @@ func (e *cueEmitter) supplementalCUE(_ ast.Expr, src []byte) error {
 // close formats the accumulated CUE definitions and writes them to
 // pkg.cue in the package's directory.
 func (e *cueEmitter) close() error {
-	b, err := cueformat.Source(e.def.Bytes())
+	var buf bytes.Buffer
+	e.defHeader(&buf)
+	buf.Write(e.def.Bytes())
+
+	b, err := cueformat.Source(buf.Bytes())
 	if err != nil {
-		return fmt.Errorf("cannot format CUE definitions for %s: %v\n%s", e.cuePkgPath, err, e.def.Bytes())
+		return fmt.Errorf("cannot format CUE definitions for %s: %v\n%s", e.cuePkgPath, err, buf.Bytes())
 	}
 	if err := os.WriteFile(e.filename, b, 0o666); err != nil {
 		return err

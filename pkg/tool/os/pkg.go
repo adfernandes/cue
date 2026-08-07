@@ -63,27 +63,26 @@ var _ = adt.TopKind // in case the adt package isn't used
 
 var p = &pkg.Package{
 	Native: []*pkg.Builtin{},
-	CUE: `{
-	Value: bool | number | *string | null
-	Name:  !="" & !~"^[$]"
-	Setenv: {
-		$id: _id
-		_id: "tool/os.Setenv"
-		{[Name]: Value}
-	}
-	Getenv: {
-		$id: _id
-		_id: "tool/os.Getenv"
-		{[Name]: Value}
-	}
-	Environ: {
-		$id: _id
-		_id: "tool/os.Environ"
-		{[Name]: Value}
-	}
-	Clearenv: {
-		$id: _id
-		_id: "tool/os.Clearenv"
-	}
+	CUE: `
+Value: bool | number | *string | null
+Name:  !="" & !~"^[$]"
+Setenv: {
+	$id: _id
+	_id: "tool/os.Setenv"
+	{[Name]: Value}
+}
+Getenv: {
+	$id: _id
+	_id: "tool/os.Getenv"
+	{[Name]: Value}
+}
+Environ: {
+	$id: _id
+	_id: "tool/os.Environ"
+	{[Name]: Value}
+}
+Clearenv: {
+	$id: _id
+	_id: "tool/os.Clearenv"
 }`,
 }

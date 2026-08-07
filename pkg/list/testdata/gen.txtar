@@ -101,34 +101,34 @@ t36: error in call to list.Slice: slice bounds out of range:
     ./in.cue:38:6
 t40: error in call to list.Sort: 2 errors in empty disjunction::
     ./in.cue:46:6
-    list:13:9
+    list:13:8
 t40: error in call to list.Sort: conflicting values {b:2} and number (mismatched types struct and number):
     ./in.cue:46:6
     ./in.cue:46:25
-    list:8:13
-    list:10:9
-    list:11:9
+    list:8:12
+    list:10:8
+    list:11:8
 t40: error in call to list.Sort: conflicting values {b:2} and string (mismatched types struct and string):
     ./in.cue:46:6
     ./in.cue:46:25
-    list:8:13
-    list:10:18
-    list:11:9
+    list:8:12
+    list:10:17
+    list:11:8
 t40: error in call to list.Sort: 2 errors in empty disjunction::
     ./in.cue:46:6
-    list:13:13
+    list:13:12
 t40: error in call to list.Sort: conflicting values {a:1} and number (mismatched types struct and number):
     ./in.cue:46:6
     ./in.cue:46:17
-    list:8:13
-    list:10:9
-    list:12:9
+    list:8:12
+    list:10:8
+    list:12:8
 t40: error in call to list.Sort: conflicting values {a:1} and string (mismatched types struct and string):
     ./in.cue:46:6
     ./in.cue:46:17
-    list:8:13
-    list:10:18
-    list:12:9
+    list:8:12
+    list:10:17
+    list:12:8
 t42: error in call to list.SortStrings: invalid list element 0 in argument 0 to call: cannot use value 1 (int) as string:
     ./in.cue:48:6
     ./in.cue:48:24
@@ -138,34 +138,34 @@ t49: error in call to list.Take: negative index:
     ./in.cue:55:6
 t54: error in call to list.Sort: 2 errors in empty disjunction::
     ./in.cue:60:6
-    list:13:9
+    list:13:8
 t54: error in call to list.Sort: conflicting values {b:2} and number (mismatched types struct and number):
     ./in.cue:60:6
     ./in.cue:60:25
-    list:8:13
-    list:10:9
-    list:11:9
+    list:8:12
+    list:10:8
+    list:11:8
 t54: error in call to list.Sort: conflicting values {b:2} and string (mismatched types struct and string):
     ./in.cue:60:6
     ./in.cue:60:25
-    list:8:13
-    list:10:18
-    list:11:9
+    list:8:12
+    list:10:17
+    list:11:8
 t54: error in call to list.Sort: 2 errors in empty disjunction::
     ./in.cue:60:6
-    list:13:13
+    list:13:12
 t54: error in call to list.Sort: conflicting values {a:1} and number (mismatched types struct and number):
     ./in.cue:60:6
     ./in.cue:60:17
-    list:8:13
-    list:10:9
-    list:12:9
+    list:8:12
+    list:10:8
+    list:12:8
 t54: error in call to list.Sort: conflicting values {a:1} and string (mismatched types struct and string):
     ./in.cue:60:6
     ./in.cue:60:17
-    list:8:13
-    list:10:18
-    list:12:9
+    list:8:12
+    list:10:17
+    list:12:8
 
 Result:
 t1:  2.5

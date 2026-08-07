@@ -122,7 +122,7 @@ command.build.contents: invalid bytes argument: index out of range [0] with leng
     ./issue2416a_tool.cue:21:10
     ./issue2416a_tool.cue:29:2
     ./issue2416a_tool.cue:29:18
-    tool/file:20:3
+    tool/file:20:2
 -- stdout2416.golden --
 key=default val=foo
 key=bar val=bar
@@ -156,4 +156,4 @@ command.main.dump.text: invalid string argument: non-concrete value int in opera
     ./issue4005_tool.cue:8:6
     ./issue4005_tool.cue:16:3
     ./issue4005_tool.cue:17:11
-    tool/cli:5:3
+    tool/cli:5:2

@@ -91,17 +91,23 @@ func (p *Package) MustCompile(ctx *adt.OpContext, importPath string) *adt.Vertex
 		})
 	}
 
-	// Parse builtin CUE
+	// Parse builtin CUE. The blob is parsed as a file rather than as an
+	// expression so that it can carry file-level attributes: an experiment
+	// such as @experiment(functions) has no other place to be declared, and
+	// without it the syntax it enables is rejected. Its declarations unify
+	// with the natives above.
 	if p.CUE != "" {
-		expr, err := parser.ParseExpr(importPath, p.CUE)
+		f, err := parser.ParseFile(importPath, p.CUE)
 		if err != nil {
 			panic(fmt.Errorf("could not parse %v: %v", p.CUE, err))
 		}
-		c, err := compile.Expr(nil, ctx.Runtime, importPath, expr)
+		v, err := compile.Files(nil, ctx.Runtime, importPath, f)
 		if err != nil {
 			panic(fmt.Errorf("could compile parse %v: %v", p.CUE, err))
 		}
-		obj.AddConjunct(c)
+		for _, c := range v.Conjuncts {
+			obj.AddConjunct(c)
+		}
 	}
 
 	// We could compile lazily, but this is easier for debugging.

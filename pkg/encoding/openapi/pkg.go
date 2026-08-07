@@ -29,30 +29,29 @@ var p = &pkg.Package{
 			}
 		},
 	}},
-	CUE: `{
-	#Config: {
-		version!:         "3.0.0"
-		info?:            #Info
-		selfContained:    bool | *false
-		expandReferences: bool | *false
-	}
-	#Info: {
-		title!:          string
-		version!:        string
-		summary?:        string
-		description?:    string
-		termsOfService?: string
-		contact?:        #Contact
-		license?:        #License
-	}
-	#Contact: {
-		name?:  string
-		url?:   string
-		email?: string
-	}
-	#License: {
-		name!: string
-		url?:  string
-	}
+	CUE: `
+#Config: {
+	version!:         "3.0.0"
+	info?:            #Info
+	selfContained:    bool | *false
+	expandReferences: bool | *false
+}
+#Info: {
+	title!:          string
+	version!:        string
+	summary?:        string
+	description?:    string
+	termsOfService?: string
+	contact?:        #Contact
+	license?:        #License
+}
+#Contact: {
+	name?:  string
+	url?:   string
+	email?: string
+}
+#License: {
+	name!: string
+	url?:  string
 }`,
 }
