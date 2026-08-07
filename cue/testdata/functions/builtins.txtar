@@ -1,12 +1,15 @@
 # Tests that builtins satisfy function types: unifying a builtin with a
 # compatible function type succeeds and yields the builtin, with the type's
 # parameter and result constraints additionally enforced on every call.
-# Builtins accept no labeled arguments, so a type's anonymous parameters
-# match the builtin's parameters positionally and a type's named parameters
-# are rejected. Statically checked at unification time are parameter
-# matching, arity, and kind-level compatibility where the constraint is
-# literally a basic type; all other constraints surface when the tightened
-# builtin is called.
+# A builtin binds its arguments by position, so a type's parameters match the
+# builtin's by position. Naming them is allowed: a plain parameter is both
+# named and positional, so it gives the otherwise unnamed raw slot a contract
+# label without changing the builtin's positional ABI. Only a parameter that
+# can be passed by label alone —
+# marked required (a!) or optional (a?) — cannot be satisfied by a builtin.
+# Statically checked at unification time are parameter matching, arity, and
+# kind-level compatibility where the constraint is literally a basic type;
+# all other constraints surface when the tightened builtin is called.
 -- in.cue --
 @experiment(functions)
 
@@ -25,13 +28,14 @@ tighten: {
 	O:  func(...) -> string
 	o:  O & strings.ToUpper
 	ox: o("hi") @test(eq, "HI")
+
+	// A named parameter is positional as well, so it matches the builtin's
+	// raw parameter by position and supplies its contract label.
+	named: (func(s: string) -> string) & strings.ToUpper
+	nx:    named("hi") @test(eq, "HI")
 }
 
 static: {
-	// A named type parameter cannot be satisfied by a builtin: builtins
-	// accept no labeled arguments.
-	named: (func(s: string) -> string) & strings.ToUpper @test(err, code=eval, contains="parameter s of function type not allowed by builtin strings.ToUpper: builtins accept no labeled arguments")
-
 	// Arity is checked statically in both directions: the type must not
 	// declare more positional parameters than the builtin accepts, and a
 	// closed type must cover every defaultless parameter of the builtin.
@@ -86,9 +90,10 @@ optionalExtra: {
 	up: O & strings.ToUpper
 	x:  up("hi") @test(eq, "HI")
 
-	// A plain named parameter remains rejected (see static.named), and so
-	// does a required one.
-	bad: (func(string, sep!: string) -> string) & strings.ToUpper @test(err, code=eval, contains="parameter sep of function type not allowed by builtin strings.ToUpper: builtins accept no labeled arguments")
+	// A required parameter is rejected: unlike a plain named parameter
+	// (see tighten.named), it can only be passed by label, which a call
+	// through a builtin cannot do.
+	bad: (func(string, sep!: string) -> string) & strings.ToUpper @test(err, code=eval, contains="parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally")
 }
 
 // Tightened builtins are equal when derived from the same builtin with the
@@ -130,46 +135,43 @@ polymorphic: {
 	bad: (func(_, ...) -> string) & len @test(err, code=eval, contains="result of function type has kind string, conflicting with result kind int of builtin len")
 }
 -- out/errors.txt --
-[eval] static.named: parameter s of function type not allowed by builtin strings.ToUpper: builtins accept no labeled arguments:
-    ./in.cue:23:39
-    ./in.cue:23:10
 [eval] static.tooMany: function type has more positional parameters than builtin strings.ToUpper:
-    ./in.cue:28:51
-    ./in.cue:28:12
-[eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
-    ./in.cue:29:32
+    ./in.cue:29:51
     ./in.cue:29:12
+[eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
+    ./in.cue:30:32
+    ./in.cue:30:12
 [eval] static.badParam: parameter 1 of function type has kind int, conflicting with kind string of builtin strings.ToUpper:
-    ./in.cue:33:42
-    ./in.cue:33:14
-[eval] static.badResult: result of function type has kind int, conflicting with result kind string of builtin strings.ToUpper:
     ./in.cue:34:42
     ./in.cue:34:14
+[eval] static.badResult: result of function type has kind int, conflicting with result kind string of builtin strings.ToUpper:
+    ./in.cue:35:42
+    ./in.cue:35:14
 [eval] static.conflict: conflicting values func(a: string) -> string: ... and strings.ToUpper:
-    ./in.cue:37:12
     ./in.cue:38:12
-    ./in.cue:38:16
+    ./in.cue:39:12
+    ./in.cue:39:16
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:45:11
-    ./in.cue:49:10
+    ./in.cue:46:11
+    ./in.cue:50:10
 [eval] conflicting values "HI" and "NO":
-    ./in.cue:52:28
-    ./in.cue:56:8
+    ./in.cue:53:28
+    ./in.cue:57:8
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:60:12
-    ./in.cue:64:11
-[eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: builtins accept no labeled arguments:
-    ./in.cue:81:48
-    ./in.cue:81:8
+    ./in.cue:61:12
+    ./in.cue:65:11
+[eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally:
+    ./in.cue:83:48
+    ./in.cue:83:8
 [eval] partial.contains: partial application of builtin strings.Contains is not supported:
-    ./in.cue:99:12
+    ./in.cue:101:12
 [eval] partial.length: partial application of builtin len is not supported:
-    ./in.cue:100:12
+    ./in.cue:102:12
 [eval] conflicting values string and [1,2] (mismatched types string and list):
-    ./in.cue:114:13
-    ./in.cue:117:11
+    ./in.cue:116:13
+    ./in.cue:119:11
 [eval] polymorphic.bad: result of function type has kind string, conflicting with result kind int of builtin len:
-    ./in.cue:120:8
+    ./in.cue:122:8
 -- out/eval/stats --
 Leaks:  1
 Freed:  85

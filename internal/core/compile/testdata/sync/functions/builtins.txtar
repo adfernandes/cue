@@ -1,12 +1,15 @@
 # Tests that builtins satisfy function types: unifying a builtin with a
 # compatible function type succeeds and yields the builtin, with the type's
 # parameter and result constraints additionally enforced on every call.
-# Builtins accept no labeled arguments, so a type's anonymous parameters
-# match the builtin's parameters positionally and a type's named parameters
-# are rejected. Statically checked at unification time are parameter
-# matching, arity, and kind-level compatibility where the constraint is
-# literally a basic type; all other constraints surface when the tightened
-# builtin is called.
+# A builtin binds its arguments by position, so a type's parameters match the
+# builtin's by position. Naming them is allowed: a plain parameter is both
+# named and positional, so it gives the otherwise unnamed raw slot a contract
+# label without changing the builtin's positional ABI. Only a parameter that
+# can be passed by label alone —
+# marked required (a!) or optional (a?) — cannot be satisfied by a builtin.
+# Statically checked at unification time are parameter matching, arity, and
+# kind-level compatibility where the constraint is literally a basic type;
+# all other constraints surface when the tightened builtin is called.
 -- in.cue --
 @experiment(functions)
 
@@ -25,13 +28,14 @@ tighten: {
 	O:  func(...) -> string
 	o:  O & strings.ToUpper
 	ox: o("hi")
+
+	// A named parameter is positional as well, so it matches the builtin's
+	// raw parameter by position and supplies its contract label.
+	named: (func(s: string) -> string) & strings.ToUpper
+	nx:    named("hi")
 }
 
 static: {
-	// A named type parameter cannot be satisfied by a builtin: builtins
-	// accept no labeled arguments.
-	named: (func(s: string) -> string) & strings.ToUpper
-
 	// Arity is checked statically in both directions: the type must not
 	// declare more positional parameters than the builtin accepts, and a
 	// closed type must cover every defaultless parameter of the builtin.
@@ -86,8 +90,9 @@ optionalExtra: {
 	up: O & strings.ToUpper
 	x:  up("hi")
 
-	// A plain named parameter remains rejected (see static.named), and so
-	// does a required one.
+	// A required parameter is rejected: unlike a plain named parameter
+	// (see tighten.named), it can only be passed by label, which a call
+	// through a builtin cannot do.
 	bad: (func(string, sep!: string) -> string) & strings.ToUpper
 }
 
@@ -141,9 +146,10 @@ polymorphic: {
     O: func(...) -> string
     o: (〈0;O〉 & 〈import;strings〉.ToUpper)
     ox: 〈0;o〉("hi")
+    named: (func(s: string) -> string & 〈import;strings〉.ToUpper)
+    nx: 〈0;named〉("hi")
   }
   static: {
-    named: (func(s: string) -> string & 〈import;strings〉.ToUpper)
     tooMany: (func(string, string, ...) -> string & 〈import;strings〉.ToUpper)
     tooFew: (func() -> string & 〈import;strings〉.ToUpper)
     badParam: (func(int, ...) -> string & 〈import;strings〉.ToUpper)

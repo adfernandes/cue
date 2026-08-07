@@ -263,8 +263,15 @@ func TestFunctions(t *testing.T) {
 			err: "value not an instance",
 		},
 		{
-			// A named parameter cannot be satisfied by a builtin.
+			// A named parameter is positional too, so it can constrain the raw
+			// builtin slot and supply its contract label.
 			in:  "import \"strings\"\na: func(s: string, ...) -> string, b: strings.ToUpper",
+			err: "",
+		},
+		{
+			// A parameter that can only be passed by label cannot be
+			// satisfied by a builtin, which binds its arguments by position.
+			in:  "import \"strings\"\na: func(string, sep!: string, ...) -> string, b: strings.ToUpper",
 			err: "value not an instance",
 		},
 		{

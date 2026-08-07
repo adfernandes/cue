@@ -300,13 +300,16 @@ func kindOnlyConstraint(x Expr) (Kind, bool) {
 // applies the same static check to decide whether a function type subsumes a
 // builtin.
 //
-// Builtins accept no labeled arguments and their parameters are positional
-// and unlabeled. Mirroring the anonymous-value rule, a type's anonymous
-// parameters match the builtin's parameters positionally; a type's named
-// parameters cannot be satisfied by a builtin. The static checks are limited
-// to what is decidable from the compiled signature and the builtin's shape:
+// A builtin takes its arguments positionally, so a type's parameters match
+// the builtin's raw slots by position. Naming them is allowed and encouraged:
+// a plain parameter such as `list: [..._]` is both named and positional, so
+// its name supplies the otherwise unnamed slot's contract label without
+// changing the positional ABI. Only a parameter that can *only* be passed by
+// label — one marked required (a!) or optional (a?) — cannot be satisfied
+// positionally. The static checks are limited to what is decidable from the
+// compiled signature and the builtin's shape:
 //
-//   - a named parameter of the type is rejected, unless it is optional
+//   - a name-only parameter of the type is rejected, unless it is optional
 //     (a?): an optional parameter can never be bound by a call through the
 //     builtin, but no call needs it either;
 //   - a type parameter beyond the builtin's parameter count is rejected;
@@ -324,14 +327,14 @@ func kindOnlyConstraint(x Expr) (Kind, bool) {
 func CheckBuiltinTightening(c *OpContext, typ *Function, b *Builtin) *Bottom {
 	pos := 0
 	for _, p := range typ.Params {
-		if p.Label != InvalidLabel {
+		if !p.Positional {
 			if p.ArcType == ArcOptional {
 				// An extra parameter is admitted against a closed signature
-				// iff it is optional; a builtin never binds named arguments,
-				// so the parameter is simply never bound.
+				// iff it is optional; a name-only parameter is never bound
+				// through a builtin, so nothing needs to bind it.
 				continue
 			}
-			return c.NewErrf("parameter %s of function type not allowed by builtin %s: builtins accept no labeled arguments",
+			return c.NewErrf("parameter %s of function type not allowed by builtin %s: it can only be passed by label, and a builtin takes its arguments positionally",
 				p.Label.SelectorString(c), b.qualifiedName(c))
 		}
 		if pos >= len(b.Params) {
