@@ -249,4 +249,5 @@ func (v *Vertex) clearArcs(c *OpContext) {
 		c.reclaimRecursive(arc)
 	}
 	v.Arcs = v.Arcs[:0]
+	v.arcMap = nil
 }

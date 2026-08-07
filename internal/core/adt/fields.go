@@ -149,18 +149,58 @@ package adt
 // - the data structures could probably be collapsed with Conjunct. and the
 //   Vertex inserted into the Conjuncts could be a special ConjunctGroup.
 
+// arcMapThreshold is the number of arcs from which a Vertex indexes its arcs
+// by label rather than scanning them. Below it the scan is cheaper than the
+// map, and the vast majority of vertices stay well below it.
+const arcMapThreshold = 16
+
+// lookupArc returns the arc of v labeled f, or nil if there is none.
+//
+// A vertex with many arcs indexes them by label: without an index, building
+// one arc at a time scans every arc already present, making the construction
+// of a vertex with n arcs quadratic. A large list is exactly that shape.
+//
+// The index is a cache, not an invariant. Arcs are appended and removed
+// outside this path, and a Vertex is sometimes copied wholesale, so the index
+// is used only when it accounts for exactly the arcs present and is rebuilt
+// otherwise. Labels are unique within a vertex, so agreeing in length means
+// agreeing entry for entry.
+//
+// TODO(perf): unify the scan and the map into a single representation by
+// keeping Arcs sorted by Feature and binary searching, removing the side
+// index and its rebuilds.
+func (v *Vertex) lookupArc(f Feature) *Vertex {
+	if len(v.Arcs) < arcMapThreshold {
+		for _, a := range v.Arcs {
+			if a.Label == f {
+				return a
+			}
+		}
+		return nil
+	}
+	if len(v.arcMap) != len(v.Arcs) {
+		m := make(map[Feature]int32, 2*len(v.Arcs))
+		for i, a := range v.Arcs {
+			m[a.Label] = int32(i)
+		}
+		v.arcMap = m
+	}
+	if i, ok := v.arcMap[f]; ok {
+		return v.Arcs[i]
+	}
+	return nil
+}
+
 func (n *nodeContext) getArc(f Feature, mode ArcType) (arc *Vertex, isNew bool) {
 	// TODO(disjunct,perf): CopyOnRead
 	v := n.node
-	for _, a := range v.Arcs {
-		if a.Label == f {
-			if f.IsLet() {
-				a.MultiLet = true
-				// TODO: add return here?
-			}
-			a.updateArcType(mode)
-			return a, false
+	if a := v.lookupArc(f); a != nil {
+		if f.IsLet() {
+			a.MultiLet = true
+			// TODO: add return here?
 		}
+		a.updateArcType(mode)
+		return a, false
 	}
 
 	// getArc is immediately followed by inserting one conjunct,
@@ -186,6 +226,11 @@ func (n *nodeContext) getArc(f Feature, mode ArcType) (arc *Vertex, isNew bool) 
 		arc.ArcType = ArcNotPresent
 	}
 	v.Arcs = append(v.Arcs, arc)
+	if v.arcMap != nil {
+		// Extend rather than invalidate the index: rebuilding it on every
+		// append would restore the quadratic behavior it exists to avoid.
+		v.arcMap[f] = int32(len(v.Arcs) - 1)
+	}
 	return arc, true
 }
 

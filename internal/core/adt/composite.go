@@ -259,6 +259,12 @@ type Vertex struct {
 	// Value  Value
 	Arcs []*Vertex // arcs are sorted in display order.
 
+	// arcMap indexes Arcs by label, mapping a label to its position in Arcs.
+	// It is a cache, maintained only for vertices with enough arcs for the
+	// linear scan in [Vertex.lookupArc] to matter, and is rebuilt whenever it
+	// does not account for exactly the arcs present. See lookupArc.
+	arcMap map[Feature]int32
+
 	// PatternConstraints are additional constraints that match more nodes.
 	// Constraints that match existing Arcs already have their conjuncts
 	// mixed in.
@@ -499,6 +505,7 @@ func (a ArcType) Suffix() string {
 func (v *Vertex) Clone() *Vertex {
 	c := *v
 	c.state = nil
+	c.arcMap = nil // an arc index is never shared between vertices
 	return &c
 }
 
@@ -765,6 +772,7 @@ func (v *Vertex) ToDataSingle() *Vertex {
 	w.isData = true
 	w.state = nil
 	w.status = finalized
+	w.arcMap = nil // an arc index is never shared between vertices
 	return &w
 }
 
@@ -799,6 +807,7 @@ func (v *Vertex) toDataAllRec(ctx *OpContext, processed map[*Vertex]*Vertex) *Ve
 	w := *v
 	w.state = nil
 	w.status = finalized
+	w.arcMap = nil // arcs are filtered below; do not carry over v's index
 
 	w.BaseValue = toDataAllBaseValue(ctx, w.BaseValue, processed)
 	w.Arcs = arcs

@@ -594,10 +594,12 @@ func (n *nodeContext) reportConflict(v1, v2 Node, k1, k2 Kind, ids ...posInfo) {
 	// the error is set as the BaseValue. This matches the behavior in [OpContext.NewPosf].
 	if v, ok := v1.(*Vertex); ok {
 		vcopy := *v
+		vcopy.arcMap = nil
 		v1 = &vcopy
 	}
 	if v, ok := v2.(*Vertex); ok {
 		vcopy := *v
+		vcopy.arcMap = nil
 		v2 = &vcopy
 	}
 	err.v1 = v1

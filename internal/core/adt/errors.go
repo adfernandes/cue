@@ -441,6 +441,7 @@ func (c *OpContext) NewPosf(p token.Pos, format string, args ...interface{}) *Va
 			// Make a shallow copy to avoid that.
 			if v, ok := x.(*Vertex); ok {
 				vcopy := *v
+				vcopy.arcMap = nil
 				x = &vcopy
 			}
 			// Keep the Node in args; ValueError.Msg wraps it in a

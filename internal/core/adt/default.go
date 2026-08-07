@@ -69,10 +69,12 @@ func (v *Vertex) Default() *Vertex {
 			// Make a copy before modifying to avoid racing on shared vertex.
 			x := *w
 			x.state = nil
+			x.arcMap = nil
 			w = &x
 		default:
 			x := *v
 			x.state = nil
+			x.arcMap = nil
 			x.BaseValue = &Disjunction{
 				Src:         d.Src,
 				Values:      d.Values[:d.NumDefaults],
@@ -100,6 +102,7 @@ func (v *Vertex) Default() *Vertex {
 		w := *v
 		w.BaseValue = &m
 		w.state = nil
+		w.arcMap = nil
 		return &w
 	}
 }

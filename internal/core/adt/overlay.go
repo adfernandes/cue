@@ -233,6 +233,7 @@ func (ctx *overlayContext) cloneVertex(x *Vertex) *Vertex {
 	// TODO(mem-mgmt): use free list for Vertex allocation.
 	v := &Vertex{}
 	*v = *x
+	v.arcMap = nil // do not share x's arc index; the clone rebuilds its own
 	ctx.vertexMap[x] = v
 	x.overlay = v
 
