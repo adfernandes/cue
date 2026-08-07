@@ -702,41 +702,22 @@ type useOffsets struct {
 	idents  []int
 }
 
-// DefinitionsForOffset reports the definitions that the file offset
-// (number of bytes from the start of the file) resolves to.
-func (fe *FileEvaluator) DefinitionsForOffset(offset int) []ast.Node {
-	var nodes []ast.Node
-
-	for nav := range fe.definitionsForOffset(offset) {
-		for _, fr := range nav.frames {
-			if fr.key != nil {
-				nodes = append(nodes, fr.key)
-			}
-		}
-	}
-
-	return nodes
-}
-
-// DefinitionNodesForOffset is very similar to DefinitionsForOffset.
-// It reports the [Node]s denoted by the definitions that the file
-// offset (number of bytes from the start of the file) resolves to.
+// DefinitionNodesForOffset reports the [Node]s denoted by the
+// definitions that the file offset (number of bytes from the start of
+// the file) resolves to. The source-level declarations of the
+// definitions, and their positions, are available through each node's
+// [Node.Decls].
 func (fe *FileEvaluator) DefinitionNodesForOffset(offset int) NodeSet {
 	var nodes NodeSet
 
-	navs := fe.definitionsForOffset(offset)
-	if fe.evaluator.config.PackageIsEmbedded {
-		navs = maps.Keys(expandNavigablesViaPath(slices.Collect(navs)))
-	}
-
-	for nav := range navs {
+	for nav := range fe.definitionsForOffset(offset) {
 		nodes = append(nodes, (*Node)(nav))
 	}
 
 	return nodes
 }
 
-// DocCommentsForOffset is very similar to DefinitionsForOffset. It
+// DocCommentsForOffset is very similar to DefinitionNodesForOffset. It
 // reports the doc comments associated with the definitions that the
 // file offset (number of bytes from the start of the file) resolves
 // to.
@@ -2028,10 +2009,10 @@ func (f *frame) eval() {
 					remotePkgEvaluator = New(Config{})
 				}
 
-				// DefinitionsForOffset always traverses a path, so here
-				// we add a path so that DefinitionsForOffset on this
-				// import spec reports the package declarations of the
-				// remote pkg.
+				// DefinitionNodesForOffset always traverses a path, so
+				// here we add a path so that DefinitionNodesForOffset on
+				// this import spec reports the package declarations of
+				// the remote pkg.
 				p := &path{
 					frame: f,
 					components: []pathComponent{{
@@ -2437,10 +2418,10 @@ func (f *frame) eval() {
 
 			for _, fr := range frs {
 				// We add a path that records that this frame resolves to
-				// the remote package. DefinitionsForOffset always passes
-				// through a path, so this path ensures
-				// DefinitionsForOffset on the attr itself will take you
-				// to the embedded files.
+				// the remote package. DefinitionNodesForOffset always
+				// passes through a path, so this path ensures
+				// DefinitionNodesForOffset on the attr itself will take
+				// you to the embedded files.
 				p := &path{
 					frame: fr,
 					components: []pathComponent{{

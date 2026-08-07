@@ -42,7 +42,14 @@ func (w *Workspace) Definition(file *File, fe *eval.FileEvaluator, srcMapper *pr
 		return nil
 	}
 
-	targets := fe.DefinitionsForOffset(offset)
+	var targets []ast.Node
+	for _, node := range fe.DefinitionNodesForOffset(offset) {
+		for decl := range node.Decls() {
+			if key := decl.Key(); key != nil {
+				targets = append(targets, key)
+			}
+		}
+	}
 	if len(targets) == 0 {
 		return nil
 	}

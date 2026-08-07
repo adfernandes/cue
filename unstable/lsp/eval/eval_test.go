@@ -5261,6 +5261,20 @@ out: {
 	}.run(t)
 }
 
+// definitionKeysForOffset reports the source-level keys of the
+// declarations of the definitions that the given offset resolves to.
+func definitionKeysForOffset(fe *eval.FileEvaluator, offset int) []ast.Node {
+	var keys []ast.Node
+	for _, node := range fe.DefinitionNodesForOffset(offset) {
+		for decl := range node.Decls() {
+			if key := decl.Key(); key != nil {
+				keys = append(keys, key)
+			}
+		}
+	}
+	return keys
+}
+
 type testCase struct {
 	name              string
 	archive           string
@@ -5399,7 +5413,7 @@ func (tc *testCase) testDefinitions(t *testing.T, files []*ast.File, analysis te
 			for i := range len(posFrom.str) + 1 {
 				// Test every offset within the "from" token
 				offset := offset + i
-				nodesGot := fileEval.DefinitionsForOffset(offset)
+				nodesGot := definitionKeysForOffset(fileEval, offset)
 				fileOffsetsGot := make([]fileOffset, len(nodesGot))
 				for j, node := range nodesGot {
 					fileOffsetsGot[j] = fileOffsetForTokenPos(node.Pos().Position())
@@ -5427,7 +5441,7 @@ func (tc *testCase) testDefinitions(t *testing.T, files []*ast.File, analysis te
 				if ranges.Contains(filename, i) {
 					continue
 				}
-				nodesGot := fileEval.DefinitionsForOffset(i)
+				nodesGot := definitionKeysForOffset(fileEval, i)
 				fileOffsetsGot := make([]fileOffset, len(nodesGot))
 				for j, node := range nodesGot {
 					fileOffsetsGot[j] = fileOffsetForTokenPos(node.Pos().Position())
