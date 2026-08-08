@@ -24,10 +24,11 @@ import (
 // function types (bodyless function literals).
 //
 // Subsumption is structural, following the signature matching rules of
-// function tightening and function type meets: named parameters match by
-// label, anonymous parameters match positionally, and matched pairs must
-// agree on requiredness. Directionally, everything the subsumed signature
-// declares beyond the subsuming signature is admitted only against an open
+// function tightening and function type meets: positional parameters align by
+// ordinal, a plain contract label promised by the subsumer must already name
+// that slot on the candidate, name-only parameters match by label, and matched
+// pairs must agree on requiredness. Directionally, everything the subsumed
+// signature declares beyond the subsuming signature is admitted only against an open
 // subsuming signature (or when the extra parameter is optional and thus not
 // needed for a call to succeed), while the subsumed signature must declare
 // every non-optional parameter the subsuming signature declares: an extra
@@ -108,23 +109,28 @@ func (s *subsumer) funcSignature(fn *adt.Function, env *adt.Environment, b *adt.
 		return true
 	}
 
-	// Every parameter of the signature must be declared by b: named
-	// parameters by label, anonymous parameters by position. Matched pairs
-	// must agree on requiredness, and the signature's parameter constraint
-	// must subsume b's.
+	// Every parameter of the signature must be declared by b. Positional
+	// parameters align by ordinal; if the signature promises a plain contract
+	// label, b must already expose that label on the same slot. Name-only (a!,
+	// a?) parameters match by label. Matched pairs must agree on requiredness,
+	// and the signature's parameter constraint must subsume b's.
 	pos := 0
 	for _, p := range fn.Params {
-		pi := -1
-		if p.Positional {
-			pi = pos
-			pos++
-		}
 		var q adt.FuncParam
 		var ok bool
-		if p.Label != adt.InvalidLabel {
-			q, _, ok = adt.MatchFuncParam(b.Fn, p.Label, -1)
+		if p.Positional {
+			q, _, ok = adt.MatchFuncParam(b.Fn, adt.InvalidLabel, pos)
+			pos++
+			if ok && p.Label != adt.InvalidLabel && q.Label != p.Label {
+				return false
+			}
+			if !ok && p.Label != adt.InvalidLabel {
+				// A plain named parameter additionally matches a name-only
+				// parameter of b by its label.
+				q, _, ok = adt.MatchFuncParam(b.Fn, p.Label, -1)
+			}
 		} else {
-			q, _, ok = adt.MatchFuncParam(b.Fn, adt.InvalidLabel, pi)
+			q, _, ok = adt.MatchFuncParam(b.Fn, p.Label, -1)
 		}
 		if !ok {
 			if p.ArcType == adt.ArcOptional {

@@ -136,8 +136,8 @@ func TestFunctions(t *testing.T) {
 			err: "",
 		},
 
-		// Anonymous parameters match positionally; named parameters match
-		// by label only.
+		// Positional parameters align by ordinal. A contract label promised by
+		// the subsumer must already name that slot on the candidate.
 		{
 			in:  `a: func(int, ...) -> int, b: func(n: int, ...) -> int`,
 			err: "",
@@ -147,8 +147,19 @@ func TestFunctions(t *testing.T) {
 			err: "",
 		},
 		{
-			// An anonymous parameter of b cannot be addressed by a's label.
+			// Tightening could add n to this unnamed slot, but the untightened
+			// candidate does not yet satisfy the labeled call contract.
 			in:  `a: func(n: int, ...) -> int, b: func(int, ...) -> int`,
+			err: "value not an instance",
+		},
+		{
+			in:  `a: func(n: int, ...) -> int, b: func(other: int, ...) -> int`,
+			err: "value not an instance",
+		},
+		{
+			// A name-only parameter of a can only be bound by label, which
+			// an anonymous parameter of b cannot satisfy.
+			in:  `a: func(int, m!: int, ...) -> int, b: func(int, int, ...) -> int`,
 			err: "value not an instance",
 		},
 

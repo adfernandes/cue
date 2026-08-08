@@ -27,11 +27,13 @@ import (
 // constraint. Static checks at unification time are limited to what is
 // decidable from the compiled signatures alone:
 //
-//   - every parameter of the type must be declared by the value: named
-//     parameters (including a! and a?) match by label, anonymous parameters
-//     match the value's positional parameter in the same position; a type
-//     parameter that the value does not declare is allowed only if the
-//     parameter is optional (a?); callable function values are closed;
+//   - every parameter of the type must be declared by the value. Positional
+//     parameters align by ordinal. Their plain contract labels then unify:
+//     equal labels agree, a label on only one side names the shared slot, and
+//     two different labels conflict. A name-only parameter (a! or a?, which
+//     can be passed by label alone) matches by label. A type parameter that
+//     the value does not declare is allowed only if the parameter is optional
+//     (a?); callable function values are closed;
 //   - a matched pair of parameters must agree on requiredness (a! matches
 //     only a!);
 //   - unless the type's signature is open, every parameter of the value must
@@ -107,27 +109,89 @@ func MatchFuncParam(fn *Function, label Feature, pos int) (FuncParam, int, bool)
 	return FuncParam{}, -1, false
 }
 
-// checkParamsDeclared verifies that every parameter of x is declared by y:
-// named parameters by label, anonymous parameters by position. A parameter
-// of x that y does not declare is allowed only if y's signature is open or
-// the parameter is optional (a?): an optional parameter can never be bound
-// by a call through y, but no call needs it either. Matched pairs must
-// agree on requiredness. The strings xd and yd describe the two signatures
-// in error messages.
+// funcPositionalLabelConflict reports the first violation of the one-to-one
+// relation between plain contract labels and positional ordinals across fn
+// and types.
+func funcPositionalLabelConflict(fn *Function, types []FuncType) (a, b Feature, pos int) {
+	byLabel := make(map[Feature]int)
+	byPos := make(map[int]Feature)
+	conflictA := InvalidLabel
+	conflictB := InvalidLabel
+	conflictPos := -1
+	add := func(x *Function) {
+		pos := 0
+		for _, p := range x.Params {
+			if !p.Positional {
+				continue
+			}
+			if p.Label != InvalidLabel {
+				if prev, ok := byLabel[p.Label]; ok && prev != pos {
+					if conflictA == InvalidLabel {
+						conflictA = p.Label
+						conflictPos = -1
+					}
+				} else if !ok {
+					byLabel[p.Label] = pos
+				}
+				if prev, ok := byPos[pos]; ok && prev != p.Label {
+					if conflictA == InvalidLabel {
+						conflictA = prev
+						conflictB = p.Label
+						conflictPos = pos
+					}
+				} else if !ok {
+					byPos[pos] = p.Label
+				}
+			}
+			pos++
+		}
+	}
+	add(fn)
+	for _, t := range types {
+		add(t.Fn)
+	}
+	return conflictA, conflictB, conflictPos
+}
+
+func checkFuncParamLabels(c *OpContext, fn *Function, types []FuncType) *Bottom {
+	a, b, pos := funcPositionalLabelConflict(fn, types)
+	if b != InvalidLabel {
+		return c.NewErrf("conflicting parameter labels %s and %s for positional parameter %d",
+			a.SelectorString(c), b.SelectorString(c), pos+1)
+	}
+	if a != InvalidLabel {
+		return c.NewErrf("ambiguous parameter label %s refers to multiple positions",
+			a.SelectorString(c))
+	}
+	return nil
+}
+
+// checkParamsDeclared verifies that every parameter of x is declared by y.
+// Positional parameters align by ordinal. A plain contract label may name an
+// otherwise unnamed aligned slot, but two present labels must be equal. A
+// name-only parameter (one marked a! or a?, which can be passed by label alone)
+// matches by label.
+// A parameter of x that y does not declare is allowed only if y's signature
+// is open or the parameter is optional (a?): an optional parameter can never
+// be bound by a call through y, but no call needs it either. Matched pairs
+// must agree on requiredness. The strings xd and yd describe the two
+// signatures in error messages.
 func checkParamsDeclared(c *OpContext, x, y *Function, xd, yd string) *Bottom {
 	pos := 0
 	for _, p := range x.Params {
-		pi := -1
-		if p.Positional {
-			pi = pos
-			pos++
-		}
 		var q FuncParam
 		var ok bool
-		if p.Label != InvalidLabel {
-			q, _, ok = MatchFuncParam(y, p.Label, -1)
+		if p.Positional {
+			q, _, ok = MatchFuncParam(y, InvalidLabel, pos)
+			pos++
+			if !ok && p.Label != InvalidLabel {
+				// A plain named parameter additionally matches a name-only
+				// parameter of the other signature by its label; requiredness
+				// agreement below then reports a! against plain a precisely.
+				q, _, ok = MatchFuncParam(y, p.Label, -1)
+			}
 		} else {
-			q, _, ok = MatchFuncParam(y, InvalidLabel, pi)
+			q, _, ok = MatchFuncParam(y, p.Label, -1)
 		}
 		if !ok {
 			if y.Open || p.ArcType == ArcOptional {
@@ -148,10 +212,14 @@ func checkParamsDeclared(c *OpContext, x, y *Function, xd, yd string) *Bottom {
 }
 
 // checkFuncTypeMeet verifies that two function types have unifiable
-// signatures: parameters present in both are matched by label or position,
-// and a parameter present in only one is allowed only if the other
-// signature is open or the parameter is optional.
+// signatures: positional parameters align by ordinal and unify their contract
+// labels, name-only parameters match by label, and a parameter present in only
+// one is allowed only if the other signature is open or the parameter is
+// optional.
 func checkFuncTypeMeet(c *OpContext, x, y *Function) *Bottom {
+	if b := checkFuncParamLabels(c, x, []FuncType{{Fn: y}}); b != nil {
+		return b
+	}
 	if b := checkParamsDeclared(c, x, y, "function type", "function type"); b != nil {
 		return b
 	}
@@ -165,6 +233,9 @@ func checkFuncTypeMeet(c *OpContext, x, y *Function) *Bottom {
 // be declared by the value, and, unless the type is open, every
 // non-optional parameter of the value must be addressable through the type.
 func checkFuncTightening(c *OpContext, typ, val *Function) *Bottom {
+	if b := checkFuncParamLabels(c, val, []FuncType{{Fn: typ}}); b != nil {
+		return b
+	}
 	if b := checkParamsDeclared(c, typ, val, "function type", "function"); b != nil {
 		return b
 	}
