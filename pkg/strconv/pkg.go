@@ -256,4 +256,23 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Unquote:            func(s: string) -> string
+FormatBool:         func(b: bool) -> string
+ParseFloat:         func(s: string, bitSize: int) -> number
+ParseNumber:        func(s: string) -> number
+ParseUint:          func(s: string, base: int, bitSize: int) -> int
+ParseInt:           func(s: string, base: int, bitSize: int) -> int
+Atoi:               func(s: string) -> int
+FormatFloat:        func(f: number, fmtVal: _, prec: int, bitSize: int) -> string
+FormatUint:         func(i: int, base: int) -> string
+FormatInt:          func(i: int, base: int) -> string
+Quote:              func(s: string) -> string
+QuoteToASCII:       func(s: string) -> string
+QuoteToGraphic:     func(s: string) -> string
+QuoteRune:          func(r: int) -> string
+QuoteRuneToASCII:   func(r: int) -> string
+QuoteRuneToGraphic: func(r: int) -> string`,
 }

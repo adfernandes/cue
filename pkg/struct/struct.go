@@ -13,6 +13,8 @@
 // limitations under the License.
 
 // Package struct defines utilities for struct types.
+//
+//cue:pure
 package structs
 
 import (

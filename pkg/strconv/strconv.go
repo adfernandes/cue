@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -exclude=Append,Unquote,Itoa,CanBackquote,FormatComplex extract strconv
 
+//cue:pure
 package strconv
 
 import (

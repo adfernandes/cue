@@ -33,4 +33,8 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Sum: func(data: bytes | string) -> bytes`,
 }

@@ -75,4 +75,12 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+EncodedLen: func(n: int) -> int
+DecodedLen: func(x: int) -> int
+Decode:     func(s: string) -> bytes
+Dump:       func(data: bytes | string) -> string
+Encode:     func(src: bytes | string) -> string`,
 }

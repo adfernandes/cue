@@ -53,4 +53,8 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Sign: func(hashName: string, key: bytes | string, data: bytes | string) -> bytes`,
 }

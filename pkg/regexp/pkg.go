@@ -161,4 +161,17 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Find:                 func(pattern: string, s: string) -> string
+FindAll:              func(pattern: string, s: string, n: int) -> [...]
+FindAllNamedSubmatch: func(pattern: string, s: string, n: int) -> [...]
+FindAllSubmatch:      func(pattern: string, s: string, n: int) -> [...]
+FindNamedSubmatch:    func(pattern: string, s: string) -> {...}
+FindSubmatch:         func(pattern: string, s: string) -> [...]
+ReplaceAll:           func(pattern: string, src: string, repl: string) -> string
+ReplaceAllLiteral:    func(pattern: string, src: string, repl: string) -> string
+Match:                func(pattern: string, s: string) -> bool
+QuoteMeta:            func(s: string) -> string`,
 }

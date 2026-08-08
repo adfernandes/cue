@@ -25,7 +25,7 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
-	"cuelang.org/go/internal"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/lsp/hover"
 	"cuelang.org/go/internal/pretty"
@@ -271,24 +271,26 @@ func (w *Workspace) hoverBuiltinSig(fe *eval.FileEvaluator, offset int) string {
 	return ""
 }
 
-// builtinSig returns the signature recorded by a @stdlib attribute
-// on any of the node's declarations, or "" if there is none. A name
-// can be declared several times, and any one of its declarations may
-// carry the attribute. Fields carrying the attribute declare standard
-// library functions; see [cuelang.org/go/pkg.Source].
+// builtinSig returns the signature of the standard library function
+// the node declares, or "" if it declares none. A name can be declared
+// several times, and any one of its declarations may be the signature:
+// the standard library's generated definition files declare each
+// function as its signature, so the signature is that declaration
+// rendered back to source. See [cuelang.org/go/pkg.Source].
 func builtinSig(node *eval.Node) string {
 	if node == nil {
 		return ""
 	}
 	for decl := range node.Decls() {
-		for _, attr := range decl.Attrs() {
-			if name, _ := attr.Split(); name != "stdlib" {
-				continue
-			}
-			if sig, err := internal.ParseAttr(attr).String(0); err == nil && sig != "" {
-				return sig
-			}
+		fn, ok := decl.Value().(*ast.Func)
+		if !ok {
+			continue
 		}
+		b, err := format.Node(fn)
+		if err != nil {
+			continue
+		}
+		return string(b)
 	}
 	return ""
 }

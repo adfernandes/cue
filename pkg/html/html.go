@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -stripstr extract html
 
+//cue:pure
 package html
 
 import "html"

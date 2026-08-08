@@ -48,4 +48,9 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Sum256: func(data: bytes | string) -> bytes
+Sum224: func(data: bytes | string) -> bytes`,
 }

@@ -13,6 +13,8 @@
 // limitations under the License.
 
 // Package list contains functions for manipulating and examining lists.
+//
+//cue:pure
 package list
 
 import (

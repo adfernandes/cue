@@ -374,4 +374,22 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+SplitHostPort: func(s: string) -> [...]
+JoinHostPort:  func(host: _, port: _) -> string
+ParseIP:       func(s: string) -> [...]
+ToIP4:         func(ip: _) -> [...]
+ToIP16:        func(ip: _) -> [...]
+IPString:      func(ip: _) -> string
+AddIP:         func(ip: _, offset: int) -> string
+AddIPCIDR:     func(ip: _, offset: int) -> string
+ParseCIDR:     func(s: string) -> {...}
+InCIDR:        func(ip: _, cidr: _) -> bool
+CompareIP:     func(ip1: _, ip2: _) -> int
+PathEscape:    func(s: string) -> string
+PathUnescape:  func(s: string) -> string
+QueryEscape:   func(s: string) -> string
+QueryUnescape: func(s: string) -> string`,
 }

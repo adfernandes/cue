@@ -17,18 +17,17 @@ package pkg_test
 import (
 	iofs "io/fs"
 	"maps"
+	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
-	"cuelang.org/go/cue/token"
-	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/core/adt"
 	"cuelang.org/go/internal/core/runtime"
 	"cuelang.org/go/pkg"
@@ -70,21 +69,31 @@ func TestEmbedComplete(t *testing.T) {
 	qt.Assert(t, qt.DeepEquals(embedded, onDisk))
 }
 
-var (
-	funcSig      = regexp.MustCompile(`^func\((.*)\) -> (.+)$`)
-	validatorSig = regexp.MustCompile(`^validator\(.+\)$`)
-)
+// TestDefsCoverEveryPackage checks that every package directory with
+// a pkg.go registration carries a pkg.cue definition file: the
+// definition files are maintained by hand, so nothing regenerates a
+// missing one.
+func TestDefsCoverEveryPackage(t *testing.T) {
+	err := filepath.WalkDir(".", func(filename string, d iofs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || d.Name() != "pkg.go" {
+			return err
+		}
+		dir := filepath.Dir(filename)
+		_, statErr := os.Stat(filepath.Join(dir, "pkg.cue"))
+		qt.Check(t, qt.IsNil(statErr), qt.Commentf("%s has no pkg.cue definition file", dir))
+		return nil
+	})
+	qt.Assert(t, qt.IsNil(err))
+}
 
-// TestDefsMatchRegisteredPackages checks each pkg.cue file against
-// the builtin package it describes: they declare the same members,
-// functions are declared as required fields, and the sig attributes
-// agree with the registered builtin functions on which members are
-// functions, their number of parameters, and which parameters carry
-// defaults. A sig may use a validator form only when the evaluator
-// treats the builtin as a validator; the reverse is not enforced —
-// the evaluator promotes any builtin with a bool result, while the
-// validator forms follow intent, which the Go source declares with a
-// pkg.Validator result.
+// TestDefsMatchRegisteredPackages is the consistency check for the
+// hand-maintained definition files: each pkg.cue is compared against
+// the builtin package it describes. They must declare the same
+// members, and the declared signatures must agree with the registered
+// builtin functions on which members are functions, their number of
+// parameters, their contract labels, and which parameters carry defaults; a
+// declaration may be tighter than the registration, never looser in these
+// derivable facts.
 func TestDefsMatchRegisteredPackages(t *testing.T) {
 	r := runtime.New()
 	ctx := cuecontext.New()
@@ -100,6 +109,13 @@ func TestDefsMatchRegisteredPackages(t *testing.T) {
 			qt.Check(t, qt.IsNil(ctx.BuildFile(f).Err()), qt.Commentf("definitions do not build"))
 
 			vertex := r.LoadBuiltin(ip)
+			if vertex == nil && ip == "tool" {
+				// The tool package cannot be imported and registers no
+				// builtins; its definition file describes the schema
+				// injected into _tool.cue files, checked for
+				// well-formedness above.
+				return
+			}
 			qt.Assert(t, qt.IsNotNil(vertex), qt.Commentf("%q is not a registered builtin package", ip))
 
 			// A name may be declared by several fields, such as the
@@ -143,82 +159,58 @@ func TestDefsMatchRegisteredPackages(t *testing.T) {
 					bare = true
 				}
 				isFunc := builtin != nil
-				sig, isSig := stdlibSig(t, field)
+				sig, isSig := field.Value.(*ast.Func)
 				if !qt.Check(t, qt.Equals(isSig, isFunc),
-					qt.Commentf("%s: sig attribute presence vs being a function", name)) {
+					qt.Commentf("%s: declared as a signature vs being a function", name)) {
 					continue
 				}
-				// A function's value cannot be carried by the
-				// definition file, so it is declared as a required
-				// field.
-				qt.Check(t, qt.Equals(field.Constraint == token.NOT, isFunc),
-					qt.Commentf("%s: required marker vs being a function", name))
 				if !isFunc {
 					continue
 				}
-				if validatorSig.MatchString(sig) {
-					qt.Check(t, qt.IsTrue(bare),
-						qt.Commentf("%s: bare validator sig %q, but not registered as a validator", name, sig))
+				params := sig.Parameters()
+				if !qt.Check(t, qt.HasLen(params, len(builtin.Params)),
+					qt.Commentf("%s: declared parameters vs builtin parameters", name)) {
 					continue
 				}
-				m := funcSig.FindStringSubmatch(sig)
-				if !qt.Check(t, qt.IsNotNil(m), qt.Commentf("%s: malformed sig %q", name, sig)) {
-					continue
-				}
-				var params []string
-				if m[1] != "" {
-					params = strings.Split(m[1], ", ")
-				}
-				// A validator applying to partial calls leaves its
-				// first parameter to the validated value; the sig
-				// declares the remaining parameters.
-				partial := validatorSig.MatchString(m[2])
-				if partial {
-					qt.Check(t, qt.IsTrue(!bare && builtin.IsValidator(len(builtin.Params)-1)),
-						qt.Commentf("%s: validator result, but the builtin does not validate partial calls, sig %q", name, sig))
-				}
-				offset := 0
-				if partial {
-					offset = 1
-				}
-				if !qt.Check(t, qt.HasLen(params, len(builtin.Params)-offset),
-					qt.Commentf("%s: sig parameters vs builtin parameters", name)) {
-					continue
+				if bare || ip == "path" {
+					// Bare validators have no callable runtime signature, and path
+					// remains hand-registered without generated call forms.
+					qt.Check(t, qt.HasLen(builtin.Types, 0),
+						qt.Commentf("%s: unexpected generated runtime signature", name))
+				} else if qt.Check(t, qt.HasLen(builtin.Types, 1),
+					qt.Commentf("%s: generated runtime signatures", name)) {
+					runtimeSig := builtin.Types[0].Fn
+					qt.Assert(t, qt.IsNotNil(runtimeSig))
+					runtimeParams := runtimeSig.Params
+					if qt.Check(t, qt.HasLen(runtimeParams, len(params)),
+						qt.Commentf("%s: authored vs generated runtime parameters", name)) {
+						for i, p := range params {
+							want := ""
+							if p.Label != nil {
+								label, isIdent, err := ast.LabelName(p.Label)
+								qt.Assert(t, qt.IsNil(err))
+								qt.Assert(t, qt.IsTrue(isIdent))
+								if label != "_" {
+									want = label
+								}
+							}
+							got := ""
+							if label := runtimeParams[i].Label; label != adt.InvalidLabel {
+								got = label.SelectorString(r)
+							}
+							qt.Check(t, qt.Equals(got, want), qt.Commentf(
+								"%s: authored parameter %d label vs generated runtime label", name, i+1))
+						}
+					}
 				}
 				for i, p := range params {
-					hasDefault := builtin.Params[i+offset].Default() != nil
-					qt.Check(t, qt.Equals(strings.Contains(p, "| *"), hasDefault),
-						qt.Commentf("%s: parameter %q default vs builtin parameter %d having one", name, p, i+offset))
+					b, err := format.Node(p.Value)
+					qt.Assert(t, qt.IsNil(err))
+					hasDefault := builtin.Params[i].Default() != nil
+					qt.Check(t, qt.Equals(strings.Contains(string(b), "*"), hasDefault),
+						qt.Commentf("%s: parameter %q default vs builtin parameter %d having one", name, b, i))
 				}
 			}
 		})
 	}
-}
-
-// TestValidatorSigDetection pins one validator-form signature. The
-// generator detects validator intent through the pkg.Validator result
-// alias in the Go signatures; were that detection to degrade, every
-// validator form would revert to a plain function signature while
-// every other check in this package still passed.
-func TestValidatorSigDetection(t *testing.T) {
-	src, ok := pkg.Source("strings")
-	qt.Assert(t, qt.IsTrue(ok))
-	qt.Assert(t, qt.StringContains(string(src),
-		"MinRunes!: _ @stdlib(func(_~min: int) -> validator(string))"))
-}
-
-// stdlibSig reports the signature recorded by a field's @stdlib
-// attribute, and whether the field carries one at all.
-func stdlibSig(t *testing.T, field *ast.Field) (string, bool) {
-	for _, attr := range field.Attrs {
-		a := internal.ParseAttr(attr)
-		if a.Name != "stdlib" {
-			continue
-		}
-		qt.Assert(t, qt.IsNil(a.Err), qt.Commentf("malformed attribute %q", attr.Text))
-		sig, err := a.String(0)
-		qt.Assert(t, qt.IsNil(err), qt.Commentf("attribute %q carries no signature", attr.Text))
-		return sig, true
-	}
-	return "", false
 }

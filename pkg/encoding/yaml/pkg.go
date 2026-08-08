@@ -91,4 +91,13 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Marshal:         func(v: _) -> string
+MarshalStream:   func(v: _) -> string
+Unmarshal:       func(data: bytes | string) -> _
+UnmarshalStream: func(data: bytes | string) -> _
+Validate:        func(b: bytes | string, v: _ @schema()) -> bool
+ValidatePartial: func(b: bytes | string, v: _ @schema()) -> bool`,
 }

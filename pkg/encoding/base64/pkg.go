@@ -67,4 +67,11 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+EncodedLen: func(encoding: _, n: int) -> int
+DecodedLen: func(encoding: _, x: int) -> int
+Encode:     func(encoding: _, src: bytes | string) -> string
+Decode:     func(encoding: _, s: string) -> bytes`,
 }

@@ -309,6 +309,29 @@ var p = &pkg.Package{
 		},
 	}},
 	CUE: `
+@experiment(functions)
+@pure()
+Drop:        func(x: [...], n: int) -> [...]
+FlattenN:    func(xs: _, depth: int) -> [...]
+Repeat:      func(x: [...], count: int) -> [...]
+Concat:      func(a: [...]) -> [...]
+Take:        func(x: [...], n: int) -> [...]
+Slice:       func(x: [...], i: int, j: int) -> [...]
+Reverse:     func(x: [...]) -> [...]
+MinItems:    func(list: [...], n: int) -> bool
+MaxItems:    func(list: [...], n: int) -> bool
+Contains:    func(a: [...], v: _) -> bool
+MatchN:      func(list: [...], n: _ @schema(), matchValue: _ @schema()) -> bool
+Avg:         func(xs: [...]) -> number
+Max:         func(xs: [...]) -> number
+Min:         func(xs: [...]) -> number
+Product:     func(xs: [...]) -> number
+Range:       func(start: number, limit: number, step: number) -> [...]
+Sum:         func(xs: [...]) -> number
+Sort:        func(list: [...], cmp: _) -> [...]
+SortStable:  func(list: [...], cmp: _) -> [...]
+SortStrings: func(a: [...]) -> [...]
+IsSorted:    func(list: [...], cmp: _) -> bool
 Comparer: {
 	T:    _
 	x:    T

@@ -144,4 +144,17 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Lsh:       func(x: int, n: int) -> int
+Rsh:       func(x: int, n: int) -> int
+At:        func(x: int, i: int) -> int
+Set:       func(x: int, i: int, bit: int) -> int
+And:       func(a: int, b: int) -> int
+Or:        func(a: int, b: int) -> int
+Xor:       func(a: int, b: int) -> int
+Clear:     func(a: int, b: int) -> int
+OnesCount: func(x: int) -> int
+Len:       func(x: int) -> int`,
 }

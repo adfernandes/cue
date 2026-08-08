@@ -52,4 +52,10 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Execute:    func(templ: string, data: _) -> string
+HTMLEscape: func(s: string) -> string
+JSEscape:   func(s: string) -> string`,
 }

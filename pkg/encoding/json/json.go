@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -exclude=Compact,Indent,arshal$ extract encoding/json
 
+//cue:pure
 package json
 
 import (

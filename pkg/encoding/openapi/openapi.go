@@ -15,6 +15,8 @@
 // Package openapi provides OpenAPI encoding and decoding functionality.
 //
 // This is an EXPERIMENTAL API.
+//
+//cue:pure
 package openapi
 
 import (

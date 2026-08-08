@@ -23,23 +23,29 @@ import (
 	"sync"
 )
 
-// Each standard library package has a generated pkg.cue file
+// Each standard library package has a hand-maintained pkg.cue file
 // alongside its generated pkg.go file, declaring each of the
-// package's members. Functions are declared as required fields — the
-// definition file cannot carry their values — whose @stdlib attribute
-// records the signature, such as
+// package's members. A function is declared as its signature, a
+// function type such as
 //
-//	Compare!: _ @stdlib(func(_~a: string, _~b: string) -> int)
+//	Compare: func(a: string, b: string) -> int
 //
-// where each parameter is an anonymous positional carrying its Go
-// name as a non-contract alias. A builtin intended for use as a
-// validator, which its Go signature declares by returning
-// [cuelang.org/go/internal/pkg.Validator], uses the validator form,
-// func(_~min: int) -> validator(string), or validator(bytes|string)
-// when the validated value is its only parameter. Constants are
-// declared with their concrete values, and members that are defined
-// in CUE appear as their original declarations. Doc comments are
-// carried over from the corresponding Go declarations.
+// where each plain name is both a callable contract label and the name of a
+// positional slot. The builtin ABI still receives arguments by position. The
+// definition files are authored, so they may say what a Go signature cannot,
+// and their consistency with the registered builtins is checked by this
+// package's tests: the same members, agreeing arity, parameter labels, and
+// defaults. A kind-level
+// derivation from the Go signatures is separately unified with the
+// builtins in each package's runtime CUE, rejecting a registration
+// that drifts from the Go sources.
+//
+// A parameter that deliberately accepts a non-concrete value — typed
+// pkg.Schema in Go — carries the @schema() attribute.
+//
+// Constants are declared with their concrete values, and members that
+// are defined in CUE appear as their original declarations. Doc
+// comments are carried over from the corresponding Go declarations.
 //
 // These files describe the standard library; they are not its
 // implementation and are not loaded during evaluation. They exist for

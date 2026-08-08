@@ -723,4 +723,58 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Jacobi:      func(x: int, y: int) -> int
+Floor:       func(x: number) -> int
+Ceil:        func(x: number) -> int
+Trunc:       func(x: number) -> int
+Round:       func(x: number) -> int
+RoundToEven: func(x: number) -> int
+MultipleOf:  func(x: number, y: number) -> bool
+Abs:         func(x: number) -> number
+Acosh:       func(x: number) -> number
+Asin:        func(x: number) -> number
+Acos:        func(x: number) -> number
+Asinh:       func(x: number) -> number
+Atan:        func(x: number) -> number
+Atan2:       func(y: number, x: number) -> number
+Atanh:       func(x: number) -> number
+Cbrt:        func(x: number) -> number
+Copysign:    func(x: number, y: number) -> number
+Dim:         func(x: number, y: number) -> number
+Erf:         func(x: number) -> number
+Erfc:        func(x: number) -> number
+Erfinv:      func(x: number) -> number
+Erfcinv:     func(x: number) -> number
+Exp:         func(x: number) -> number
+Exp2:        func(x: number) -> number
+Expm1:       func(x: number) -> number
+Gamma:       func(x: number) -> number
+Hypot:       func(p: number, q: number) -> number
+J0:          func(x: number) -> number
+Y0:          func(x: number) -> number
+J1:          func(x: number) -> number
+Y1:          func(x: number) -> number
+Jn:          func(n: int, x: number) -> number
+Yn:          func(n: int, x: number) -> number
+Ldexp:       func(frac: number, exp: int) -> number
+Log:         func(x: number) -> number
+Log10:       func(x: number) -> number
+Log2:        func(x: number) -> number
+Log1p:       func(x: number) -> number
+Logb:        func(x: number) -> number
+Ilogb:       func(x: number) -> int
+Mod:         func(x: number, y: number) -> number
+Pow:         func(x: number, y: number) -> number
+Pow10:       func(n: int) -> number
+Remainder:   func(x: number, y: number) -> number
+Cos:         func(x: number) -> number
+Sin:         func(x: number) -> number
+Sinh:        func(x: number) -> number
+Cosh:        func(x: number) -> number
+Sqrt:        func(x: number) -> number
+Tan:         func(x: number) -> number
+Tanh:        func(x: number) -> number`,
 }

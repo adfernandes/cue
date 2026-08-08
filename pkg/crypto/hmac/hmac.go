@@ -17,6 +17,8 @@
 //
 // An HMAC is a cryptographic hash that uses a key to sign a message.
 // The receiver verifies the hash by recomputing it using the same key.
+//
+//cue:pure
 package hmac
 
 import (

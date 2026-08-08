@@ -32,4 +32,8 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Valid: func(publicKey: bytes | string, message: bytes | string, signature: bytes | string) -> bool`,
 }

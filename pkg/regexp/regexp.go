@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -exclude=Compile,Append,Reader,Match$ -stripstr extract regexp
 
+//cue:pure
 package regexp
 
 import "regexp"

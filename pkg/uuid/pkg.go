@@ -126,6 +126,16 @@ var p = &pkg.Package{
 		},
 	}},
 	CUE: `
+@experiment(functions)
+@pure()
+Parse:   func(s: string) -> string
+URN:     func(x: string) -> string
+FromInt: func(i: int) -> string
+ToInt:   func(x: string) -> int
+Variant: func(x: string) -> int
+Version: func(x: string) -> int
+SHA1:    func(space: string, data: bytes | string) -> string
+MD5:     func(space: string, data: bytes | string) -> string
 ns: {
 	DNS:  "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 	URL:  "6ba7b811-9dad-11d1-80b4-00c04fd430c8"

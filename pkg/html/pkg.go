@@ -39,4 +39,9 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Escape:   func(s: string) -> string
+Unescape: func(s: string) -> string`,
 }

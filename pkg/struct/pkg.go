@@ -41,4 +41,9 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+MinFields: func(object: {...}, n: int) -> bool
+MaxFields: func(object: {...}, n: int) -> bool`,
 }

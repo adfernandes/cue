@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -exclude=Rune$,Func$,^Map$,Special$,EqualFold,Byte,Title$,ToValidUTF8,All$ extract strings
 
+//cue:pure
 package strings
 
 import (

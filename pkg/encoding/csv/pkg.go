@@ -39,4 +39,9 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Encode: func(x: _) -> string
+Decode: func(r: bytes | string) -> [...]`,
 }

@@ -39,4 +39,9 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Marshal:   func(v: _) -> string
+Unmarshal: func(data: bytes | string) -> _`,
 }

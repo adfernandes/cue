@@ -456,4 +456,41 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+ByteAt:       func(b: bytes | string, i: int) -> int
+ByteSlice:    func(b: bytes | string, start: int, end: int) -> bytes
+Runes:        func(s: string) -> [...]
+Repeat:       func(s: string, count: int) -> string
+MinRunes:     func(s: string, min: int) -> bool
+MaxRunes:     func(s: string, max: int) -> bool
+ToTitle:      func(s: string) -> string
+ToCamel:      func(s: string) -> string
+SliceRunes:   func(s: string, start: int, end: int) -> string
+Compare:      func(a: string, b: string) -> int
+Count:        func(s: string, substr: string) -> int
+Contains:     func(s: string, substr: string) -> bool
+ContainsAny:  func(s: string, chars: string) -> bool
+LastIndex:    func(s: string, substr: string) -> int
+IndexAny:     func(s: string, chars: string) -> int
+LastIndexAny: func(s: string, chars: string) -> int
+SplitN:       func(s: string, sep: string, n: int) -> [...]
+SplitAfterN:  func(s: string, sep: string, n: int) -> [...]
+Split:        func(s: string, sep: string) -> [...]
+SplitAfter:   func(s: string, sep: string) -> [...]
+Fields:       func(s: string) -> [...]
+Join:         func(elems: [...], sep: string) -> string
+HasPrefix:    func(s: string, prefix: string) -> bool
+HasSuffix:    func(s: string, suffix: string) -> bool
+ToUpper:      func(s: string) -> string
+ToLower:      func(s: string) -> string
+Trim:         func(s: string, cutset: string) -> string
+TrimLeft:     func(s: string, cutset: string) -> string
+TrimRight:    func(s: string, cutset: string) -> string
+TrimSpace:    func(s: string) -> string
+TrimPrefix:   func(s: string, prefix: string) -> string
+TrimSuffix:   func(s: string, suffix: string) -> string
+Replace:      func(s: string, old: string, new: string, n: int) -> string
+Index:        func(s: string, substr: string) -> int`,
 }

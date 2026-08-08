@@ -23,4 +23,6 @@
 //
 //	// unicast defines a global unicast IP address in list form.
 //	unicast: net.GlobalUnicastIP & [...]
+//
+//cue:pure
 package net

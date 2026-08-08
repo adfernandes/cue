@@ -30,6 +30,9 @@ var p = &pkg.Package{
 		},
 	}},
 	CUE: `
+@experiment(functions)
+@pure()
+MarshalSchema: func(config: _, schema: _ @schema()) -> string
 #Config: {
 	version!:         "3.0.0"
 	info?:            #Info

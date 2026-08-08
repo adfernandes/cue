@@ -27,4 +27,8 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Write: func(data: _) -> string`,
 }

@@ -114,7 +114,7 @@ out: strings.ToUpper
 		})
 		qt.Assert(t, qt.IsNotNil(got))
 		qt.Assert(t, qt.StringContains(got.Value,
-			"```cue\nfunc(_~s: string) -> string\n```"))
+			"```cue\nfunc(s: string) -> string\n```"))
 		qt.Assert(t, qt.StringContains(got.Value,
 			"ToUpper returns s with all Unicode letters mapped to their"))
 		// The signature replaces the "Unified with" value section,

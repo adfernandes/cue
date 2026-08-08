@@ -16,6 +16,8 @@
 //
 // In CUE time values are represented as a string of the format
 // time.RFC3339Nano.
+//
+//cue:pure
 package time
 
 import (

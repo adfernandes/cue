@@ -15,6 +15,8 @@
 // Package uuid defines functionality for creating UUIDs as defined in RFC 4122.
 //
 // Currently only Version 5 (SHA1) and Version 3 (MD5) are supported.
+//
+//cue:pure
 package uuid
 
 import (

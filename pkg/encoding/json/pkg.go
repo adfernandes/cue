@@ -127,4 +127,15 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+Compact:         func(src: bytes | string) -> string
+Indent:          func(src: bytes | string, prefix: string, indent: string) -> string
+HTMLEscape:      func(src: bytes | string) -> string
+Marshal:         func(v: _) -> string
+MarshalStream:   func(v: _) -> string
+UnmarshalStream: func(data: bytes | string) -> _
+Unmarshal:       func(b: bytes | string) -> _
+Validate:        func(b: bytes | string, v: _ @schema()) -> bool`,
 }

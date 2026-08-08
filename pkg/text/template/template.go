@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -exclude=Escaper$,Must,Parse -stripstr extract text/template
 
+//cue:pure
 package template
 
 import "text/template"

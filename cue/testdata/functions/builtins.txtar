@@ -138,8 +138,14 @@ polymorphic: {
 [eval] static.tooMany: function type has more positional parameters than builtin strings.ToUpper:
     ./in.cue:29:51
     ./in.cue:29:12
+static.tooMany: function type has more positional parameters than closed function type:
+    strings:28:15
+    ./in.cue:29:12
 [eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
     ./in.cue:30:32
+    ./in.cue:30:12
+static.tooFew: parameter s of function type not allowed by closed function type:
+    strings:28:15
     ./in.cue:30:12
 [eval] static.badParam: parameter 1 of function type has kind int, conflicting with kind string of builtin strings.ToUpper:
     ./in.cue:34:42
@@ -162,6 +168,9 @@ polymorphic: {
     ./in.cue:65:11
 [eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally:
     ./in.cue:83:48
+    ./in.cue:83:8
+optionalExtra.bad: parameter sep of function type not allowed by closed function type:
+    strings:28:15
     ./in.cue:83:8
 [eval] partial.contains: partial application of builtin strings.Contains is not supported:
     ./in.cue:101:12

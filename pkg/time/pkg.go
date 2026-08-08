@@ -265,4 +265,16 @@ var p = &pkg.Package{
 			}
 		},
 	}},
+	CUE: `
+@experiment(functions)
+@pure()
+FormatDuration: func(d: int) -> string
+ParseDuration:  func(s: string) -> int
+Format:         func(value: string, layout: string) -> bool
+FormatString:   func(layout: string, value: string) -> string
+Parse:          func(layout: string, value: string) -> string
+Unix:           func(sec: int, nsec: int) -> string
+ToUnix:         func(value: string) -> int
+ToUnixNano:     func(value: string) -> int
+Split:          func(t: string) -> {...}`,
 }

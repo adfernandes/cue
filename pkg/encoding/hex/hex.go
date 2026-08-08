@@ -18,6 +18,7 @@
 
 // Originally generated with: go run qgo.go -stripstr -exclude=Decode$,Encode$,EncodeToString,Dumper extract encoding/hex
 
+//cue:pure
 package hex
 
 import "encoding/hex"
