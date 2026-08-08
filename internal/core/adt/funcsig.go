@@ -342,6 +342,22 @@ func kindOnlyConstraint(x Expr) (Kind, bool) {
 		// `_` admits everything, so it constrains nothing at all.
 		return TopKind, true
 
+	case *DisjunctionExpr:
+		// A disjunction of kind-only constraints without defaults, such as
+		// `bytes | string`, restricts only to the union of the kinds.
+		var k Kind
+		for _, v := range t.Values {
+			if v.Default {
+				return BottomKind, false
+			}
+			vk, ok := kindOnlyConstraint(v.Val)
+			if !ok {
+				return BottomKind, false
+			}
+			k |= vk
+		}
+		return k, true
+
 	case *ListLit:
 		// `[...T]` restricts only the kind exactly when T admits everything:
 		// `[..._]` and `[...]` do, `[...int]` does not.
@@ -360,6 +376,15 @@ func kindOnlyConstraint(x Expr) (Kind, bool) {
 		case *BasicType:
 			if v.K == TopKind {
 				return ListKind, true
+			}
+		}
+
+	case *StructLit:
+		// `{...}` — an open struct with no other declarations — admits every
+		// struct, so it restricts only the kind.
+		if len(t.Decls) == 1 {
+			if _, ok := t.Decls[0].(*Ellipsis); ok {
+				return StructKind, true
 			}
 		}
 	}
