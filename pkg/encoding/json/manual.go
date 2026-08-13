@@ -132,7 +132,7 @@ func Unmarshal(b []byte) (ast.Expr, error) {
 
 // Validate validates JSON and confirms it matches the constraints
 // specified by v.
-func Validate(b []byte, v pkg.Schema) (bool, error) {
+func Validate(b []byte, v pkg.Schema) (pkg.Validator, error) {
 	c := value.OpContext(v)
 	return validate(c, b, v)
 }

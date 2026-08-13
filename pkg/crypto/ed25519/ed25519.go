@@ -19,6 +19,7 @@ import (
 
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/pkg"
 )
 
 const (
@@ -28,7 +29,7 @@ const (
 
 // Valid verifies the provided signature of the message using the public key.
 // An error is returned if and only if an invalid public key is provided.
-func Valid(publicKey, message, signature []byte) (bool, error) {
+func Valid(publicKey, message, signature []byte) (pkg.Validator, error) {
 	if size := len(publicKey); size != PublicKeySize {
 		return false, errors.Newf(token.NoPos, "ed25519: publicKey must be 32 bytes")
 	}

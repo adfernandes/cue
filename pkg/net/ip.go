@@ -22,6 +22,7 @@ import (
 	"net/netip"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/internal/pkg"
 )
 
 // IP address lengths (bytes).
@@ -134,7 +135,7 @@ func netToList(ip []byte) []uint {
 // IPv4 reports whether ip is a valid IPv4 address.
 //
 // The address may be a string or list of bytes.
-func IPv4(ip cue.Value) (bool, error) {
+func IPv4(ip cue.Value) (pkg.Validator, error) {
 	// TODO: convert to native CUE.
 	goip, err := netGetIP(ip)
 	if err != nil {
@@ -146,7 +147,7 @@ func IPv4(ip cue.Value) (bool, error) {
 // IPv6 reports whether ip is a valid IPv6 address.
 //
 // The address may be a string or list of bytes.
-func IPv6(ip cue.Value) (bool, error) {
+func IPv6(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -157,7 +158,7 @@ func IPv6(ip cue.Value) (bool, error) {
 // IP reports whether ip is a valid IPv4 or IPv6 address.
 //
 // The address may be a string or list of bytes.
-func IP(ip cue.Value) (bool, error) {
+func IP(ip cue.Value) (pkg.Validator, error) {
 	// TODO: convert to native CUE.
 	goip, err := netGetIP(ip)
 	if err != nil {
@@ -169,13 +170,13 @@ func IP(ip cue.Value) (bool, error) {
 // IPCIDR reports whether ip is a valid IPv4 or IPv6 address with CIDR subnet notation.
 //
 // The address may be a string or list of bytes.
-func IPCIDR(ip cue.Value) (bool, error) {
+func IPCIDR(ip cue.Value) (pkg.Validator, error) {
 	_, err := netGetIPCIDR(ip)
 	return err == nil, err
 }
 
 // LoopbackIP reports whether ip is a loopback address.
-func LoopbackIP(ip cue.Value) (bool, error) {
+func LoopbackIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -184,7 +185,7 @@ func LoopbackIP(ip cue.Value) (bool, error) {
 }
 
 // MulticastIP reports whether ip is a multicast address.
-func MulticastIP(ip cue.Value) (bool, error) {
+func MulticastIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -194,7 +195,7 @@ func MulticastIP(ip cue.Value) (bool, error) {
 
 // InterfaceLocalMulticastIP reports whether ip is an interface-local multicast
 // address.
-func InterfaceLocalMulticastIP(ip cue.Value) (bool, error) {
+func InterfaceLocalMulticastIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -203,7 +204,7 @@ func InterfaceLocalMulticastIP(ip cue.Value) (bool, error) {
 }
 
 // LinkLocalMulticastIP reports whether ip is a link-local multicast address.
-func LinkLocalMulticastIP(ip cue.Value) (bool, error) {
+func LinkLocalMulticastIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -212,7 +213,7 @@ func LinkLocalMulticastIP(ip cue.Value) (bool, error) {
 }
 
 // LinkLocalUnicastIP reports whether ip is a link-local unicast address.
-func LinkLocalUnicastIP(ip cue.Value) (bool, error) {
+func LinkLocalUnicastIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -226,7 +227,7 @@ func LinkLocalUnicastIP(ip cue.Value) (bool, error) {
 // identification as defined in RFC 1122, RFC 4632 and RFC 4291 with the
 // exception of IPv4 directed broadcast addresses. It returns true even if ip is
 // in IPv4 private address space or local IPv6 unicast address space.
-func GlobalUnicastIP(ip cue.Value) (bool, error) {
+func GlobalUnicastIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -236,7 +237,7 @@ func GlobalUnicastIP(ip cue.Value) (bool, error) {
 
 // UnspecifiedIP reports whether ip is an unspecified address, either the IPv4
 // address "0.0.0.0" or the IPv6 address "::".
-func UnspecifiedIP(ip cue.Value) (bool, error) {
+func UnspecifiedIP(ip cue.Value) (pkg.Validator, error) {
 	goip, err := netGetIP(ip)
 	if err != nil {
 		return false, err
@@ -394,7 +395,7 @@ func ParseCIDR(s string) (*ParsedCIDR, error) {
 }
 
 // InCIDR reports whether an IP address is contained a CIDR subnet string.
-func InCIDR(ip, cidr cue.Value) (bool, error) {
+func InCIDR(ip, cidr cue.Value) (pkg.Validator, error) {
 	ipAddr, err := netGetIP(ip)
 	if err != nil {
 		return false, err

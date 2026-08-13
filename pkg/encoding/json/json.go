@@ -20,9 +20,13 @@
 
 package json
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"cuelang.org/go/internal/pkg"
+)
 
 // Valid reports whether data is a valid JSON encoding.
-func Valid(data []byte) bool {
+func Valid(data []byte) pkg.Validator {
 	return json.Valid(data)
 }

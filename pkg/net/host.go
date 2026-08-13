@@ -24,6 +24,7 @@ import (
 	"golang.org/x/net/idna"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/internal/pkg"
 )
 
 // TODO: revert to using ValidateLabels and StrictDomainName once
@@ -98,7 +99,7 @@ func JoinHostPort(host, port cue.Value) (string, error) {
 //
 // FQDN allows only ASCII characters as prescribed by RFC 1034 (A-Z, a-z, 0-9
 // and the hyphen).
-func FQDN(s string) bool {
+func FQDN(s string) pkg.Validator {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
 			return false

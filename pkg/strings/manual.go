@@ -31,6 +31,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"cuelang.org/go/internal/pkg"
+
 	"cuelang.org/go/internal/core/adt"
 )
 
@@ -70,7 +72,7 @@ func Repeat(s string, count int) (string, error) {
 // MinRunes reports whether the number of runes (Unicode codepoints) in a string
 // is at least a certain minimum. MinRunes can be used as a field constraint to
 // accept all strings for which this property holds.
-func MinRunes(s string, min int) bool {
+func MinRunes(s string, min int) pkg.Validator {
 	// TODO: CUE strings cannot be invalid UTF-8. In case this changes, we need
 	// to use the following conversion to count properly:
 	// s, _ = unicodeenc.UTF8.NewDecoder().String(s)
@@ -80,7 +82,7 @@ func MinRunes(s string, min int) bool {
 // MaxRunes reports whether the number of runes (Unicode codepoints) in a string
 // exceeds a certain maximum. MaxRunes can be used as a field constraint to
 // accept all strings for which this property holds.
-func MaxRunes(s string, max int) bool {
+func MaxRunes(s string, max int) pkg.Validator {
 	// See comment in MinRunes implementation.
 	return utf8.RuneCountInString(s) <= max
 }

@@ -21,6 +21,8 @@ package time
 import (
 	"fmt"
 	"time"
+
+	"cuelang.org/go/internal/pkg"
 )
 
 // These are predefined layouts for use in Time.Format and time.Parse.
@@ -135,7 +137,7 @@ const (
 //
 // Caveat: this implementation uses the Go implementation, which does not
 // accept leap seconds.
-func Time(s string) (bool, error) {
+func Time(s string) (pkg.Validator, error) {
 	return timeFormat(s, time.RFC3339Nano)
 }
 
@@ -152,7 +154,7 @@ func timeFormat(value, layout string) (bool, error) {
 // Format defines a type string that must adhere to a certain layout.
 //
 // See Parse for a description on layout strings.
-func Format(value, layout string) (bool, error) {
+func Format(value, layout string) (pkg.Validator, error) {
 	return timeFormat(value, layout)
 }
 

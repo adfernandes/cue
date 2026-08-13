@@ -58,6 +58,7 @@ import (
 	"regexp"
 
 	"cuelang.org/go/cue/errors"
+	"cuelang.org/go/internal/pkg"
 )
 
 var errNoMatch = errors.New("no match")
@@ -224,7 +225,7 @@ func ReplaceAllLiteral(pattern, src, repl string) (string, error) {
 
 // Valid reports whether the given regular expression
 // is valid.
-func Valid(pattern string) (bool, error) {
+func Valid(pattern string) (pkg.Validator, error) {
 	_, err := regexp.Compile(pattern)
 	return err == nil, err
 }

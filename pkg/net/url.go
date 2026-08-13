@@ -17,6 +17,8 @@ package net
 import (
 	"errors"
 	"net/url"
+
+	"cuelang.org/go/internal/pkg"
 )
 
 // PathEscape escapes the string so it can be safely placed inside a URL path
@@ -52,14 +54,14 @@ func QueryUnescape(s string) (string, error) {
 
 // URL validates that s is a valid relative or absolute URL.
 // Note: this does also allow non-ASCII characters.
-func URL(s string) (bool, error) {
+func URL(s string) (pkg.Validator, error) {
 	_, err := url.Parse(s)
 	return err == nil, err
 }
 
 // AbsURL validates that s is an absolute URL.
 // Note: this does also allow non-ASCII characters.
-func AbsURL(s string) (bool, error) {
+func AbsURL(s string) (pkg.Validator, error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return false, err

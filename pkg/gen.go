@@ -211,6 +211,11 @@ var (
 	typeByte  = types.Universe.Lookup("byte").Type()
 )
 
+// validatorType is the type of the result by which a builtin declares
+// that it is intended for use as a validator; see
+// [cuelang.org/go/internal/pkg.Validator]. It aliases bool.
+const validatorType = "cuelang.org/go/internal/pkg.Validator"
+
 // emitMembers feeds the package's exported constants and functions,
 // in source order, to the emitter.
 func emitMembers(pkg *packages.Package, cuePkgPath string, e emitter) {
@@ -566,6 +571,8 @@ func (g *goEmitter) adtKind(typ types.Type) string {
 	switch typ.String() {
 	case "error":
 		return "adt.BottomKind"
+	case validatorType:
+		return "adt.BoolKind"
 	case "io.Reader":
 		return "adt.BytesKind | adt.StringKind"
 	case "cuelang.org/go/internal/pkg.Struct":

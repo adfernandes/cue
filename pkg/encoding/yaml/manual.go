@@ -87,7 +87,7 @@ func UnmarshalStream(data []byte) (ast.Expr, error) {
 
 // Validate validates YAML and confirms it is an instance of schema.
 // If the YAML source is a stream, every object must match v.
-func Validate(b []byte, v pkg.Schema) (bool, error) {
+func Validate(b []byte, v pkg.Schema) (pkg.Validator, error) {
 	// This function is left for Go documentation. The package entry calls
 	// cueyaml.Validate directly, passing it the call context.
 
@@ -104,7 +104,7 @@ func validate(c *adt.OpContext, b []byte, v pkg.Schema) (bool, error) {
 // specified by v using unification. This means that b must be consistent with,
 // but does not have to be an instance of v. If the YAML source is a stream,
 // every object must match v.
-func ValidatePartial(b []byte, v pkg.Schema) (bool, error) {
+func ValidatePartial(b []byte, v pkg.Schema) (pkg.Validator, error) {
 	// This function is left for Go documentation. The package entry calls
 	// cueyaml.ValidatePartial directly, passing it the call context.
 

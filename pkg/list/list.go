@@ -232,7 +232,7 @@ func Reverse(x []cue.Value) []cue.Value {
 }
 
 // MinItems reports whether a has at least n items.
-func MinItems(list pkg.List, n int) (bool, error) {
+func MinItems(list pkg.List, n int) (pkg.Validator, error) {
 	count := iterutil.Count(list.Elems())
 	if count >= n {
 		return true, nil
@@ -248,7 +248,7 @@ func MinItems(list pkg.List, n int) (bool, error) {
 }
 
 // MaxItems reports whether a has at most n items.
-func MaxItems(list pkg.List, n int) (bool, error) {
+func MaxItems(list pkg.List, n int) (pkg.Validator, error) {
 	count := iterutil.Count(list.Elems())
 	if count > n {
 		return false, pkg.ValidationError{B: &adt.Bottom{
@@ -261,7 +261,7 @@ func MaxItems(list pkg.List, n int) (bool, error) {
 }
 
 // UniqueItems reports whether all elements in the list are unique.
-func UniqueItems(a []cue.Value) (bool, error) {
+func UniqueItems(a []cue.Value) (pkg.Validator, error) {
 	if len(a) <= 1 {
 		return true, nil
 	}
@@ -325,7 +325,7 @@ func Contains(a []cue.Value, v cue.Value) bool {
 // list that unifies with the schema "matchValue" matches "n".
 // "n" may be a number constraint and does not have to be a concrete number.
 // Likewise, "matchValue" will usually be a non-concrete value.
-func MatchN(list []cue.Value, n pkg.Schema, matchValue pkg.Schema) (bool, error) {
+func MatchN(list []cue.Value, n pkg.Schema, matchValue pkg.Schema) (pkg.Validator, error) {
 	c := value.OpContext(n)
 	return matchN(c, list, n, matchValue)
 }

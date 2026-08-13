@@ -20,6 +20,7 @@ import (
 	"github.com/cockroachdb/apd/v3"
 
 	"cuelang.org/go/internal"
+	"cuelang.org/go/internal/pkg"
 )
 
 func roundContext(rounder apd.Rounder) internal.Context {
@@ -115,7 +116,7 @@ func RoundToEven(x *internal.Decimal) (*big.Int, error) {
 }
 
 // MultipleOf reports whether x is a multiple of y.
-func MultipleOf(x, y *internal.Decimal) (bool, error) {
+func MultipleOf(x, y *internal.Decimal) (pkg.Validator, error) {
 	var d apd.Decimal
 
 	// TODO: It would be preferable to use internal.BaseContext.Rem here, and directly

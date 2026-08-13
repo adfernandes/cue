@@ -25,6 +25,14 @@ import (
 // By default function arguments are checked to be concrete.
 type Schema = cue.Value
 
+// A Validator is the result of a builtin that is intended for use as
+// a validator: the value reports whether the builtin's first argument
+// is acceptable. It aliases bool, so it changes neither the Go API
+// nor how the builtin is registered; it marks intent for tooling that
+// reads the Go signatures, distinguishing validators from builtins
+// whose bool result is an ordinary value.
+type Validator = bool
+
 // List represents a CUE list, which can be open or closed.
 type List struct {
 	node   *adt.Vertex

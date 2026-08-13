@@ -16,6 +16,8 @@ package time
 
 import (
 	"time"
+
+	"cuelang.org/go/internal/pkg"
 )
 
 // Common durations. There is no definition for units of Day or larger
@@ -44,7 +46,7 @@ const (
 // Note: this format also accepts strings of the form '1h3m', '2ms', etc.
 // To limit this to seconds only, as often used in JSON, add the !~"hmuµn"
 // constraint.
-func Duration(s string) (bool, error) {
+func Duration(s string) (pkg.Validator, error) {
 	if _, err := time.ParseDuration(s); err != nil {
 		return false, err
 	}
