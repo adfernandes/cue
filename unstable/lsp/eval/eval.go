@@ -890,6 +890,16 @@ nextFrame:
 			}
 		}
 
+		if unknown := fr.unknownRanges; unknown != nil && unknown.Contains(offset) {
+			// We're within some AST node that this evaluator does not
+			// process (eg a BasicLit), or within attribute text. Do not
+			// offer any completions *at all*. This is checked before
+			// the paths below because an embed attribute installs a
+			// path that covers the whole attribute: resolvable for
+			// definitions, but nothing a completion could replace.
+			return nil
+		}
+
 		// 2. Are we in a path?
 		//
 		// We could still be in a field decl here, but not within the
@@ -937,13 +947,6 @@ nextFrame:
 
 		if inFieldDecl {
 			continue nextFrame
-		}
-
-		if unknown := fr.unknownRanges; unknown != nil && unknown.Contains(offset) {
-			// We're within some AST node that this evaluator does not
-			// process (eg a BasicLit). Do not offer any completions *at
-			// all*.
-			return nil
 		}
 
 		// 3. Are we at the very start of some value? E.g. x: |true
@@ -2439,10 +2442,14 @@ func (f *frame) eval() {
 			childFr.attrs = append(childFr.attrs, node.Attrs...)
 			for _, attr := range node.Attrs {
 				childFr.addRange(attr)
+				// Attribute text is not CUE expression syntax: offer no
+				// completions within it.
+				childFr.addUnknownRange(attr.Pos().Offset(), attr.End().Offset())
 			}
 
 		case *ast.Attribute:
 			f.attrs = append(f.attrs, node)
+			f.addUnknownRange(node.Pos().Offset(), node.End().Offset())
 
 		default:
 			f.addUnknownRange(node.Pos().Offset(), node.End().Offset())
@@ -2485,6 +2492,7 @@ func (f *frame) eval() {
 					grandChildFr := f.newFrame(fieldNameIdent, f.navigable.ensureNavigable(fieldName), false)
 					grandChildFr.kind = DeclField
 					grandChildFr.addRange(attr)
+					grandChildFr.addUnknownRange(attr.Pos().Offset(), attr.End().Offset())
 					f.appendBinding(fieldName, grandChildFr)
 					frs = append(frs, grandChildFr)
 				}
