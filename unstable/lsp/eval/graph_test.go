@@ -1311,6 +1311,11 @@ emb: {
 	// embedded reference docs.
 	x
 }
+
+// let docs.
+let L = {l1: 1}
+
+letuse: L
 -- b.cue --
 package p
 
@@ -1376,6 +1381,19 @@ x: 2
 				// embedding declaration.
 				t.checkDocs(t.soleDecl(t.field("emb"), eval.DeclEmbedding),
 					"// embedded reference docs.")
+
+				// Doc comments on a let are lost: they attach to the
+				// ast.LetClause, and the let binding's frame sets no
+				// docs node.
+				letuse := t.field("letuse")
+				letExpanded := letuse.Expand()
+				qt.Assert(t, qt.HasLen(letExpanded, 2))
+				for _, m := range letExpanded {
+					if m == letuse {
+						continue
+					}
+					t.checkDocs(t.soleDecl(m, eval.DeclAlias), "")
+				}
 			},
 		},
 
