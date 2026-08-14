@@ -1306,6 +1306,11 @@ o: {
 cl: close(
 	// close argument docs.
 	{cla: 1})
+
+emb: {
+	// embedded reference docs.
+	x
+}
 -- b.cue --
 package p
 
@@ -1366,6 +1371,11 @@ x: 2
 					}
 					t.checkDocs(t.soleDecl(m, eval.DeclExpression), "// close argument docs.")
 				}
+
+				// Doc comments on an embedding are lost: they attach
+				// to the ast.EmbedDecl, and the embedding's frame sets
+				// no docs node.
+				t.checkDocs(t.soleDecl(t.field("emb"), eval.DeclEmbedding), "")
 			},
 		},
 
