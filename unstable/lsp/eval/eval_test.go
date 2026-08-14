@@ -227,6 +227,92 @@ out2: z.f
 		},
 
 		{
+			name: "Binary_Operand_Paths",
+			archive: `-- a.cue --
+a: {foo: 1, bar: 2}
+d: {baz: 3}
+u: a.foo & d.baz
+j: a.bar | d.baz
+`,
+			expectDefinitions: map[position][]position{
+				ln(3, 1, "a"):   {ln(1, 1, "a")},
+				ln(3, 1, "foo"): {ln(1, 1, "foo")},
+				ln(3, 1, "d"):   {ln(2, 1, "d")},
+				ln(3, 1, "baz"): {ln(2, 1, "baz")},
+				ln(4, 1, "a"):   {ln(1, 1, "a")},
+				ln(4, 1, "bar"): {ln(1, 1, "bar")},
+				ln(4, 1, "d"):   {ln(2, 1, "d")},
+				ln(4, 1, "baz"): {ln(2, 1, "baz")},
+
+				ln(1, 1, "a"):   {self},
+				ln(1, 1, "foo"): {self},
+				ln(1, 1, "bar"): {self},
+				ln(2, 1, "d"):   {self},
+				ln(2, 1, "baz"): {self},
+				ln(3, 1, "u"):   {self},
+				ln(4, 1, "j"):   {self},
+			},
+			expectCompletions: map[offsetRange]fieldEmbedCompletions{
+				or(0, 2):   {f: []string{"a", "d", "j", "u"}},
+				or(2, 4):   {f: []string{"bar", "foo"}, e: []string{"a", "d", "j", "u"}},
+				or(4, 8):   {f: []string{"bar", "foo"}},
+				or1(8):     {e: []string{"a", "bar", "d", "foo", "j", "u"}},
+				or1(10):    {e: []string{"a", "bar", "d", "foo", "j", "u"}},
+				or1(11):    {f: []string{"bar", "foo"}, e: []string{"a", "d", "j", "u"}},
+				or(12, 16): {f: []string{"bar", "foo"}},
+				or1(16):    {e: []string{"a", "bar", "d", "foo", "j", "u"}},
+				or1(18):    {e: []string{"a", "bar", "d", "foo", "j", "u"}},
+				or(20, 22): {f: []string{"a", "d", "j", "u"}},
+				or(22, 24): {f: []string{"baz"}, e: []string{"a", "d", "j", "u"}},
+				or(24, 28): {f: []string{"baz"}},
+				or1(28):    {e: []string{"a", "baz", "d", "j", "u"}},
+				or1(30):    {e: []string{"a", "baz", "d", "j", "u"}},
+				or(32, 34): {f: []string{"a", "d", "j", "u"}},
+				or(34, 37): {e: []string{"a", "d", "j", "u"}},
+				or(37, 41): {e: []string{"a", "bar", "d", "foo", "j", "u"}}, // wrong: should be only the members of a
+				or(41, 45): {e: []string{"a", "d", "j", "u"}},
+				or(45, 49): {e: []string{"a", "baz", "d", "j", "u"}}, // wrong: should be only the members of d
+				or(49, 51): {f: []string{"a", "d", "j", "u"}},
+				or(51, 54): {e: []string{"a", "d", "j", "u"}},
+				or(54, 58): {e: []string{"a", "bar", "d", "foo", "j", "u"}}, // wrong: should be only the members of a
+				or(58, 62): {e: []string{"a", "d", "j", "u"}},
+				or(62, 66): {e: []string{"a", "baz", "d", "j", "u"}}, // wrong: should be only the members of d
+			},
+		},
+
+		{
+			name: "Field_Attribute",
+			archive: `-- a.cue --
+a: {foo: 1, bar: 2}
+x: a.foo @attr(unused)
+`,
+			expectDefinitions: map[position][]position{
+				ln(2, 1, "a"):   {ln(1, 1, "a")},
+				ln(2, 1, "foo"): {ln(1, 1, "foo")},
+
+				ln(1, 1, "a"):   {self},
+				ln(1, 1, "foo"): {self},
+				ln(1, 1, "bar"): {self},
+				ln(2, 1, "x"):   {self},
+			},
+			expectCompletions: map[offsetRange]fieldEmbedCompletions{
+				or(0, 2):   {f: []string{"a", "x"}},
+				or(2, 4):   {f: []string{"bar", "foo"}, e: []string{"a", "x"}},
+				or(4, 8):   {f: []string{"bar", "foo"}},
+				or1(8):     {e: []string{"a", "bar", "foo", "x"}},
+				or1(10):    {e: []string{"a", "bar", "foo", "x"}},
+				or1(11):    {f: []string{"bar", "foo"}, e: []string{"a", "x"}},
+				or(12, 16): {f: []string{"bar", "foo"}},
+				or1(16):    {e: []string{"a", "bar", "foo", "x"}},
+				or1(18):    {e: []string{"a", "bar", "foo", "x"}},
+				or(20, 22): {f: []string{"a", "x"}},
+				or(22, 25): {e: []string{"a", "x"}},
+				or(25, 29): {e: []string{"bar", "foo"}},
+				or(29, 43): {e: []string{"a", "x"}}, // wrong: nothing should be offered within the attribute
+			},
+		},
+
+		{
 			name: "Pointer_Chasing_Forwards_and_Back",
 			archive: `-- a.cue --
 x: a.b
