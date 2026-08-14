@@ -2157,6 +2157,7 @@ func (f *frame) eval() {
 			var childFr *frame
 			for _, arg := range node.Args {
 				childFr = f.newFrame(arg, nil, false)
+				childFr.docsNode = arg
 			}
 
 			if len(node.Args) == 1 {

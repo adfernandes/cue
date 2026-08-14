@@ -1355,9 +1355,8 @@ x: 2
 				qt.Assert(t, qt.HasLen(oEllipses, 1))
 				t.checkDocs(t.soleDecl(oEllipses[0], eval.DeclEllipsis), "// anything else goes")
 
-				// Doc comments on a call argument are lost: the
-				// argument's frame sets no docs node, so the comments
-				// attached to the argument expression go unreported.
+				// A call argument's docs are the comments attached to
+				// the argument expression.
 				cl := t.field("cl")
 				clExpanded := cl.Expand()
 				qt.Assert(t, qt.HasLen(clExpanded, 2))
@@ -1365,7 +1364,7 @@ x: 2
 					if m == cl {
 						continue
 					}
-					t.checkDocs(t.soleDecl(m, eval.DeclExpression), "")
+					t.checkDocs(t.soleDecl(m, eval.DeclExpression), "// close argument docs.")
 				}
 			},
 		},
