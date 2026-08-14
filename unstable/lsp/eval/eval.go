@@ -2078,6 +2078,7 @@ func (f *frame) eval() {
 		case *ast.EmbedDecl:
 			childFr := f.newFrame(node.Expr, f.navigable, true)
 			childFr.kind = DeclEmbedding
+			childFr.docsNode = node
 
 		case *ast.PostfixExpr:
 			switch node.Op {
