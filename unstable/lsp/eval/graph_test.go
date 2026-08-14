@@ -1282,6 +1282,26 @@ outer: {
 
 // this comment is attached to c
 a: b: c: _
+
+l: [
+	// first element
+	1,
+	// second element
+	2,
+	// remaining elements
+	...int,
+]
+
+lo: [
+	// all elements
+	...int,
+]
+
+o: {
+	oa: 1
+	// anything else goes
+	...
+}
 -- b.cue --
 package p
 
@@ -1309,6 +1329,25 @@ x: 2
 				t.checkDocs(cDecl, "// this comment is attached to c")
 				t.checkDocs(t.soleDecl(t.field("a"), eval.DeclField), "")
 				t.checkDocs(t.soleDecl(t.field("a.b"), eval.DeclField), "")
+
+				// Doc comments on list elements and ellipses are lost:
+				// an element's docs are read from its synthesized
+				// field, which never carries the comments attached to
+				// the element expression, and an ellipsis's decl has
+				// no docs node at all.
+				elements := slices.Collect(t.field("l").ListElements())
+				qt.Assert(t, qt.HasLen(elements, 2))
+				t.checkDocs(t.soleDecl(elements[0], eval.DeclField), "")
+				t.checkDocs(t.soleDecl(elements[1], eval.DeclField), "")
+				lEllipses := t.field("l").Ellipses()
+				qt.Assert(t, qt.HasLen(lEllipses, 1))
+				t.checkDocs(t.soleDecl(lEllipses[0], eval.DeclEllipsis), "")
+				loEllipses := t.field("lo").Ellipses()
+				qt.Assert(t, qt.HasLen(loEllipses, 1))
+				t.checkDocs(t.soleDecl(loEllipses[0], eval.DeclEllipsis), "")
+				oEllipses := t.field("o").Ellipses()
+				qt.Assert(t, qt.HasLen(oEllipses, 1))
+				t.checkDocs(t.soleDecl(oEllipses[0], eval.DeclEllipsis), "")
 			},
 		},
 
