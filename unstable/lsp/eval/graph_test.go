@@ -1302,6 +1302,10 @@ o: {
 	// anything else goes
 	...
 }
+
+cl: close(
+	// close argument docs.
+	{cla: 1})
 -- b.cue --
 package p
 
@@ -1350,6 +1354,19 @@ x: 2
 				oEllipses := t.field("o").Ellipses()
 				qt.Assert(t, qt.HasLen(oEllipses, 1))
 				t.checkDocs(t.soleDecl(oEllipses[0], eval.DeclEllipsis), "// anything else goes")
+
+				// Doc comments on a call argument are lost: the
+				// argument's frame sets no docs node, so the comments
+				// attached to the argument expression go unreported.
+				cl := t.field("cl")
+				clExpanded := cl.Expand()
+				qt.Assert(t, qt.HasLen(clExpanded, 2))
+				for _, m := range clExpanded {
+					if m == cl {
+						continue
+					}
+					t.checkDocs(t.soleDecl(m, eval.DeclExpression), "")
+				}
 			},
 		},
 
