@@ -1382,9 +1382,8 @@ x: 2
 				t.checkDocs(t.soleDecl(t.field("emb"), eval.DeclEmbedding),
 					"// embedded reference docs.")
 
-				// Doc comments on a let are lost: they attach to the
-				// ast.LetClause, and the let binding's frame sets no
-				// docs node.
+				// A let's docs are the comments attached to the let
+				// clause.
 				letuse := t.field("letuse")
 				letExpanded := letuse.Expand()
 				qt.Assert(t, qt.HasLen(letExpanded, 2))
@@ -1392,7 +1391,7 @@ x: 2
 					if m == letuse {
 						continue
 					}
-					t.checkDocs(t.soleDecl(m, eval.DeclAlias), "")
+					t.checkDocs(t.soleDecl(m, eval.DeclAlias), "// let docs.")
 				}
 			},
 		},

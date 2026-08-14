@@ -2268,6 +2268,7 @@ func (f *frame) eval() {
 				// be able to find it from the first element of a path.
 				letFr := f.newBinding(ident, node.Expr)
 				letFr.kind = DeclAlias
+				letFr.docsNode = node
 			}
 
 		case *ast.TryClause:
