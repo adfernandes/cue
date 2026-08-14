@@ -818,6 +818,26 @@ func (fe *FileEvaluator) CompletionsForOffset(offset int) map[Completion]map[str
 	suggestFieldsFrom := make(map[*navigable]Completion)
 
 	leafFrames := fe.evalForOffset(offset)
+
+	// A frame's range can extend beyond its own node: the operands of
+	// a binary & or | each cover the whole expression so that they
+	// always evaluate together. nodeOwned reports whether the offset
+	// lies within the node of at least one leaf frame. It gates only
+	// the final fallback below: the earlier cases all impose their own
+	// positional requirements, and their suggestions from sibling
+	// operand frames coincide with the owner's (the operands share a
+	// navigable and a scope). The fallback suggests unconditionally at
+	// the cursor, where a frame whose node excludes the offset would
+	// pollute the owning frame's suggestions with names from enclosing
+	// scopes.
+	nodeOwned := false
+	for _, fr := range leafFrames {
+		if node := fr.node; node != nil && node.Pos().IsValid() && token.WithinInclusive(offset, node.Pos(), node.End()) {
+			nodeOwned = true
+			break
+		}
+	}
+
 nextFrame:
 	for _, fr := range leafFrames {
 		if fr.navigable == fe.evaluator.pkgDecls {
@@ -953,6 +973,13 @@ nextFrame:
 		node := fr.node
 		s, isStruct := node.(*ast.StructLit)
 		if isStruct && s.Lbrace.IsValid() && s.Rbrace.IsValid() && !token.WithinInclusive(offset, s.Lbrace, s.Rbrace) {
+			continue
+		}
+		if nodeOwned && node != nil && node.Pos().IsValid() && !token.WithinInclusive(offset, node.Pos(), node.End()) {
+			// The offset is within this frame's range only because the
+			// range extends beyond the frame's own node; the offset
+			// belongs to some other leaf frame's node. Avoid the general
+			// fallback that follows.
 			continue
 		}
 
