@@ -1410,24 +1410,24 @@ x: 2
 					t.checkDocs(t.soleDecl(m, eval.DeclAlias), "// let docs.")
 				}
 
-				// Doc comments on a comprehension are lost: they
-				// attach to the ast.Comprehension, which no frame
-				// adopts as its docs node. Each clause beyond the
-				// first contributes an intermediate comprehension decl
-				// besides the final body decl.
+				// A comprehension's docs are the comments attached to
+				// the ast.Comprehension, reported by its body decl
+				// alone: the intermediate decl contributed by each
+				// clause beyond the first carries none.
 				compDecls := t.declsOfKind(t.field("comp"), eval.DeclComprehension)
 				qt.Assert(t, qt.HasLen(compDecls, 3))
-				t.checkDocs(compDecls[0], "")
+				t.checkDocs(compDecls[0], "// if docs.")
 				t.checkDocs(compDecls[1], "")
-				t.checkDocs(compDecls[2], "")
+				t.checkDocs(compDecls[2], "// chain docs.")
 
-				// A list-element comprehension's docs are carried by
-				// the element's synthesized field decl instead.
+				// A list-element comprehension is a comprehension like
+				// any other: its docs are on its body decl, not on the
+				// element's synthesized field decl.
 				lcompElements := slices.Collect(t.field("lcomp").ListElements())
 				qt.Assert(t, qt.HasLen(lcompElements, 1))
-				t.checkDocs(t.soleDecl(lcompElements[0], eval.DeclField),
+				t.checkDocs(t.soleDecl(lcompElements[0], eval.DeclField), "")
+				t.checkDocs(t.soleDecl(lcompElements[0], eval.DeclComprehension),
 					"// element comprehension docs.")
-				t.checkDocs(t.soleDecl(lcompElements[0], eval.DeclComprehension), "")
 			},
 		},
 

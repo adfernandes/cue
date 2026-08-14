@@ -1104,7 +1104,10 @@ func (d *Decl) Value() ast.Node {
 // the one field kind with no source-level label — the docs are the
 // comments attached to the element expression, and for an ellipsis
 // they are the comments attached to the [ast.Ellipsis] itself or to
-// its type expression.
+// its type expression. A comprehension's docs — including a
+// comprehension list element's — are the comments attached to the
+// [ast.Comprehension], reported by its body decl alone: the
+// intermediate decls of a multi-clause comprehension carry none.
 func (d *Decl) DocComments() []*ast.CommentGroup {
 	return ((*frame)(d)).docComments()
 }

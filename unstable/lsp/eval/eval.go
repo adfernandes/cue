@@ -1892,7 +1892,18 @@ func (f *frame) eval() {
 	//fmt.Printf("%p eval with key %v node %T; nav: %p\n", f, f.key, f.node, f.navigable)
 
 	var embeddedResolvable, resolvable []ast.Expr
-	var comprehensionsStash map[ast.Node]ast.Node
+	// A comprehensionTail is the remainder of a comprehension, stashed
+	// under the clause being processed: the body for the last clause,
+	// or a comprehension holding the remaining clauses.
+	type comprehensionTail struct {
+		node ast.Node
+		// docsNode carries the comprehension's doc comments to its
+		// body decl; it is set only alongside the body, so that the
+		// intermediate decls of a multi-clause comprehension do not
+		// repeat the docs.
+		docsNode ast.Node
+	}
+	var comprehensionsStash map[ast.Node]comprehensionTail
 
 	unprocessed := []ast.Node{f.node}
 	for len(unprocessed) > 0 {
@@ -2200,14 +2211,19 @@ func (f *frame) eval() {
 			// comprehension and can later find it once we've finished
 			// processing our clause.
 			if comprehensionsStash == nil {
-				comprehensionsStash = make(map[ast.Node]ast.Node)
+				comprehensionsStash = make(map[ast.Node]comprehensionTail)
 			}
 			if len(node.Clauses) == 1 {
 				// Base-case: we're dealing with the last clause. So that
 				// clause gets processed in this frame, and we make sure we
 				// can later use that last clause to find the body (value)
-				// of this comprehension.
-				comprehensionsStash[clause] = node.Value
+				// of this comprehension. The body decl carries the
+				// comprehension's doc comments (a copy made below
+				// shares the original's comments).
+				comprehensionsStash[clause] = comprehensionTail{
+					node:     node.Value,
+					docsNode: node,
+				}
 			} else {
 				// Non-base-case: we're processing the first clause in
 				// this frame, and all that remain go into a copy of the
@@ -2216,15 +2232,16 @@ func (f *frame) eval() {
 				nodeCopy := *node
 				nodeCopy.Clauses = node.Clauses[1:]
 				nodeCopy.Fallback = nil
-				comprehensionsStash[clause] = &nodeCopy
+				comprehensionsStash[clause] = comprehensionTail{node: &nodeCopy}
 			}
 
 		case *ast.IfClause:
 			f.newFrame(node.Condition, nil, false)
 
-			comprehensionTail := comprehensionsStash[node]
-			tailFr := f.newFrame(comprehensionTail, f.navigable, true)
+			tail := comprehensionsStash[node]
+			tailFr := f.newFrame(tail.node, f.navigable, true)
 			tailFr.kind = DeclComprehension
+			tailFr.docsNode = tail.docsNode
 
 		case *ast.ForClause:
 			f.newFrame(node.Source, nil, false)
@@ -2242,15 +2259,16 @@ func (f *frame) eval() {
 				stack.push(val, valFr)
 			}
 
-			comprehensionTail := comprehensionsStash[node]
-			tailFr := stack.peek().newFrame(comprehensionTail, f.navigable, true)
+			tail := comprehensionsStash[node]
+			tailFr := stack.peek().newFrame(tail.node, f.navigable, true)
 			tailFr.kind = DeclComprehension
-			stack.push(comprehensionTail, tailFr)
+			tailFr.docsNode = tail.docsNode
+			stack.push(tail.node, tailFr)
 
 		case *ast.LetClause:
 			ident := node.Ident
 			// A let clause might or might not be within a comprehension.
-			if comprehensionTail, found := comprehensionsStash[node]; found {
+			if tail, found := comprehensionsStash[node]; found {
 				// We're within a wider comprehension.
 				f.newFrame(node.Expr, nil, false)
 
@@ -2258,9 +2276,10 @@ func (f *frame) eval() {
 				identFr := stack.peek().newBinding(ident, nil)
 				identFr.kind = DeclAlias
 				stack.push(ident, identFr)
-				tailFr := stack.peek().newFrame(comprehensionTail, f.navigable, true)
+				tailFr := stack.peek().newFrame(tail.node, f.navigable, true)
 				tailFr.kind = DeclComprehension
-				stack.push(comprehensionTail, tailFr)
+				tailFr.docsNode = tail.docsNode
+				stack.push(tail.node, tailFr)
 
 			} else {
 				// We're not within a wider comprehension: the binding
@@ -2272,7 +2291,7 @@ func (f *frame) eval() {
 			}
 
 		case *ast.TryClause:
-			comprehensionTail := comprehensionsStash[node]
+			tail := comprehensionsStash[node]
 			if ident := node.Ident; ident != nil {
 				// Assignment form: try x = expr { ... }
 				f.newFrame(node.Expr, nil, false)
@@ -2281,13 +2300,15 @@ func (f *frame) eval() {
 				identFr := stack.peek().newBinding(ident, nil)
 				identFr.kind = DeclAlias
 				stack.push(ident, identFr)
-				tailFr := stack.peek().newFrame(comprehensionTail, f.navigable, true)
+				tailFr := stack.peek().newFrame(tail.node, f.navigable, true)
 				tailFr.kind = DeclComprehension
-				stack.push(comprehensionTail, tailFr)
+				tailFr.docsNode = tail.docsNode
+				stack.push(tail.node, tailFr)
 			} else {
 				// Struct form: try { ... }
-				tailFr := f.newFrame(comprehensionTail, f.navigable, true)
+				tailFr := f.newFrame(tail.node, f.navigable, true)
 				tailFr.kind = DeclComprehension
+				tailFr.docsNode = tail.docsNode
 			}
 
 		case *ast.Field:
@@ -2344,8 +2365,12 @@ func (f *frame) eval() {
 			if strings.HasPrefix(keyName, "__") {
 				// A synthesized field (a list element) has no
 				// source-level label: doc comments attach to the
-				// element expression itself.
-				childFr.docsNode = node.Value
+				// element expression itself. A comprehension element's
+				// docs are carried by its comprehension body decl,
+				// like any comprehension's.
+				if _, ok := node.Value.(*ast.Comprehension); !ok {
+					childFr.docsNode = node.Value
+				}
 			} else {
 				childFr.docsNode = node
 			}
