@@ -844,6 +844,10 @@ nextFrame:
 			// do not make any suggestions if we're inside a package decl
 			continue
 		}
+		if _, ok := fr.node.(*ast.ImportSpec); ok {
+			// do not make any suggestions if we're inside an import spec
+			continue
+		}
 
 		// 1. Are we in a fieldDecl?
 		//

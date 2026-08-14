@@ -3330,7 +3330,6 @@ y: "wand"
 			},
 			expectCompletions: map[offsetRange]fieldEmbedCompletions{
 				or(0, 7):   {f: []string{"x", "y"}},
-				or(7, 15):  {e: []string{"magic", "x", "y"}},
 				or(15, 18): {f: []string{"x", "y"}},
 				or(18, 25): {e: []string{"magic", "x", "y"}},
 				or(32, 35): {e: []string{"magic", "x", "y"}},
@@ -3358,7 +3357,6 @@ x: wand.foo
 			},
 			expectCompletions: map[offsetRange]fieldEmbedCompletions{
 				or(0, 7):   {f: []string{"x"}},
-				or(7, 20):  {e: []string{"wand", "x"}},
 				or(20, 23): {f: []string{"x"}},
 				or(23, 29): {e: []string{"wand", "x"}},
 			},
@@ -4426,7 +4424,6 @@ package a
 				orf("a.cue", 16, 17): {e: []string{"x"}},
 
 				orf("b.cue", 10, 18): {f: []string{"y", "z"}},
-				orf("b.cue", 18, 22): {e: []string{"a", "y", "z"}},
 				orf("b.cue", 22, 25): {f: []string{"y", "z"}},
 				orf("b.cue", 25, 28): {f: []string{"x"}, e: []string{"a", "y", "z"}},
 				orf("b.cue", 28, 30): {f: []string{"y", "z"}},
@@ -4455,9 +4452,6 @@ import "a"
 
 				fln("a.cue", 1, 3, "a"): {self},
 				fln("b.cue", 1, 1, "b"): {self},
-			},
-			expectCompletions: map[offsetRange]fieldEmbedCompletions{
-				orf("b.cue", 18, 22): {e: []string{"a"}},
 			},
 			importedBy: map[string][]string{
 				"a": {"b"},
@@ -4502,14 +4496,11 @@ y: a / true
 			},
 			expectCompletions: map[offsetRange]fieldEmbedCompletions{
 				orf("b.cue", 10, 18): {f: []string{"y"}},
-				orf("b.cue", 18, 22): {e: []string{"a", "y"}},
 				orf("b.cue", 22, 25): {f: []string{"y"}},
 				orf("b.cue", 25, 31): {e: []string{"a", "y"}},
 
 				orf("d.cue", 10, 18): {f: []string{"y"}},
-				orf("d.cue", 18, 24): {e: []string{"a", "x", "y"}},
 				orf("d.cue", 24, 31): {f: []string{"y"}},
-				orf("d.cue", 31, 35): {e: []string{"a", "x", "y"}},
 				orf("d.cue", 35, 38): {f: []string{"y"}},
 				orf("d.cue", 38, 43): {e: []string{"a", "x", "y"}},
 				orf("d.cue", 47, 48): {e: []string{"a", "x", "y"}},
@@ -4570,12 +4561,10 @@ z: a.x & y.x
 				orf("a.cue", 16, 17): {e: []string{"x"}},
 
 				orf("b.cue", 10, 18): {f: []string{"y", "z"}},
-				orf("b.cue", 18, 22): {e: []string{"a", "y"}},
 				orf("b.cue", 22, 25): {f: []string{"y", "z"}},
 				orf("b.cue", 25, 28): {f: []string{"x"}, e: []string{"a", "y"}},
 
 				orf("c.cue", 10, 18): {f: []string{"y", "z"}},
-				orf("c.cue", 18, 22): {e: []string{"a", "z"}},
 				orf("c.cue", 22, 25): {f: []string{"y", "z"}},
 				orf("c.cue", 25, 28): {e: []string{"a", "z"}},
 				orf("c.cue", 28, 30): {e: []string{"x"}},
@@ -4659,7 +4648,6 @@ o: c.o.z
 				orf("a.cue", 25, 26): {e: []string{"o", "x", "y", "z"}},
 
 				orf("b.cue", 10, 18): {f: []string{"o"}},
-				orf("b.cue", 18, 22): {e: []string{"a", "o"}},
 				orf("b.cue", 22, 25): {f: []string{"o"}},
 				orf("b.cue", 25, 26): {f: []string{"y"}, e: []string{"a", "o"}},
 				orf("b.cue", 26, 28): {e: []string{"a", "o"}},
@@ -4667,7 +4655,6 @@ o: c.o.z
 				orf("b.cue", 30, 32): {e: []string{"x"}},
 
 				orf("c.cue", 10, 18): {f: []string{"o"}},
-				orf("c.cue", 18, 22): {e: []string{"b", "o"}},
 				orf("c.cue", 22, 25): {f: []string{"o"}},
 				orf("c.cue", 25, 26): {f: []string{"z"}, e: []string{"b", "o"}},
 				orf("c.cue", 26, 28): {e: []string{"b", "o"}},
@@ -4675,7 +4662,6 @@ o: c.o.z
 				orf("c.cue", 30, 32): {e: []string{"y"}},
 
 				orf("d.cue", 10, 18): {f: []string{"o"}},
-				orf("d.cue", 18, 22): {e: []string{"c", "o"}},
 				orf("d.cue", 22, 25): {f: []string{"o"}},
 				orf("d.cue", 25, 28): {e: []string{"c", "o"}},
 				orf("d.cue", 28, 30): {e: []string{"o"}},
