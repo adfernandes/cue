@@ -2130,6 +2130,14 @@ func (f *frame) eval() {
 		case *ast.Ellipsis:
 			childFr := f.newFrame(node.Type, nil, false)
 			childFr.key = node
+			// The parser attaches a comment heading a typed list
+			// ellipsis to the type expression, not to the ellipsis
+			// itself.
+			if node.Type != nil && len(ast.DocComments(node)) == 0 {
+				childFr.docsNode = node.Type
+			} else {
+				childFr.docsNode = node
+			}
 			childFr.addRange(node)
 			// The navigable needs a name so that [UsagesForOffset] will
 			// traverse up out of it and thus we'll evaluate frames
@@ -2330,7 +2338,14 @@ func (f *frame) eval() {
 				childFr.key = node.Label
 			}
 
-			childFr.docsNode = node
+			if strings.HasPrefix(keyName, "__") {
+				// A synthesized field (a list element) has no
+				// source-level label: doc comments attach to the
+				// element expression itself.
+				childFr.docsNode = node.Value
+			} else {
+				childFr.docsNode = node
+			}
 			fieldDecl.valueFrame = childFr
 
 			if keyAlias != nil {

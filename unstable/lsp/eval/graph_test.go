@@ -1330,24 +1330,26 @@ x: 2
 				t.checkDocs(t.soleDecl(t.field("a"), eval.DeclField), "")
 				t.checkDocs(t.soleDecl(t.field("a.b"), eval.DeclField), "")
 
-				// Doc comments on list elements and ellipses are lost:
-				// an element's docs are read from its synthesized
-				// field, which never carries the comments attached to
-				// the element expression, and an ellipsis's decl has
-				// no docs node at all.
+				// A list element's docs are the comments attached to
+				// the element expression, and an ellipsis's docs are
+				// the comments attached to the ellipsis itself or to
+				// its type expression.
 				elements := slices.Collect(t.field("l").ListElements())
 				qt.Assert(t, qt.HasLen(elements, 2))
-				t.checkDocs(t.soleDecl(elements[0], eval.DeclField), "")
-				t.checkDocs(t.soleDecl(elements[1], eval.DeclField), "")
+				t.checkDocs(t.soleDecl(elements[0], eval.DeclField), "// first element")
+				t.checkDocs(t.soleDecl(elements[1], eval.DeclField), "// second element")
+				// The parser attaches a comment between a list element
+				// and a following ellipsis to the preceding element,
+				// in a non-doc position: it documents neither node.
 				lEllipses := t.field("l").Ellipses()
 				qt.Assert(t, qt.HasLen(lEllipses, 1))
 				t.checkDocs(t.soleDecl(lEllipses[0], eval.DeclEllipsis), "")
 				loEllipses := t.field("lo").Ellipses()
 				qt.Assert(t, qt.HasLen(loEllipses, 1))
-				t.checkDocs(t.soleDecl(loEllipses[0], eval.DeclEllipsis), "")
+				t.checkDocs(t.soleDecl(loEllipses[0], eval.DeclEllipsis), "// all elements")
 				oEllipses := t.field("o").Ellipses()
 				qt.Assert(t, qt.HasLen(oEllipses, 1))
-				t.checkDocs(t.soleDecl(oEllipses[0], eval.DeclEllipsis), "")
+				t.checkDocs(t.soleDecl(oEllipses[0], eval.DeclEllipsis), "// anything else goes")
 			},
 		},
 

@@ -1100,7 +1100,11 @@ func (d *Decl) Value() ast.Node {
 }
 
 // DocComments returns the doc-comment groups attached to this
-// declaration, or nil if none are present.
+// declaration, or nil if none are present. For a list element —
+// the one field kind with no source-level label — the docs are the
+// comments attached to the element expression, and for an ellipsis
+// they are the comments attached to the [ast.Ellipsis] itself or to
+// its type expression.
 func (d *Decl) DocComments() []*ast.CommentGroup {
 	return ((*frame)(d)).docComments()
 }
