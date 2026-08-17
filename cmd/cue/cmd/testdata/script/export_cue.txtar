@@ -1,4 +1,5 @@
-# Verify that -p and -l work when exporting as CUE.
+# Verify that -p and -l work when exporting as CUE,
+# and that stream separators go to the output destination.
 
 # Case 1: only non-CUE inputs
 exec cue export --out cue -p blah x.json y.json
@@ -35,6 +36,13 @@ cmp stdout stdout.golden
 exec cue export --out cue -p blah diffpkg.cue
 cmp stdout stdout.golden
 
+# Case 8: with multiple values, the "// ---" stream separator is written to
+# the output destination rather than to stdout.
+# Regression test for https://cuelang.org/issue/4466
+exec cue export --out cue -e x -e y nopkg.cue -o sep.cue
+cmp sep.cue sep.golden
+! stdout .
+
 -- x.json --
 {
     "x": 5
@@ -63,6 +71,10 @@ x: 5
 y: 4
 -- stderr.golden --
 "package" flag clashes with existing package name (blah vs other)
+-- sep.golden --
+5
+// ---
+4
 -- sub/path.cue --
 package before
 
