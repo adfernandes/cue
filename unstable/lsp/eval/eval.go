@@ -1127,15 +1127,12 @@ func (fe *FileEvaluator) UsagesForOffset(offset int, includeDefinitions bool) []
 // usages attempts to discover all uses of the given navs whilst doing
 // as little work as possible.
 func usages(navsWorklist []*navigable) {
-	navsWorklist = slices.Clip(navsWorklist)
+	navsWorkqueue := newWorkqueue(navsWorklist...)
 
 	traversedNavs := make(map[*navigable]struct{})
 	evaluatedNavs := make(map[*navigable]struct{})
 
-	for len(navsWorklist) > 0 {
-		nav := navsWorklist[0]
-		navsWorklist = navsWorklist[1:]
-
+	for nav := range navsWorkqueue.items() {
 		if _, seen := traversedNavs[nav]; seen {
 			continue
 		}
@@ -1146,7 +1143,7 @@ func usages(navsWorklist []*navigable) {
 		// too.
 		isExported := false
 		var targetNavs []*navigable
-		var evalWorklist []*navigable
+		var evalWorkqueue *workqueue[*navigable]
 		{
 			pkgNav := nav.evaluator.pkgFrame.navigable
 			var child *navigable
@@ -1167,7 +1164,7 @@ func usages(navsWorklist []*navigable) {
 						}
 					}
 				}
-				evalWorklist = []*navigable{parent}
+				evalWorkqueue = newWorkqueue(parent)
 				if child == nil {
 					continue
 				}
@@ -1190,10 +1187,7 @@ func usages(navsWorklist []*navigable) {
 			}
 		}
 
-		for len(evalWorklist) > 0 {
-			nav := evalWorklist[0]
-			evalWorklist = evalWorklist[1:]
-
+		for nav := range evalWorkqueue.items() {
 			if _, seen := evaluatedNavs[nav]; seen {
 				continue
 			}
@@ -1212,7 +1206,7 @@ func usages(navsWorklist []*navigable) {
 			nav.eval()
 			for _, fr := range nav.frames {
 				for _, childFr := range fr.childFrames {
-					evalWorklist = append(evalWorklist, childFr.navigable)
+					evalWorkqueue.enqueue(childFr.navigable)
 				}
 			}
 		}
@@ -1228,7 +1222,7 @@ func usages(navsWorklist []*navigable) {
 		// by k, and so we schedule k for evaluation. We find k is used
 		// by x but x doesn't resolve to k. However, we also find h is
 		// used by x, and x does resolve to h and so we add x to the
-		// navsWorklist. I.e. we have established that one of j,h,i has
+		// navsWorkqueue. I.e. we have established that one of j,h,i has
 		// escaped from the in-line struct and so at least some of x's
 		// ancestors must now be evaluated.
 		for _, target := range targetNavs {
@@ -1239,7 +1233,7 @@ func usages(navsWorklist []*navigable) {
 				// if we found x: y + 1 we would not then need to inspect
 				// the uses of x.
 				if _, found := use.navigable.resolvesTo[target]; found {
-					navsWorklist = append(navsWorklist, use.navigable)
+					navsWorkqueue.enqueue(use.navigable)
 				}
 			}
 		}
@@ -1258,12 +1252,12 @@ func usages(navsWorklist []*navigable) {
 			// is not necessarily the import spec anyway).
 			ip := nav.evaluator.config.IP
 			for _, remotePkg := range nav.evaluator.config.PkgImporters() {
-				navsWorklist = append(navsWorklist, remotePkg.initialNavsForImport(ip)...)
+				navsWorkqueue.enqueue(remotePkg.initialNavsForImport(ip)...)
 			}
 			// Embeds however are different: they are embedded into a
 			// specific part of a CUE AST, and it absolutely makes sense
 			// to start by evaluating that section of the AST.
-			navsWorklist = slices.AppendSeq(navsWorklist, maps.Keys(nav.evaluator.embedders()))
+			navsWorkqueue.enqueueSeq(maps.Keys(nav.evaluator.embedders()))
 		}
 	}
 }
@@ -1400,17 +1394,8 @@ func (fe *FileEvaluator) evalForOffset(offset int) []*frame {
 	}
 
 	var leafFrames []*frame
-	seen := make(map[*navigable]struct{})
-	worklist := []*navigable{fe.evaluator.pkgFrame.navigable}
-	for len(worklist) > 0 {
-		nav := worklist[0]
-		worklist = worklist[1:]
-
-		if _, found := seen[nav]; found {
-			continue
-		}
-		seen[nav] = struct{}{}
-
+	workqueue := newWorkqueue(fe.evaluator.pkgFrame.navigable)
+	for nav := range workqueue.items() {
 		nav.eval()
 
 		for _, fr := range nav.frames {
@@ -1422,7 +1407,7 @@ func (fe *FileEvaluator) evalForOffset(offset int) []*frame {
 			isLeaf := fr.contains(fe, offset)
 			for _, child := range fr.childFrames {
 				if child.contains(fe, offset) {
-					worklist = append(worklist, child.navigable)
+					workqueue.enqueue(child.navigable)
 					isLeaf = false
 				}
 			}
@@ -1672,21 +1657,15 @@ func expandNavigables(navs []*navigable) map[*navigable]struct{} {
 	if len(navs) == 0 {
 		return nil
 	}
-	worklist := navs
-	navsSet := make(map[*navigable]struct{})
-	for len(worklist) > 0 {
-		nav := worklist[0]
-		worklist = worklist[1:]
-		if _, seen := navsSet[nav]; seen {
-			continue
-		}
-		navsSet[nav] = struct{}{}
-
+	workqueue := newWorkqueue(navs...)
+	for nav := range workqueue.items() {
+		// nav.resolvesTo is read only after nav is evaluated:
+		// evaluation can grow it.
 		nav.eval()
 
-		worklist = slices.AppendSeq(worklist, maps.Keys(nav.resolvesTo))
+		workqueue.enqueueSeq(maps.Keys(nav.resolvesTo))
 	}
-	return navsSet
+	return workqueue.seen
 }
 
 // expandNavigablesViaPath is used by embedded packages only. From the
@@ -3251,4 +3230,63 @@ func (stack *frameStack) peek() *frame {
 		return nil
 	}
 	return nodes[len(nodes)-1]
+}
+
+// workqueue is a generic container that models a queue of items where
+// every item must never be processed more than once.
+type workqueue[T comparable] struct {
+	// todo is the list of items. It is only ever appended to.
+	todo []T
+	// seen is a set that captures every item ever enqueued onto the
+	// workqueue. Presence in seen does not imply that the item has
+	// been "processed".
+	seen map[T]struct{}
+}
+
+// newWorkqueue creates a new workqueue with the items provided in the
+// todo list and seen set, deduplicated.
+func newWorkqueue[T comparable](items ...T) *workqueue[T] {
+	wq := &workqueue[T]{seen: make(map[T]struct{})}
+	for _, item := range items {
+		wq.enqueue(item)
+	}
+	return wq
+}
+
+// items provides an iterator over every item in the todo list. It is
+// safe to enqueue items whilst iterating over them (within the same
+// Go-routine): if the enqueued item has never been enqueued before
+// then it will eventually emitted by the sequence.
+func (wq *workqueue[T]) items() iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for i := 0; i < len(wq.todo); i++ {
+			if !yield(wq.todo[i]) {
+				return
+			}
+		}
+	}
+}
+
+// enqueue adds each item to the todo list if it has not already been
+// enqueued.
+func (wq *workqueue[T]) enqueue(items ...T) {
+	for _, item := range items {
+		if _, seen := wq.seen[item]; seen {
+			continue
+		}
+		wq.seen[item] = struct{}{}
+		wq.todo = append(wq.todo, item)
+	}
+}
+
+// enqueue eagerly iterates through the sequence of items provided,
+// adding each to the todo list if it has not already been enqueued.
+func (wq *workqueue[T]) enqueueSeq(items iter.Seq[T]) {
+	for item := range items {
+		if _, seen := wq.seen[item]; seen {
+			continue
+		}
+		wq.seen[item] = struct{}{}
+		wq.todo = append(wq.todo, item)
+	}
 }
