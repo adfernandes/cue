@@ -19,12 +19,12 @@
 //
 // This evaluator also supports a graph API: a structured, navigable
 // view of the graph that the evaluator lazily constructs. Exploring
-// the graph provokes any necessary evaluation
-// (call-by-need). Although no part of the graph API uses the byte
-// offset or line and column number of any AST node, nevertheless the
-// underlying evaluator relies on the AST carrying position
-// information. Some functions will panic if the AST is missing
-// position information.
+// the graph provokes any necessary evaluation (call-by-need). The
+// graph API never consults position information: a programmatic AST
+// with no positions evaluates and resolves identically. Only the
+// offset-driven query surfaces outside the graph API (such as
+// [FileEvaluator.UsagesForOffset]) require positions, since an
+// offset is their input.
 //
 // The graph API has three layers:
 //
@@ -1400,8 +1400,7 @@ func (a Constraint) UnifyConstraints(b Constraint) Constraint {
 // Compose with [NodeSet.Expand] and [NodeSet.Fields] to navigate
 // onwards from the result.
 func (d *Decl) Resolve(el ast.Node) NodeSet {
-	fe := d.fileEvaluator
-	if el == nil || fe == nil {
+	if el == nil || d.fileEvaluator == nil {
 		return nil
 	}
 	// A selector or index expression resolves as its final component:
@@ -1419,48 +1418,36 @@ func (d *Decl) Resolve(el ast.Node) NodeSet {
 	if el == nil {
 		return nil
 	}
-	pos := el.Pos()
-	if !pos.HasAbsPos() {
-		panic("the AST must contain position information, and the supplied node has none")
+	// The element belongs to this declaration's syntax, and a path is
+	// recorded in the frame whose syntax it occurs in, so the search
+	// walks this declaration's frame subtree - plus the field's key
+	// frame, which lives on the parent because keys resolve in the
+	// enclosing scope - demanding evaluation as it descends, and
+	// matching by node identity ([path.definitionsForNode]). No
+	// positions are consulted: a programmatic AST resolves
+	// identically.
+	worklist := []*frame{(*frame)(d)}
+	if kf := (*frame)(d).keyFrame; kf != nil {
+		worklist = append(worklist, kf)
 	}
-	if pos.File() != fe.File.Pos().File() {
-		return nil
-	}
-	offset := pos.Offset()
-	leafFrames := fe.evalForOffset(offset)
 
-	// Search by node identity: every element of a path that the
-	// evaluator tracks is recorded, verbatim, as the node of a path
-	// component (including field keys and whole path expressions), so
-	// an element found by walking this declaration's syntax matches
-	// exactly.
-	var navs []*navigable
-	for _, leafFr := range leafFrames {
-		for _, p := range leafFr.childPaths {
-			comps := p.components
-			for i := range comps {
-				if comps[i].node != el {
-					continue
-				}
-				// The results of resolving a component are stored in the
-				// component that follows it. The final component of a
-				// multi-component path exists only to hold the results of
-				// the whole path, so a match on it (the whole path
-				// expression) - or on the single component of a length-1
-				// path - finds its results in place.
-				if i+1 < len(comps) {
-					navs = append(navs, comps[i+1].unexpanded...)
-				} else {
-					navs = append(navs, comps[i].unexpanded...)
-				}
-				break
+	for len(worklist) > 0 {
+		fr := worklist[0]
+		worklist = worklist[1:]
+		fr.navigable.eval()
+		for _, p := range fr.childPaths {
+			_, navs := p.definitionsForNode(el)
+			if len(navs) == 0 {
+				continue
 			}
+			result := make(NodeSet, len(navs))
+			for i, nav := range navs {
+				result[i] = (*Node)(nav)
+			}
+			return dedupeNodes(result)
 		}
+		worklist = append(worklist, fr.childFrames...)
 	}
 
-	result := make(NodeSet, len(navs))
-	for i, nav := range navs {
-		result[i] = (*Node)(nav)
-	}
-	return dedupeNodes(result)
+	return nil
 }

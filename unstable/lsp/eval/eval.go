@@ -1821,6 +1821,12 @@ type frame struct {
 	// part in navigation, but their frames remain traversable by
 	// offset.
 	dynamics []*navigable
+	// keyFrame is the frame that records the paths of this field's
+	// key expressions (dynamic labels, key interpolations). It is a
+	// sibling of this frame, created on the parent, because a key
+	// resolves in the scope enclosing the field; but it belongs to
+	// this declaration for [Decl.Resolve].
+	keyFrame *frame
 	// navigable provides access to the "navigable bindings" that is
 	// shared between multiple frames that should be considered
 	// "merged together".
@@ -2437,7 +2443,7 @@ func (f *frame) eval() {
 			// in the field label. Therefore, len(fieldDecl.exprs) > 0
 			// implies !strings.HasPrefix(keyName, "__")
 			if !strings.HasPrefix(keyName, "__") {
-				childFr.parent.newFrame(fieldDecl, nil, false)
+				childFr.keyFrame = childFr.parent.newFrame(fieldDecl, nil, false)
 			}
 			childFr.attrs = append(childFr.attrs, node.Attrs...)
 			for _, attr := range node.Attrs {
@@ -3029,11 +3035,30 @@ type path struct {
 }
 
 // pathComponent models part of a path.
+//
+// Consider this example:
+//
+//	a: x: b
+//	b: y: 5
+//	c: x: y: int
+//	c: a
+//	c: x: f(x.y)
+//
+// and we have the path `x.y` within `c`. We will have three
+// components in total:
+//
+//  1. node: Ident x; name: "x";
+//     unexpanded: the initial navs that lexically contain `x` (i.e. `c`'s nav);
+//     expanded: the navs for `c` and `a` (as `a` is embedded in `c`).
+//  2. node: Ident y; name: "y";
+//     unexpanded: the resulting navs from (1) (i.e. the navs for `a.x` and `c.x`)
+//     which we expand;
+//     expanded: the navs for `c.x`, `a.x`, and `b`, in which we search for a binding y.
+//  3. node: SelectorExpr x.y; name: "";
+//     unexpanded: the resulting navs from (2) (i.e. the navs for `b.y` and `c.x.y`);
+//     expanded: nil.
 type pathComponent struct {
-	// node is the part of the path modelled by this pathComponent. For
-	// example in the path x.y, we have two components, the first with
-	// node which is the ident x, and the second with node which is the
-	// ident y.
+	// node is the part of the path modelled by this pathComponent.
 	node ast.Node
 	// unexpanded is the set of navigables that the previous path
 	// component resolves to.
@@ -3180,6 +3205,30 @@ func (p *path) definitionsForOffset(offset int) (int, []*navigable) {
 		return -1, nil
 	}
 	return i, components[i+1].unexpanded
+}
+
+// definitionsForNode is the twin of [path.definitionsForOffset]: it
+// searches the components of this path for one whose node is el (by
+// pointer), and returns the component's index and the results of its
+// resolution. If not found, -1, nil are returned.
+func (p *path) definitionsForNode(el ast.Node) (int, []*navigable) {
+	components := p.components
+	for i := range components {
+		if components[i].node != el {
+			continue
+		}
+		// The results of resolving a component are stored in the
+		// component that follows it. The final component of a
+		// multi-component path exists only to hold the results of
+		// the whole path, so a match on it (the whole path
+		// expression) - or on the single component of a length-1
+		// path - finds its results in place.
+		if i+1 < len(components) {
+			return i, components[i+1].unexpanded
+		}
+		return i, components[i].unexpanded
+	}
+	return -1, nil
 }
 
 // frameStack is used when evaluating comprehensions. It allows a
