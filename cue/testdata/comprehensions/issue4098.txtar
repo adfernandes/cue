@@ -1,0 +1,117 @@
+# Tests that a for comprehension sees fields contributed to its source by
+# sibling conjuncts regardless of declaration order. Issue: evalv3 ran a for
+# comprehension while a sibling embedding or if comprehension that adds to the
+# comprehension's source was still being evaluated, committing an incomplete
+# field set. Depending on declaration order the comprehension then silently
+# yielded nothing.
+-- in.cue --
+// The embedded x contributes a field to m, the source of the for
+// comprehension. With the embedding declared first, evalv3 iterated m before
+// the embedding was resolved, so the for comprehension never embedded y.
+embedBeforeFor: {
+	x: {
+		m: "from-x": true
+		result: "res-x": true
+	}
+	y: {
+		result: "res-y": true
+	}
+
+	x
+	m: [string]: bool
+	for k, v in m {y}
+
+	@test(eq:todo, {
+		x: {m: {"from-x": true}, result: {"res-x": true}}
+		y: {result: {"res-y": true}}
+		m: {"from-x": true}
+		result: {"res-x": true, "res-y": true}
+	})
+}
+
+// The same with the embedding declared last always worked.
+embedAfterFor: {
+	x: {
+		m: "from-x": true
+		result: "res-x": true
+	}
+	y: {
+		result: "res-y": true
+	}
+
+	m: [string]: bool
+	for k, v in m {y}
+	x
+
+	@test(eq, {
+		x: {m: {"from-x": true}, result: {"res-x": true}}
+		y: {result: {"res-y": true}}
+		m: {"from-x": true}
+		result: {"res-x": true, "res-y": true}
+	})
+}
+
+// An if comprehension contributes a field to the source of a sibling for
+// comprehension. With the if declared first, evalv3 iterated a.items while
+// the if guard was still being evaluated, so a.results remained empty.
+ifBeforeFor: {
+	a: {
+		flag: bool | *false
+		items: [string]:   string
+		results: [string]: int
+	}
+
+	a: flag: true
+
+	if a.flag == true {
+		a: items: item1: "data1"
+	}
+
+	for k, v in a.items {
+		a: results: (k): 2
+	}
+
+	@test(eq:todo, {
+		a: {flag: true, items: {item1: "data1"}, results: {item1: 2}}
+	})
+}
+
+// The same with the for comprehension declared first always worked.
+forBeforeIf: {
+	a: {
+		flag: bool | *false
+		items: [string]:   string
+		results: [string]: int
+	}
+
+	a: flag: true
+
+	for k, v in a.items {
+		a: results: (k): 2
+	}
+
+	if a.flag == true {
+		a: items: item1: "data1"
+	}
+
+	@test(eq, {
+		a: {flag: true, items: {item1: "data1"}, results: {item1: 2}}
+	})
+}
+-- out/errors.txt --
+[eval] embedBeforeFor.m: adding field "from-x" not allowed as field set was already iterated over by comprehension:
+    ./in.cue:13:2
+    ./in.cue:15:2
+-- out/eval/stats --
+Leaks:  2
+Freed:  45
+Reused: 34
+Allocs: 13
+Retain: 0
+
+Unifications: 43
+Conjuncts:    83
+Disjuncts:    4
+Notifications: 4
+
+NumCloseIDs: 18

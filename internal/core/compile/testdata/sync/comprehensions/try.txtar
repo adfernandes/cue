@@ -664,6 +664,35 @@ letTryCycle: {
 	out: (_d & {}).c
 }
 
+// =============================================================================
+// A sibling for comprehension over a field the try body contributes to
+// =============================================================================
+
+// The for comprehension must wait for the preceding try to complete before
+// iterating a.items; evalv3 used to iterate too early, leaving a.results
+// empty. Also, the try body's sandbox pre-evaluation must not freeze the
+// pending a.items.item1 arc in the main tree. https://cuelang.org/issue/4098
+issue4098: {
+	a: {
+		flag?: bool
+		items: [string]:   string
+		results: [string]: int
+	}
+
+	a: flag: true
+
+	try {
+		if a.flag? == true {
+			a: items: item1: "data1"
+		}
+	}
+
+	for k, v in a.items {
+		a: results: (k): 2
+	}
+
+}
+
 -- out/compile --
 --- in.cue
 {
@@ -1451,5 +1480,35 @@ letTryCycle: {
       }
     }
     out: (〈0;_d〉 & {}).c
+  }
+  issue4098: {
+    a: {
+      flag?: bool
+      items: {
+        [string]: string
+      }
+      results: {
+        [string]: int
+      }
+    }
+    a: {
+      flag: true
+    }
+    try {
+      if (〈1;a〉.flag? == true) {
+        a: {
+          items: {
+            item1: "data1"
+          }
+        }
+      }
+    }
+    for k, v in 〈0;a〉.items {
+      a: {
+        results: {
+          〈3;k〉: 2
+        }
+      }
+    }
   }
 }

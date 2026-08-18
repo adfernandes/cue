@@ -752,6 +752,38 @@ letTryCycle: {
 	out: (_d & {}).c @test(err, code=incomplete, contains="cannot reference optional field: inner")
 }
 
+// =============================================================================
+// A sibling for comprehension over a field the try body contributes to
+// =============================================================================
+
+// The for comprehension must wait for the preceding try to complete before
+// iterating a.items; evalv3 used to iterate too early, leaving a.results
+// empty. Also, the try body's sandbox pre-evaluation must not freeze the
+// pending a.items.item1 arc in the main tree. https://cuelang.org/issue/4098
+issue4098: {
+	a: {
+		flag?: bool
+		items: [string]:   string
+		results: [string]: int
+	}
+
+	a: flag: true
+
+	try {
+		if a.flag? == true {
+			a: items: item1: "data1"
+		}
+	}
+
+	for k, v in a.items {
+		a: results: (k): 2
+	}
+
+	@test(eq:todo, {
+		a: {flag: true, items: {item1: "data1"}, results: {item1: 2}}
+	})
+}
+
 -- out/errors.txt --
 [incomplete] requiredUnfilled.x: required field missing: a:
     ./in.cue:83:11
@@ -803,13 +835,13 @@ produce errors in v2 (type errors, index out of range on open lists, etc.).
 v3 adds the @experiment(try) feature that catches optional reference failures.
 -- out/eval/stats --
 Leaks:  76
-Freed:  513
-Reused: 471
-Allocs: 118
+Freed:  523
+Reused: 479
+Allocs: 120
 Retain: 0
 
-Unifications: 553
-Conjuncts:    697
+Unifications: 563
+Conjuncts:    715
 Disjuncts:    12
 
-NumCloseIDs: 269
+NumCloseIDs: 274
