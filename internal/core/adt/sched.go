@@ -16,6 +16,7 @@ package adt
 
 import (
 	"math/bits"
+	"slices"
 )
 
 // The CUE scheduler schedules tasks for evaluation.
@@ -496,11 +497,18 @@ func (s *scheduler) process(needs condition, mode runMode) bool {
 	// time, so each disjunct gets its own clone that runs in the
 	// disjunct's context.
 	hasPendingDisjunction := false
+	// A running non-comprehension task (e.g. an embedded reference) may
+	// still add fields to this node; see the processNextTask case below.
+	hasRunningNonComp := false
 	for _, t := range s.tasks {
-		if t.state == taskRUNNING && t.run == handleComprehension {
-			hasRunningComp = true
-			if t.inserting {
-				hasInsertingComp = true
+		if t.state == taskRUNNING {
+			if t.run == handleComprehension {
+				hasRunningComp = true
+				if t.inserting {
+					hasInsertingComp = true
+				}
+			} else {
+				hasRunningNonComp = true
 			}
 		}
 		if t.state == taskREADY && t.run == handleDisjunctions {
@@ -531,6 +539,13 @@ processNextTask:
 			// Do not start a new comprehension while another is running
 			// on the same node. The running comprehension may add fields
 			// that this one depends on.
+			continue
+		case hasRunningNonComp && t.run == handleComprehension && mode == attemptOnly:
+			// Do not start a comprehension while a non-comprehension task
+			// on the same node is running: its result may still add fields
+			// that the comprehension iterates over. Only skip in
+			// attemptOnly mode (e.g. a lookup driving this node forward);
+			// in finalize mode freezing is the deliberate cycle-breaker.
 			continue
 		case hasInsertingComp && t.run == handleResolver:
 			// Do not start a resolver while a comprehension is inserting
@@ -571,6 +586,10 @@ processNextTask:
 		// remainder of function
 	}
 
+	// See mustDeferUnblock. This walks up the parent chain, so compute it
+	// once per finalize rather than per blocked task.
+	inTryBody := s.inTryBody()
+
 unblockTasks:
 	// Unblocking proceeds in three stages. Each of the stages may cause
 	// formerly blocked tasks to become unblocked. To ensure that unblocking
@@ -581,7 +600,7 @@ unblockTasks:
 	// relevant states first to finish up any tasks that were just waiting for
 	// types, such as lists.
 	for _, t := range c.blocking {
-		if t.blockedOn != nil {
+		if t.blockedOn != nil && !s.mustDeferUnblock(t, inTryBody) {
 			t.blockedOn.signal(s.ctx.autoUnblock)
 		}
 	}
@@ -590,7 +609,7 @@ unblockTasks:
 	// tasks. Doing this before running the remaining tasks ensures that we get
 	// the same errors, regardless of the order in which tasks are unblocked.
 	for _, t := range c.blocking {
-		if t.blockedOn != nil {
+		if t.blockedOn != nil && !s.mustDeferUnblock(t, inTryBody) {
 			t.blockedOn.freeze(t.blockCondition, t.x)
 			t.unblocked = true
 		}
@@ -599,7 +618,7 @@ unblockTasks:
 	// Run the remaining blocked tasks.
 	numBlocked := len(c.blocking)
 	for _, t := range c.blocking {
-		if t.blockedOn != nil && !t.defunct {
+		if t.blockedOn != nil && !t.defunct && !s.mustDeferUnblock(t, inTryBody) {
 			n, cond := t.blockedOn, t.blockCondition
 			t.blockedOn, t.blockCondition = nil, neverKnown
 			n.signal(cond)
@@ -619,9 +638,54 @@ unblockTasks:
 		goto unblockTasks
 	}
 
-	c.blocking = c.blocking[:0]
+	// Only tasks deferred by mustDeferUnblock remain blocked; retain them
+	// for a later regular finalize. Any other scheduler simply resets the
+	// queue, as it did before deferral existed.
+	if inTryBody {
+		c.blocking = slices.DeleteFunc(c.blocking, func(t *task) bool {
+			return t.blockedOn == nil || t.defunct
+		})
+	} else {
+		c.blocking = c.blocking[:0]
+	}
 
 	return true
+}
+
+// inTryBody reports whether this scheduler belongs to the inline vertex
+// that pre-evaluates a try clause body (see [nodeContext.trySkip]) or to
+// one of its descendants. Descendants of an inline vertex are non-rooted
+// themselves, so the walk stops at the first rooted ancestor.
+func (s *scheduler) inTryBody() bool {
+	if s.node == nil {
+		return false
+	}
+	for v := s.node.node; v != nil && !v.Rooted(); v = v.Parent {
+		if v.state != nil && v.state.trySkip != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// mustDeferUnblock reports whether finalizing this scheduler, for which
+// inTryBody holds [scheduler.inTryBody], must leave blocked task t alone.
+// Finalizing the inline vertex of a try clause body is an effect-free
+// pre-evaluation: neither it nor its descendants may force or freeze tasks
+// blocked on schedulers of rooted vertices, as those vertices may still
+// receive fields once the body is evaluated for real, and freezing them
+// commits an incomplete field set. Such tasks remain in the blocking queue
+// and are handled by a subsequent regular finalize.
+//
+// Rooted vertices finalized while evaluating the body are finalized for
+// good, so their unblocking phase runs as usual: deferring there would let
+// them commit results that the deferred tasks later contradict.
+func (s *scheduler) mustDeferUnblock(t *task, inTryBody bool) bool {
+	if !inTryBody || t.blockedOn.node == nil {
+		return false
+	}
+	w := t.blockedOn.node.node
+	return w != nil && w.Rooted()
 }
 
 // yield causes the current task to be suspended until the given conditions
@@ -760,6 +824,27 @@ func (s *scheduler) deferFieldSetKnown(c condition) condition {
 func (s *scheduler) hasActiveParentTask() bool {
 	for _, pt := range s.parentTasks {
 		if pt.state < taskSUCCESS {
+			return true
+		}
+	}
+	return false
+}
+
+// hasRunningSiblingParentTask reports whether a parent task other than the
+// currently running task is itself running. Such a task (e.g. a sibling
+// comprehension whose guard is still being evaluated) may yet add fields to
+// this node, so its field set must not be committed.
+//
+// Unlike the broader scans in [scheduler.hasActiveParentTask] and
+// [scheduler.deferFieldSetKnown], only taskRUNNING matters here: a READY
+// parent task is run by unify's own parent-task processing, and a WAITING
+// one is resolved by the freeze cycle-breaker during finalize. A RUNNING
+// task is the one state finalize cannot resolve, as it is re-entrant on
+// the evaluation stack.
+func (s *scheduler) hasRunningSiblingParentTask() bool {
+	cur := s.ctx.current()
+	for _, pt := range s.parentTasks {
+		if pt != cur && pt.state == taskRUNNING {
 			return true
 		}
 	}

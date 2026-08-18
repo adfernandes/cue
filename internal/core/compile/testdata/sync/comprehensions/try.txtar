@@ -693,6 +693,37 @@ issue4098: {
 
 }
 
+// Only the try body itself is pre-evaluated tentatively. Rooted vertices it
+// references, such as ext, must evaluate exactly as they would without the
+// try: here, a and b depend on each other cyclically, which must surface as
+// an error. Deferring the unblocking of their tasks as well left ext
+// finalized with a computed from a partial b, and b later gaining x.
+tryRootedCycle: {
+	try {out: ext}
+	ext: {
+		a: [for k, v in b {k}]
+		b: {seed: 1, if len(a) == 1 {x: 1}}
+	}
+}
+
+tryNestedRootedCycle: {
+	try {try {out: ext}}
+	ext: {
+		a: [for k, v in b {k}]
+		b: {seed: 1, if len(a) == 1 {x: 1}}
+	}
+}
+
+// As a default disjunct, the cyclic struct is discarded in favor of the
+// other disjunct, just as without the try.
+tryRootedCycleDisjunct: {
+	try {out: ext}
+	ext: *{
+		a: [for k, v in b {k}]
+		b: {seed: 1, if len(a) == 1 {x: 1}}
+	} | {}
+}
+
 -- out/compile --
 --- in.cue
 {
@@ -1510,5 +1541,61 @@ issue4098: {
         }
       }
     }
+  }
+  tryRootedCycle: {
+    try {
+      out: 〈1;ext〉
+    }
+    ext: {
+      a: [
+        for k, v in 〈1;b〉 {
+          〈1;k〉
+        },
+      ]
+      b: {
+        seed: 1
+        if (len(〈1;a〉) == 1) {
+          x: 1
+        }
+      }
+    }
+  }
+  tryNestedRootedCycle: {
+    try {
+      try {
+        out: 〈2;ext〉
+      }
+    }
+    ext: {
+      a: [
+        for k, v in 〈1;b〉 {
+          〈1;k〉
+        },
+      ]
+      b: {
+        seed: 1
+        if (len(〈1;a〉) == 1) {
+          x: 1
+        }
+      }
+    }
+  }
+  tryRootedCycleDisjunct: {
+    try {
+      out: 〈1;ext〉
+    }
+    ext: (*{
+      a: [
+        for k, v in 〈1;b〉 {
+          〈1;k〉
+        },
+      ]
+      b: {
+        seed: 1
+        if (len(〈1;a〉) == 1) {
+          x: 1
+        }
+      }
+    }|{})
   }
 }

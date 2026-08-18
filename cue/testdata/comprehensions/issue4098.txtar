@@ -21,7 +21,7 @@ embedBeforeFor: {
 	m: [string]: bool
 	for k, v in m {y}
 
-	@test(eq:todo, {
+	@test(eq, {
 		x: {m: {"from-x": true}, result: {"res-x": true}}
 		y: {result: {"res-y": true}}
 		m: {"from-x": true}
@@ -71,7 +71,7 @@ ifBeforeFor: {
 		a: results: (k): 2
 	}
 
-	@test(eq:todo, {
+	@test(eq, {
 		a: {flag: true, items: {item1: "data1"}, results: {item1: 2}}
 	})
 }
@@ -98,10 +98,6 @@ forBeforeIf: {
 		a: {flag: true, items: {item1: "data1"}, results: {item1: 2}}
 	})
 }
--- out/errors.txt --
-[eval] embedBeforeFor.m: adding field "from-x" not allowed as field set was already iterated over by comprehension:
-    ./in.cue:13:2
-    ./in.cue:15:2
 -- out/eval/stats --
 Leaks:  2
 Freed:  45

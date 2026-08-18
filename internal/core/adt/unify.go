@@ -1036,15 +1036,7 @@ func (v *Vertex) lookup(c *OpContext, pos token.Pos, f Feature, flags Flags) *Ve
 			//   optional arc to a member arc (e.g. `if raises == _|_ { ret:
 			//   a: 1 }` upgrades `ret?: {}` to a regular member).
 			if arc.ArcType == ArcPending || arc.ArcType == ArcOptional {
-				cur := c.current()
-				shouldYield := false
-				for _, pt := range arcState.parentTasks {
-					if pt.state == taskRUNNING && pt != cur {
-						shouldYield = true
-						break
-					}
-				}
-				if shouldYield {
+				if arcState.hasRunningSiblingParentTask() {
 					// A parent task is actively running in the current call
 					// chain (triggered via processAncestors), but is not our
 					// own task. Yield and wait for the arc type to be

@@ -344,7 +344,8 @@ type nodeContextState struct {
 	toComplete bool
 
 	// trySkip, when non-nil, marks this node as a try clause body currently
-	// being finalized; a failed ?-marked reference sets *trySkip via
+	// being finalized, which [scheduler.inTryBody] also relies on;
+	// a failed ?-marked reference sets *trySkip via
 	// [OpContext.markSkipTry]. See [TryClause.yield].
 	trySkip *bool
 

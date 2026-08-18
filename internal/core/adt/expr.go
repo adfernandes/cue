@@ -3170,13 +3170,22 @@ func (c *OpContext) forSource(x Expr) *Vertex {
 
 	node, ok := v.(*Vertex)
 	if ok {
-		// We do not request to "yield" here, but rather rely on the
-		// call-by-need behavior in combination with the freezing mechanism.
+		// By default we rely on the call-by-need behavior in combination
+		// with the freezing mechanism as the cycle-breaker, rather than
+		// yielding. The exception is a source that a sibling parent task
+		// (e.g. an if-comprehension whose guard is still being evaluated)
+		// may yet add fields to: finalizing now would freeze an incomplete
+		// field set, so yield and retry once the sibling completes.
 		// TODO: this seems a bit fragile. At some point we need to make this
 		// more robust by moving to a pure call-by-need mechanism, for instance.
 		// TODO: using attemptOnly here will remove the cyclic reference error
 		// of comprehension.t1.ok (which also errors in V2),
-		node.unify(c, Flags{condition: state.condition, mode: finalize, checkTypos: true})
+		mode := finalize
+		if s := node.state; s != nil && s.frozen&fieldSetKnown == 0 &&
+			s.hasRunningSiblingParentTask() {
+			mode = yield
+		}
+		node.unify(c, Flags{condition: state.condition, mode: mode, checkTypos: true})
 	}
 
 	v, ok = c.getDefault(v)
@@ -3442,7 +3451,9 @@ func (x *TryClause) yield(s *compState) {
 	v := c.newInlineVertex(env.DerefVertex(c), nil, Conjunct{env, expr, c.ci})
 
 	// Mark this body so a failed ?-marked reference is attributed to this try
-	// rather than an enclosing or interleaving one. See markSkipTry.
+	// rather than an enclosing or interleaving one (see markSkipTry), and so
+	// that finalizing it leaves tasks blocked on rooted vertices alone (see
+	// [scheduler.inTryBody]).
 	var skip bool
 	v.getState(c).trySkip = &skip
 	v.Finalize(c)
