@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/lsp/hover"
 	"cuelang.org/go/internal/pretty"
@@ -275,24 +276,42 @@ func (w *Workspace) hoverBuiltinSig(fe *eval.FileEvaluator, offset int) string {
 // the node declares, or "" if it declares none. A name can be declared
 // several times, and any one of its declarations may be the signature:
 // the standard library's generated definition files declare each
-// function as its signature, so the signature is that declaration
-// rendered back to source. See [cuelang.org/go/pkg.Source].
+// function as its signature — a function type, or for a builtin usable
+// as a validator a disjunction of its validator and call forms — so
+// the signature is that declaration rendered back to source. See
+// [cuelang.org/go/pkg.Source].
 func builtinSig(node *eval.Node) string {
 	if node == nil {
 		return ""
 	}
 	for decl := range node.Decls() {
-		fn, ok := decl.Value().(*ast.Func)
-		if !ok {
+		v, ok := decl.Value().(ast.Expr)
+		if !ok || !isSignature(v) {
 			continue
 		}
-		b, err := format.Node(fn)
+		b, err := format.Node(v)
 		if err != nil {
 			continue
 		}
 		return string(b)
 	}
 	return ""
+}
+
+// isSignature reports whether an expression declares a function
+// signature: a function type, possibly parenthesized, or a disjunction
+// with a signature branch, such as the validator forms of the standard
+// library definitions.
+func isSignature(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.Func:
+		return true
+	case *ast.ParenExpr:
+		return isSignature(x.X)
+	case *ast.BinaryExpr:
+		return x.Op == token.OR && (isSignature(x.X) || isSignature(x.Y))
+	}
+	return false
 }
 
 // hoverUnifiedValue renders the logical value at the given offset:

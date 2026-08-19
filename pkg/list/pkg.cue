@@ -100,13 +100,13 @@ Slice: func(x: [...], i: int, j: int) -> [...]
 Reverse: func(x: [...]) -> [...]
 
 // MinItems reports whether a has at least n items.
-MinItems: func(list: [...], n: int) -> bool
+MinItems: (func(n: int) -> validator([...])) | (func(list: [...], n: int) -> bool)
 
 // MaxItems reports whether a has at most n items.
-MaxItems: func(list: [...], n: int) -> bool
+MaxItems: (func(n: int) -> validator([...])) | (func(list: [...], n: int) -> bool)
 
 // UniqueItems reports whether all elements in the list are unique.
-UniqueItems: func(a: [...]) -> bool
+UniqueItems: validator([...]) | (func(a: [...]) -> bool)
 
 // Contains reports whether v is contained in a. The value must be a
 // comparable and concrete value.
@@ -117,7 +117,7 @@ Contains: func(a: [...], v: _) -> bool
 // list that unifies with the schema "matchValue" matches "n".
 // "n" may be a number constraint and does not have to be a concrete number.
 // Likewise, "matchValue" will usually be a non-concrete value.
-MatchN: func(list: [...], n: _ @schema(), matchValue: _ @schema()) -> bool
+MatchN: (func(n: _ @schema(), matchValue: _ @schema()) -> validator([...])) | (func(list: [...], n: _ @schema(), matchValue: _ @schema()) -> bool)
 
 // Avg returns the average value of a non empty list xs.
 Avg: func(xs: [...number]) -> number
@@ -171,7 +171,7 @@ SortStrings: func(a: [...string]) -> [...string]
 IsSorted: func(list: [...], cmp: _) -> bool
 
 // IsSortedStrings tests whether a list is a sorted list of strings.
-IsSortedStrings: func(a: [...string]) -> bool
+IsSortedStrings: validator([...string]) | (func(a: [...string]) -> bool)
 
 // A Comparer specifies whether one value is strictly less than another value.
 Comparer: {

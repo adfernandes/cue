@@ -36,10 +36,10 @@ UnmarshalStream: func(data: bytes | string) -> _
 
 // Validate validates YAML and confirms it is an instance of schema.
 // If the YAML source is a stream, every object must match v.
-Validate: func(b: bytes | string, v: _ @schema()) -> bool
+Validate: (func(v: _ @schema()) -> validator(bytes | string)) | (func(b: bytes | string, v: _ @schema()) -> bool)
 
 // ValidatePartial validates YAML and confirms it matches the constraints
 // specified by v using unification. This means that b must be consistent with,
 // but does not have to be an instance of v. If the YAML source is a stream,
 // every object must match v.
-ValidatePartial: func(b: bytes | string, v: _ @schema()) -> bool
+ValidatePartial: (func(v: _ @schema()) -> validator(bytes | string)) | (func(b: bytes | string, v: _ @schema()) -> bool)

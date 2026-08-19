@@ -108,7 +108,7 @@ Round: func(x: number) -> int
 RoundToEven: func(x: number) -> int
 
 // MultipleOf reports whether x is a multiple of y.
-MultipleOf: func(x: number, y: number) -> bool
+MultipleOf: (func(y: number) -> validator(number)) | (func(x: number, y: number) -> bool)
 
 // Abs returns the absolute value of x.
 //
@@ -502,7 +502,7 @@ Pow10: func(n: int) -> number
 Remainder: func(x: number, y: number) -> number
 
 // Signbit reports whether x is negative or negative zero.
-Signbit: func(x: number) -> bool
+Signbit: validator(number) | (func(x: number) -> bool)
 
 // Cos returns the cosine of the radian argument x.
 //

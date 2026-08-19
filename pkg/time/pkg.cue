@@ -43,7 +43,7 @@ Hour: 3600000000000
 // Note: this format also accepts strings of the form '1h3m', '2ms', etc.
 // To limit this to seconds only, as often used in JSON, add the !~"hmuµn"
 // constraint.
-Duration: func(s: string) -> bool
+Duration: validator(string) | (func(s: string) -> bool)
 
 // FormatDuration converts nanoseconds to a string representing the duration in
 // the form "72h3m0.5s".
@@ -131,12 +131,12 @@ Saturday: 6
 //
 // Caveat: this implementation uses the Go implementation, which does not
 // accept leap seconds.
-Time: func(s: string) -> bool
+Time: validator(string) | (func(s: string) -> bool)
 
 // Format defines a type string that must adhere to a certain layout.
 //
 // See Parse for a description on layout strings.
-Format: func(value: string, layout: string) -> bool
+Format: (func(layout: string) -> validator(string)) | (func(value: string, layout: string) -> bool)
 
 // FormatString returns a textual representation of the time value.
 // The formatted value is formatted according to the layout defined by the

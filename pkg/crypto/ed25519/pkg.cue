@@ -27,4 +27,4 @@ PublicKeySize: 32
 
 // Valid verifies the provided signature of the message using the public key.
 // An error is returned if and only if an invalid public key is provided.
-Valid: func(publicKey: bytes | string, message: bytes | string, signature: bytes | string) -> bool
+Valid: (func(message: bytes | string, signature: bytes | string) -> validator(bytes | string)) | (func(publicKey: bytes | string, message: bytes | string, signature: bytes | string) -> bool)

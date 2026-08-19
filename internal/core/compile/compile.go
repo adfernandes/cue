@@ -503,6 +503,9 @@ func (c *compiler) resolve(n *ast.Ident) adt.Expr {
 		if p := predeclared(n); p != nil {
 			return c.verifyVersion(n, p)
 		}
+		if p := c.experimentPredeclared(n); p != nil {
+			return c.verifyVersion(n, p)
+		}
 
 		return c.errf(n, "reference %q not found", n.Name)
 	}

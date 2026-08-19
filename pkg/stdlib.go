@@ -40,8 +40,21 @@ import (
 // builtins in each package's runtime CUE, rejecting a registration
 // that drifts from the Go sources.
 //
-// A parameter that deliberately accepts a non-concrete value — typed
-// pkg.Schema in Go — carries the @schema() attribute.
+// A builtin intended for use as a validator of its first argument,
+// which its Go signature declares by returning
+// [cuelang.org/go/internal/pkg.Validator], is declared as a
+// disjunction of its two call shapes, the validator form first:
+//
+//	MinRunes: (func(min: int) -> validator(string)) |
+//		(func(s: string, min: int) -> bool)
+//
+// The validator form is the call form with the validated first
+// parameter moved into the result: applying it to the remaining
+// arguments yields a validator of that parameter, as in
+// strings.MinRunes(3). A builtin whose only parameter is the validated
+// value is the bare validator type, as in validator([...]) for
+// list.UniqueItems. A parameter that deliberately accepts a
+// non-concrete value carries the @schema() attribute.
 //
 // Constants are declared with their concrete values, and members that
 // are defined in CUE appear as their original declarations. Doc

@@ -126,7 +126,7 @@ ReplaceAllLiteral: func(pattern: string, src: string, repl: string) -> string
 
 // Valid reports whether the given regular expression
 // is valid.
-Valid: func(pattern: string) -> bool
+Valid: validator(string) | (func(pattern: string) -> bool)
 
 // Match reports whether the string s
 // contains any match of the regular expression pattern.

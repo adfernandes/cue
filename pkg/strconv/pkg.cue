@@ -30,7 +30,7 @@ Unquote: func(s: string) -> string
 // ParseBool returns the boolean value represented by the string.
 // It accepts 1, t, T, TRUE, true, True, 0, f, F, FALSE, false, False.
 // Any other value returns an error.
-ParseBool: func(str: string) -> bool
+ParseBool: validator(string) | (func(str: string) -> bool)
 
 // FormatBool returns "true" or "false" according to the value of b.
 FormatBool: func(b: bool) -> string
@@ -171,9 +171,9 @@ QuoteRuneToGraphic: func(r: int) -> string
 // IsPrint reports whether the rune is defined as printable by Go, with
 // the same definition as unicode.IsPrint: letters, numbers, punctuation,
 // symbols and ASCII space.
-IsPrint: func(r: int) -> bool
+IsPrint: validator(int) | (func(r: int) -> bool)
 
 // IsGraphic reports whether the rune is defined as a Graphic by Unicode. Such
 // characters include letters, marks, numbers, punctuation, symbols, and
 // spaces, from categories L, M, N, P, S, and Zs.
-IsGraphic: func(r: int) -> bool
+IsGraphic: validator(int) | (func(r: int) -> bool)

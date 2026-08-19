@@ -28,6 +28,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/core/adt"
 	"cuelang.org/go/internal/core/runtime"
 	"cuelang.org/go/pkg"
@@ -49,6 +50,10 @@ func TestImportPaths(t *testing.T) {
 // embedded: the go:embed patterns name each directory depth
 // explicitly, so a definition file at a new depth would otherwise be
 // silently omitted.
+//
+// TestDefsCoverEveryPackage is its counterpart in the other
+// direction: every package with a generated registration has a
+// hand-maintained definition file.
 func TestEmbedComplete(t *testing.T) {
 	var onDisk []string
 	err := filepath.WalkDir(".", func(filename string, d iofs.DirEntry, err error) error {
@@ -93,7 +98,11 @@ func TestDefsCoverEveryPackage(t *testing.T) {
 // builtin functions on which members are functions, their number of
 // parameters, their contract labels, and which parameters carry defaults; a
 // declaration may be tighter than the registration, never looser in these
-// derivable facts.
+// derivable facts. A member may declare a validator form only when the
+// evaluator treats the builtin as a validator; the reverse is not
+// enforced — the evaluator promotes any builtin with a bool result,
+// while the validator form follows intent, which the Go source
+// declares with a pkg.Validator result.
 func TestDefsMatchRegisteredPackages(t *testing.T) {
 	r := runtime.New()
 	ctx := cuecontext.New()
@@ -159,13 +168,21 @@ func TestDefsMatchRegisteredPackages(t *testing.T) {
 					bare = true
 				}
 				isFunc := builtin != nil
-				sig, isSig := field.Value.(*ast.Func)
-				if !qt.Check(t, qt.Equals(isSig, isFunc),
+				sig, validatorForm := signatureForms(field.Value)
+				if !qt.Check(t, qt.Equals(sig != nil, isFunc),
 					qt.Commentf("%s: declared as a signature vs being a function", name)) {
 					continue
 				}
 				if !isFunc {
 					continue
+				}
+				// The validator form follows the intent the Go source
+				// declares, so it may only be declared for a builtin
+				// the evaluator does treat as a validator, whether bare
+				// or on a partial call.
+				if validatorForm {
+					qt.Check(t, qt.IsTrue(bare || builtin.IsValidator(len(builtin.Params)-1)),
+						qt.Commentf("%s: validator form declared, but the builtin is not usable as one", name))
 				}
 				params := sig.Parameters()
 				if !qt.Check(t, qt.HasLen(params, len(builtin.Params)),
@@ -212,5 +229,57 @@ func TestDefsMatchRegisteredPackages(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestValidatorDetection pins one validator declaration. The generator
+// detects validator intent through the pkg.Validator result alias in
+// the Go signatures; were that detection to degrade, every validator
+// would lose its validator form while every other check in this
+// package still passed.
+func TestValidatorDetection(t *testing.T) {
+	src, ok := pkg.Source("strings")
+	qt.Assert(t, qt.IsTrue(ok))
+	qt.Assert(t, qt.StringContains(string(src),
+		"MinRunes: (func(min: int) -> validator(string)) | (func(s: string, min: int) -> bool)"))
+}
+
+// signatureForms extracts a member's declared signature: the ordinary
+// call form, and whether a validator form is declared alongside it —
+// the generated files declare a validator as a disjunction with the
+// validator form first and the call form last.
+func signatureForms(v ast.Expr) (callForm *ast.Func, validatorForm bool) {
+	v = unparen(v)
+	bin, ok := v.(*ast.BinaryExpr)
+	if !ok || bin.Op != token.OR {
+		f, _ := v.(*ast.Func)
+		return f, false
+	}
+	callForm, _ = unparen(bin.Y).(*ast.Func)
+	return callForm, isValidatorForm(unparen(bin.X))
+}
+
+// isValidatorForm reports whether an expression is a validator form:
+// the type validator(T), or a function returning one.
+func isValidatorForm(v ast.Expr) bool {
+	if f, ok := v.(*ast.Func); ok {
+		return f.Ret != nil && isValidatorForm(unparen(f.Ret))
+	}
+	call, ok := v.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	id, ok := call.Fun.(*ast.Ident)
+	return ok && id.Name == "validator"
+}
+
+// unparen removes any parentheses wrapping an expression.
+func unparen(v ast.Expr) ast.Expr {
+	for {
+		p, ok := v.(*ast.ParenExpr)
+		if !ok {
+			return v
+		}
+		v = p.X
 	}
 }

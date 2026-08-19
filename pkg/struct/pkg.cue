@@ -28,11 +28,11 @@ package struct
 //
 // Only fields that are part of the data model count. This excludes hidden
 // fields, optional fields, and definitions.
-MinFields: func(object: {...}, n: int) -> bool
+MinFields: (func(n: int) -> validator({...})) | (func(object: {...}, n: int) -> bool)
 
 // MaxFields validates the maximum number of fields that are part of a struct.
 // It can only be used as a validator, for instance `MaxFields(3)`.
 //
 // Only fields that are part of the data model count. This excludes hidden
 // fields, optional fields, and definitions.
-MaxFields: func(object: {...}, n: int) -> bool
+MaxFields: (func(n: int) -> validator({...})) | (func(object: {...}, n: int) -> bool)

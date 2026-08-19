@@ -49,12 +49,12 @@ Repeat: func(s: string, count: int) -> string
 // MinRunes reports whether the number of runes (Unicode codepoints) in a string
 // is at least a certain minimum. MinRunes can be used as a field constraint to
 // accept all strings for which this property holds.
-MinRunes: func(s: string, min: int) -> bool
+MinRunes: (func(min: int) -> validator(string)) | (func(s: string, min: int) -> bool)
 
 // MaxRunes reports whether the number of runes (Unicode codepoints) in a string
 // exceeds a certain maximum. MaxRunes can be used as a field constraint to
 // accept all strings for which this property holds.
-MaxRunes: func(s: string, max: int) -> bool
+MaxRunes: (func(max: int) -> validator(string)) | (func(s: string, max: int) -> bool)
 
 // ToTitle returns a copy of the string s with all Unicode letters that begin
 // words mapped to their title case.

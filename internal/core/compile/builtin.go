@@ -342,3 +342,24 @@ var testExperiment = &adt.Builtin{
 		}
 	},
 }
+
+// validatorBuiltin is the validator type former of the functions
+// experiment: validator(T) denotes a validator applying to values of
+// type T. The generated standard library definitions use it to declare
+// the validator form of a builtin alongside its call form, as in
+//
+//	MinRunes: func(min: int) -> validator(string) |
+//	          func(s: string, min: int) -> bool
+//
+// A call currently evaluates to top: holding a builtin to its declared
+// validator form is future work, so for now the type former documents
+// without constraining.
+var validatorBuiltin = &adt.Builtin{
+	Name:        "validator",
+	Params:      []adt.Param{topParam},
+	Result:      adt.TopKind,
+	NonConcrete: true,
+	Func: func(call adt.BuiltinCallContext) adt.Expr {
+		return &adt.Top{}
+	},
+}

@@ -23,7 +23,7 @@
 package json
 
 // Valid reports whether data is a valid JSON encoding.
-Valid: func(data: bytes | string) -> bool
+Valid: validator(bytes | string) | (func(data: bytes | string) -> bool)
 
 // Compact generates the JSON-encoded src with insignificant space characters
 // elided.
@@ -63,4 +63,4 @@ Unmarshal: func(b: bytes | string) -> _
 
 // Validate validates JSON and confirms it matches the constraints
 // specified by v.
-Validate: func(b: bytes | string, v: _ @schema()) -> bool
+Validate: (func(v: _ @schema()) -> validator(bytes | string)) | (func(b: bytes | string, v: _ @schema()) -> bool)

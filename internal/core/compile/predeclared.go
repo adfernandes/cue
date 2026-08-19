@@ -22,6 +22,20 @@ import (
 	"cuelang.org/go/internal/core/adt"
 )
 
+// experimentPredeclared resolves identifiers that are predeclared only
+// under an experiment the file enables; it returns nil otherwise, so
+// that files without the experiment keep today's "reference not found"
+// error.
+func (c *compiler) experimentPredeclared(n *ast.Ident) adt.Expr {
+	switch n.Name {
+	case "validator", "__validator":
+		if c.experiments.Functions {
+			return validatorBuiltin
+		}
+	}
+	return nil
+}
+
 func predeclared(n *ast.Ident) adt.Expr {
 	// TODO: consider supporting GraphQL-style names:
 	// String, Bytes, Boolean, Integer, Number.
