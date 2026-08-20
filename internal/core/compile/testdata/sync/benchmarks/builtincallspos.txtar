@@ -1,0 +1,33 @@
+#inlinetest:exclude benchmark; outcomes covered by functions/builtins.txtar
+# Benchmarks positional calls to standard-library builtins: the
+# pre-existing dispatch path, exercised at volume. Its counterpart
+# builtincallslabeled.txtar makes the same calls by label; comparing
+# the two isolates the cost of labeled-argument binding.
+-- in.cue --
+import (
+	"list"
+	"strings"
+)
+
+r: list.Range(0, 2000, 1)
+out: [for x in r {
+	a: strings.Repeat("ab", 2)
+	b: list.Drop([1, 2, 3], 1)
+	c: strings.SplitN("a,b,c", ",", 2)
+}]
+-- out/compile --
+--- in.cue
+{
+  r: 〈import;list〉.Range(0, 2000, 1)
+  out: [
+    for _, x in 〈1;r〉 {
+      a: 〈import;strings〉.Repeat("ab", 2)
+      b: 〈import;list〉.Drop([
+        1,
+        2,
+        3,
+      ], 1)
+      c: 〈import;strings〉.SplitN("a,b,c", ",", 2)
+    },
+  ]
+}

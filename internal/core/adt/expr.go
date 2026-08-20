@@ -2267,13 +2267,22 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 	fun = Unwrap(fun)
 	switch f := fun.(type) {
 	case *Builtin:
-		if x.hasArgLabels() {
-			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
-			return nil
-		}
 		if x.Partial {
 			c.AddErrf("partial application of builtin %s is not supported", x.Fun)
 			return nil
+		}
+		if x.hasArgLabels() {
+			// A labeled argument binds through the parameter names of
+			// the builtin's declared signature; the call proceeds with
+			// the arguments in positional order.
+			args, ok := bindBuiltinArgs(c, f, x)
+			if !ok {
+				return nil
+			}
+			x2 := *x
+			x2.Args = args
+			x2.ArgLabels = nil
+			return f.rawCall(c, &x2, state)
 		}
 		return f.rawCall(c, x, state)
 
@@ -2282,7 +2291,10 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 
 	case *BuiltinValidator:
 		if x.hasArgLabels() {
-			c.AddErrf("labeled arguments are not supported for builtin %s", x.Fun)
+			// A bare validator's argument is the value it validates; its
+			// declared signature names at most that one parameter, so a
+			// labeled call has no position left to select.
+			c.AddErrf("labeled arguments are not supported for validator %s", x.Fun)
 			return nil
 		}
 		if x.Partial {

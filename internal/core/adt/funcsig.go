@@ -462,6 +462,110 @@ func CheckBuiltinTightening(c *OpContext, typ *Function, b *Builtin) *Bottom {
 	return nil
 }
 
+// bindBuiltinArgs resolves a call's labeled arguments against the
+// function types attached to a builtin, returning the call's arguments
+// in positional order. A builtin takes its arguments by position; its
+// declared signature names the positions, so a label selects the
+// position of the like-named parameter. Positional arguments fill the
+// remaining positions in order, exactly as in a call to a native
+// function.
+//
+// A builtin may carry several attached types. Compatible signatures agree on
+// at most one contract label per raw position. A label no type names does not
+// bind; placing one label at different positions makes the signatures
+// incompatible. The negative map entry below is a defensive call-boundary
+// check.
+// A builtin with no attached types supports no labels at all — its
+// parameters have no names — which keeps hand-registered packages such
+// as path at the pre-existing error.
+func bindBuiltinArgs(c *OpContext, b *Builtin, call *CallExpr) ([]Expr, bool) {
+	if len(b.Types) == 0 {
+		c.AddErrf("labeled arguments are not supported for builtin %s: it declares no parameter names",
+			b.qualifiedName(c))
+		return nil, false
+	}
+
+	// byLabel maps each contract label to its raw position; ambiguous names
+	// map to -1 defensively.
+	byLabel := map[Feature]int{}
+	for _, t := range b.Types {
+		pos := 0
+		for _, p := range t.Fn.Params {
+			if !p.Positional {
+				continue // never bound through a builtin
+			}
+			if p.Label != InvalidLabel {
+				if prev, ok := byLabel[p.Label]; ok && prev != pos {
+					byLabel[p.Label] = -1
+				} else if !ok {
+					byLabel[p.Label] = pos
+				}
+			}
+			pos++
+		}
+	}
+
+	bound := make([]Expr, len(b.Params))
+	labeled := make([]bool, len(b.Params))
+	n := 0 // number of positions bound
+	high := -1
+	bind := func(pos int, arg Expr, label Feature) bool {
+		if pos >= len(bound) {
+			c.AddErrf("too many arguments in call to %s", b.qualifiedName(c))
+			return false
+		}
+		if bound[pos] != nil {
+			if labeled[pos] {
+				c.AddErrf("duplicate argument %s in call to %s",
+					label.SelectorString(c), b.qualifiedName(c))
+			} else {
+				c.AddErrf("argument %s provided by position and label in call to %s",
+					label.SelectorString(c), b.qualifiedName(c))
+			}
+			return false
+		}
+		bound[pos] = arg
+		labeled[pos] = label != InvalidLabel
+		n++
+		high = max(high, pos)
+		return true
+	}
+
+	nextPos := 0
+	for i, arg := range call.Args {
+		if i < len(call.ArgLabels) && call.ArgLabels[i] != InvalidLabel {
+			label := call.ArgLabels[i]
+			pos, ok := byLabel[label]
+			if !ok || pos < 0 {
+				c.AddErrf("unknown argument %s in call to %s",
+					label.SelectorString(c), b.qualifiedName(c))
+				return nil, false
+			}
+			if !bind(pos, arg, label) {
+				return nil, false
+			}
+			continue
+		}
+		for nextPos < len(bound) && bound[nextPos] != nil {
+			nextPos++
+		}
+		if !bind(nextPos, arg, InvalidLabel) {
+			return nil, false
+		}
+	}
+
+	// The bound positions must be contiguous from the start: a builtin
+	// cannot leave a hole for a middle parameter.
+	for i := 0; i <= high; i++ {
+		if bound[i] == nil {
+			c.AddErrf("missing argument %d in call to %s",
+				i+1, b.qualifiedName(c))
+			return nil, false
+		}
+	}
+	return bound[:n], true
+}
+
 // mergeBuiltinFunc unifies builtin b with the function value or type f. A
 // builtin unifies with a compatible function type, yielding the builtin
 // carrying the type as an extra [FuncType] constraint that is additionally
@@ -497,6 +601,9 @@ func mergeBuiltinFunc(c *OpContext, b *Builtin, f *FuncValue) (*Builtin, *Bottom
 	if !added {
 		return b, nil
 	}
+	if err := checkBuiltinParamLabels(c, types); err != nil {
+		return nil, err
+	}
 	merged := *b
 	merged.Types = types
 	if merged.orig == nil {
@@ -508,19 +615,25 @@ func mergeBuiltinFunc(c *OpContext, b *Builtin, f *FuncValue) (*Builtin, *Bottom
 // mergeBuiltins unifies two occurrences of the same builtin, merging their
 // recorded type constraints. It returns nil if a and b are distinct
 // builtins, which conflict like any other distinct scalars.
-func mergeBuiltins(a, b *Builtin) *Builtin {
+func mergeBuiltins(c *OpContext, a, b *Builtin) (*Builtin, *Bottom) {
 	if a.self() != b.self() {
-		return nil
+		return nil, nil
 	}
 	if len(b.Types) == 0 {
-		return a
+		return a, nil
 	}
 	if len(a.Types) == 0 {
-		return b
+		return b, nil
+	}
+	if err := checkFuncTypeSetsMeet(c, a.Types, b.Types); err != nil {
+		return nil, err
 	}
 	merged := *a
 	merged.Types = mergeFuncTypes(a.Types, b.Types)
-	return &merged
+	if err := checkBuiltinParamLabels(c, merged.Types); err != nil {
+		return nil, err
+	}
+	return &merged, nil
 }
 
 // BuiltinSubsumes reports whether builtin a subsumes builtin b: a builtin
@@ -667,4 +780,31 @@ func mergeFuncTypes(a, b []FuncType) []FuncType {
 		}
 	}
 	return types
+}
+
+// checkBuiltinParamLabels verifies that attached builtin signatures form a
+// one-to-one relation between positional ordinals and contract labels.
+func checkBuiltinParamLabels(c *OpContext, types []FuncType) *Bottom {
+	if len(types) == 0 {
+		return nil
+	}
+	return checkFuncParamLabels(c, types[0].Fn, types[1:])
+}
+
+// checkFuncTypeSetsMeet verifies the cross-product needed when two already
+// tightened values of the same identity are unified. Each side was checked
+// while it was built, but constraints originating on opposite sides have not
+// necessarily met before.
+func checkFuncTypeSetsMeet(c *OpContext, a, b []FuncType) *Bottom {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				continue
+			}
+			if err := checkFuncTypeMeet(c, x.Fn, y.Fn); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

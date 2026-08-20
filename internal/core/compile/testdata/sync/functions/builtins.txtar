@@ -13,7 +13,10 @@
 -- in.cue --
 @experiment(functions)
 
-import "strings"
+import (
+	"list"
+	"strings"
+)
 
 tighten: {
 	T:  func(string, ...) -> string
@@ -134,6 +137,50 @@ polymorphic: {
 	// A statically incompatible result kind is rejected.
 	bad: (func(_, ...) -> string) & len
 }
+
+// A labeled argument binds through the contract labels of the builtin's
+// declared signature; the call proceeds with the arguments in positional
+// order. The standard library's builtins carry their declared signatures,
+// so their contract labels are callable.
+labeled: {
+	import1: {
+		named:   list.Drop(x: [1, 2, 3], n: 1)
+		swapped: list.Drop(n: 1, x: [1, 2, 3])
+		mixed:   strings.Repeat("ab", count: 2)
+	}
+
+	errors: {
+		// A label no attached signature names does not bind.
+		unknown: list.Drop(lst: [1], n: 0)
+
+		// A parameter cannot be given both positionally and by label.
+		dup: strings.Repeat("ab", s: "x")
+
+		// Labels cannot leave a hole before a bound position.
+		hole: list.Slice([1, 2, 3], j: 2)
+	}
+
+	// A user signature may supply the contract label of an unnamed raw
+	// builtin slot. Once a generated signature has supplied a label, an
+	// attached signature must either leave the slot unnamed or use the same
+	// label; a different label conflicts.
+	user: {
+		T: func(s: string, sep: string) -> [...string]
+		f: T & strings.SplitN
+
+		Unnamed: func(string, ...) -> string
+		unnamed: Unnamed & strings.ToUpper
+		unnamedResult: unnamed(s: "hi")
+
+		Same: func(s: string, ...) -> string
+		same: Same & strings.ToUpper
+		sameResult: same(s: "hi")
+
+		Different: func(text: string, ...) -> string
+		different: Different & strings.ToUpper
+	}
+}
+
 -- out/compile --
 --- in.cue
 {
@@ -208,5 +255,45 @@ polymorphic: {
       2,
     ])
     bad: (func(_, ...) -> string & len)
+  }
+  labeled: {
+    import1: {
+      named: 〈import;list〉.Drop(x: [
+        1,
+        2,
+        3,
+      ], n: 1)
+      swapped: 〈import;list〉.Drop(n: 1, x: [
+        1,
+        2,
+        3,
+      ])
+      mixed: 〈import;strings〉.Repeat("ab", count: 2)
+    }
+    errors: {
+      unknown: 〈import;list〉.Drop(lst: [
+        1,
+      ], n: 0)
+      dup: 〈import;strings〉.Repeat("ab", s: "x")
+      hole: 〈import;list〉.Slice([
+        1,
+        2,
+        3,
+      ], j: 2)
+    }
+    user: {
+      T: func(s: string, sep: string) -> [
+        ...string,
+      ]
+      f: (〈0;T〉 & 〈import;strings〉.SplitN)
+      Unnamed: func(string, ...) -> string
+      unnamed: (〈0;Unnamed〉 & 〈import;strings〉.ToUpper)
+      unnamedResult: 〈0;unnamed〉(s: "hi")
+      Same: func(s: string, ...) -> string
+      same: (〈0;Same〉 & 〈import;strings〉.ToUpper)
+      sameResult: 〈0;same〉(s: "hi")
+      Different: func(text: string, ...) -> string
+      different: (〈0;Different〉 & 〈import;strings〉.ToUpper)
+    }
   }
 }

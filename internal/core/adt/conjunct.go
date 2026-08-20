@@ -834,7 +834,15 @@ func (n *nodeContext) insertValueConjunct(env *Environment, v Value, id CloseInf
 			n.scalar = z
 
 		case *Builtin:
-			z := mergeBuiltins(x, y)
+			z, b := mergeBuiltins(ctx, x, y)
+			if b != nil {
+				if err, ok := b.Err.(*ValueError); ok {
+					err.AddPosition(y)
+					err.AddPosition(x)
+				}
+				n.addBottom(b)
+				break
+			}
 			if z == nil {
 				// Two distinct builtins conflict, like any scalars.
 				n.reportConflict(x, y, x.Kind(), y.Kind(), n.scalarID, id.posInfo)

@@ -431,7 +431,7 @@ partial: {
     ./in.cue:45:15
 [eval] arguments.missing.named: missing argument a:
     ./in.cue:46:15
-[eval] arguments.builtin.labeled: labeled arguments are not supported for builtin len:
+[eval] arguments.builtin.labeled: labeled arguments are not supported for builtin len: it declares no parameter names:
     ./in.cue:50:12
 [eval] defaults.ambiguous: missing argument a:
     ./in.cue:65:13

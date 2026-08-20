@@ -13,7 +13,10 @@
 -- in.cue --
 @experiment(functions)
 
-import "strings"
+import (
+	"list"
+	"strings"
+)
 
 tighten: {
 	T:  func(string, ...) -> string
@@ -134,62 +137,116 @@ polymorphic: {
 	// A statically incompatible result kind is rejected.
 	bad: (func(_, ...) -> string) & len @test(err, code=eval, contains="result of function type has kind string, conflicting with result kind int of builtin len")
 }
+
+// A labeled argument binds through the contract labels of the builtin's
+// declared signature; the call proceeds with the arguments in positional
+// order. The standard library's builtins carry their declared signatures,
+// so their contract labels are callable.
+labeled: {
+	import1: {
+		named:   list.Drop(x: [1, 2, 3], n: 1) @test(eq, [2, 3])
+		swapped: list.Drop(n: 1, x: [1, 2, 3]) @test(eq, [2, 3])
+		mixed:   strings.Repeat("ab", count: 2) @test(eq, "abab")
+	}
+
+	errors: {
+		// A label no attached signature names does not bind.
+		unknown: list.Drop(lst: [1], n: 0) @test(err, code=eval, contains="unknown argument lst in call to list.Drop")
+
+		// A parameter cannot be given both positionally and by label.
+		dup: strings.Repeat("ab", s: "x") @test(err, code=eval, contains="argument s provided by position and label in call to strings.Repeat")
+
+		// Labels cannot leave a hole before a bound position.
+		hole: list.Slice([1, 2, 3], j: 2) @test(err, code=eval, contains="missing argument 2 in call to list.Slice")
+	}
+
+	// A user signature may supply the contract label of an unnamed raw
+	// builtin slot. Once a generated signature has supplied a label, an
+	// attached signature must either leave the slot unnamed or use the same
+	// label; a different label conflicts.
+	user: {
+		T: func(s: string, sep: string) -> [...string]
+		f: T & strings.SplitN @test(err, code=eval, contains="builtin strings.SplitN has more parameters than closed function type")
+
+		Unnamed: func(string, ...) -> string
+		unnamed: Unnamed & strings.ToUpper
+		unnamedResult: unnamed(s: "hi") @test(eq, "HI")
+
+		Same: func(s: string, ...) -> string
+		same: Same & strings.ToUpper
+		sameResult: same(s: "hi") @test(eq, "HI")
+
+		Different: func(text: string, ...) -> string
+		different: Different & strings.ToUpper @test(err, code=eval, contains="conflicting parameter labels %s and %s for positional parameter %d", args=[s, text, 1], pos=[strings:28:15])
+	}
+}
+
 -- out/errors.txt --
 [eval] static.tooMany: function type has more positional parameters than builtin strings.ToUpper:
-    ./in.cue:29:51
-    ./in.cue:29:12
+    ./in.cue:32:51
+    ./in.cue:32:12
 static.tooMany: function type has more positional parameters than closed function type:
     strings:28:15
-    ./in.cue:29:12
+    ./in.cue:32:12
 [eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
-    ./in.cue:30:32
-    ./in.cue:30:12
+    ./in.cue:33:32
+    ./in.cue:33:12
 static.tooFew: parameter s of function type not allowed by closed function type:
     strings:28:15
-    ./in.cue:30:12
+    ./in.cue:33:12
 [eval] static.badParam: parameter 1 of function type has kind int, conflicting with kind string of builtin strings.ToUpper:
-    ./in.cue:34:42
-    ./in.cue:34:14
+    ./in.cue:37:42
+    ./in.cue:37:14
 [eval] static.badResult: result of function type has kind int, conflicting with result kind string of builtin strings.ToUpper:
-    ./in.cue:35:42
-    ./in.cue:35:14
+    ./in.cue:38:42
+    ./in.cue:38:14
 [eval] static.conflict: conflicting values func(a: string) -> string: ... and strings.ToUpper:
-    ./in.cue:38:12
-    ./in.cue:39:12
-    ./in.cue:39:16
+    ./in.cue:41:12
+    ./in.cue:42:12
+    ./in.cue:42:16
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:46:11
-    ./in.cue:50:10
+    ./in.cue:49:11
+    ./in.cue:53:10
 [eval] conflicting values "HI" and "NO":
-    ./in.cue:53:28
-    ./in.cue:57:8
+    ./in.cue:56:28
+    ./in.cue:60:8
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:61:12
-    ./in.cue:65:11
+    ./in.cue:64:12
+    ./in.cue:68:11
 [eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally:
-    ./in.cue:83:48
-    ./in.cue:83:8
+    ./in.cue:86:48
+    ./in.cue:86:8
 optionalExtra.bad: parameter sep of function type not allowed by closed function type:
     strings:28:15
-    ./in.cue:83:8
+    ./in.cue:86:8
 [eval] partial.contains: partial application of builtin strings.Contains is not supported:
-    ./in.cue:101:12
+    ./in.cue:104:12
 [eval] partial.length: partial application of builtin len is not supported:
-    ./in.cue:102:12
+    ./in.cue:105:12
 [eval] conflicting values string and [1,2] (mismatched types string and list):
-    ./in.cue:116:13
-    ./in.cue:119:11
+    ./in.cue:119:13
+    ./in.cue:122:11
 [eval] polymorphic.bad: result of function type has kind string, conflicting with result kind int of builtin len:
-    ./in.cue:122:8
+    ./in.cue:125:8
+[eval] labeled.errors.unknown: unknown argument lst in call to list.Drop:
+    ./in.cue:141:12
+[eval] labeled.errors.dup: argument s provided by position and label in call to strings.Repeat:
+    ./in.cue:144:8
+[eval] labeled.errors.hole: missing argument 2 in call to list.Slice:
+    ./in.cue:147:9
+[eval] labeled.user.f: builtin strings.SplitN has more parameters than closed function type:
+    ./in.cue:155:6
+[eval] labeled.user.different: conflicting parameter labels s and text for positional parameter 1:
+    strings:28:15
 -- out/eval/stats --
-Leaks:  1
-Freed:  85
-Reused: 64
-Allocs: 22
+Leaks:  2
+Freed:  133
+Reused: 109
+Allocs: 26
 Retain: 0
 
-Unifications: 78
-Conjuncts:    186
-Disjuncts:    2
+Unifications: 109
+Conjuncts:    262
+Disjuncts:    20
 
-NumCloseIDs: 46
+NumCloseIDs: 66

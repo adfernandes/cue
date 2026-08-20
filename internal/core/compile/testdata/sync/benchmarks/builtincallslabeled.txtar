@@ -1,0 +1,36 @@
+#inlinetest:exclude benchmark; outcomes covered by functions/builtins.txtar
+# Benchmarks labeled calls to standard-library builtins: every call
+# binds its arguments through the parameter names of the builtin's
+# declared signature. The positional counterpart is
+# builtincallspos.txtar; comparing the two isolates the cost of
+# labeled-argument binding.
+-- in.cue --
+@experiment(functions)
+
+import (
+	"list"
+	"strings"
+)
+
+r: list.Range(0, 2000, 1)
+out: [for x in r {
+	a: strings.Repeat("ab", count: 2)
+	b: list.Drop(x: [1, 2, 3], n: 1)
+	c: strings.SplitN("a,b,c", sep: ",", n: 2)
+}]
+-- out/compile --
+--- in.cue
+{
+  r: 〈import;list〉.Range(0, 2000, 1)
+  out: [
+    for _, x in 〈1;r〉 {
+      a: 〈import;strings〉.Repeat("ab", count: 2)
+      b: 〈import;list〉.Drop(x: [
+        1,
+        2,
+        3,
+      ], n: 1)
+      c: 〈import;strings〉.SplitN("a,b,c", sep: ",", n: 2)
+    },
+  ]
+}
