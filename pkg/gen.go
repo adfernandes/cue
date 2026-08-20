@@ -475,7 +475,7 @@ func (g *goEmitter) function(fn *types.Func) {
 	}
 	fmt.Fprintf(g.w, "\n},\n")
 
-	fmt.Fprintf(g.w, "Result: %s,\n", g.adtKind(results.At(0).Type()))
+	fmt.Fprintf(g.w, "Result: %s,\n", g.adtResultKind(results.At(0).Type()))
 	if g.nonConcrete {
 		fmt.Fprintf(g.w, "NonConcrete: true,\n")
 	}
@@ -601,8 +601,22 @@ func (g *goEmitter) callCtxtGetter(typ types.Type) string {
 	return ""
 }
 
+// adtResultKind provides a Go expression string which describes a
+// [cuelang.org/go/internal/core/adt.Kind] value for a builtin's
+// result. It differs from a parameter's kind for a Go []byte: as an
+// argument that also accepts a string, which the builtin converts, but
+// as a result it is always bytes — nothing converts it back.
+func (g *goEmitter) adtResultKind(typ types.Type) string {
+	if slice, ok := typ.(*types.Slice); ok && slice.Elem() == typeByte {
+		return "adt.BytesKind"
+	}
+	return g.adtKind(typ)
+}
+
 // adtKind provides a Go expression string which describes
-// a [cuelang.org/go/internal/core/adt.Kind] value for the given type.
+// a [cuelang.org/go/internal/core/adt.Kind] value for the given type,
+// as accepted for a parameter. See [goEmitter.adtResultKind] for a
+// result.
 func (g *goEmitter) adtKind(typ types.Type) string {
 	// TODO: detect list and structs types for return values.
 	switch typ := typ.(type) {

@@ -34,7 +34,7 @@ var p = &pkg.Package{
 			{Kind: adt.IntKind},
 			{Kind: adt.IntKind},
 		},
-		Result: adt.BytesKind | adt.StringKind,
+		Result: adt.BytesKind,
 		Func: func(c *pkg.CallCtxt) {
 			b, start, end := c.Bytes(0), c.Int(1), c.Int(2)
 			if c.Do() {

@@ -59,7 +59,7 @@ var p = &pkg.Package{
 			{Kind: adt.TopKind},
 			{Kind: adt.StringKind},
 		},
-		Result: adt.BytesKind | adt.StringKind,
+		Result: adt.BytesKind,
 		Func: func(c *pkg.CallCtxt) {
 			encoding, s := c.Value(0), c.String(1)
 			if c.Do() {

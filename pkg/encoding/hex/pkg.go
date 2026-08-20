@@ -43,7 +43,7 @@ var p = &pkg.Package{
 		Params: []pkg.Param{
 			{Kind: adt.StringKind},
 		},
-		Result: adt.BytesKind | adt.StringKind,
+		Result: adt.BytesKind,
 		Func: func(c *pkg.CallCtxt) {
 			s := c.String(0)
 			if c.Do() {
