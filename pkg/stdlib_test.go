@@ -244,6 +244,20 @@ func TestValidatorDetection(t *testing.T) {
 		"MinRunes: (func(min: int) -> validator(string)) | (func(s: string, min: int) -> bool)"))
 }
 
+// TestPreciseParamTypes pins one hand-declared parameter type: the
+// definition files may declare types tighter than a Go signature can
+// express — for cue.Value, an unhelpful _ — such as net's #IP. The
+// pin guards against a mechanical regeneration flattening them.
+func TestPreciseParamTypes(t *testing.T) {
+	src, ok := pkg.Source("net")
+	qt.Assert(t, qt.IsTrue(ok))
+	qt.Assert(t, qt.StringContains(string(src),
+		"IPv4: validator(#IP) | (func(ip: #IP) -> bool)"))
+	// The referenced type is itself a member, declared in the package's
+	// supplemental CUE, so the definition file is self-contained.
+	qt.Assert(t, qt.StringContains(string(src), "#IP: string | bytes | [...int]"))
+}
+
 // signatureForms extracts a member's declared signature: the ordinary
 // call form, and whether a validator form is declared alongside it —
 // the generated files declare a validator as a disjunction with the

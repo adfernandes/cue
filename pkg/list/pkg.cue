@@ -157,10 +157,10 @@ Sum: func(xs: [...number]) -> number
 // 	Sort([2, 3, 1], list.Ascending)
 //
 // 	Sort([{a: 2}, {a: 3}, {a: 1}], {x: {}, y: {}, less: x.a < y.a})
-Sort: func(list: [...], cmp: _) -> [...]
+Sort: func(list: [...], cmp: Comparer) -> [...]
 
 // Deprecated: use [Sort], which is always stable
-SortStable: func(list: [...], cmp: _) -> [...]
+SortStable: func(list: [...], cmp: Comparer) -> [...]
 
 // SortStrings sorts a list of strings in increasing order.
 SortStrings: func(a: [...string]) -> [...string]
@@ -168,7 +168,7 @@ SortStrings: func(a: [...string]) -> [...string]
 // IsSorted tests whether a list is sorted.
 //
 // See Sort for an example comparator.
-IsSorted: func(list: [...], cmp: _) -> bool
+IsSorted: func(list: [...], cmp: Comparer) -> bool
 
 // IsSortedStrings tests whether a list is a sorted list of strings.
 IsSortedStrings: validator([...string]) | (func(a: [...string]) -> bool)

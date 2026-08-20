@@ -26,17 +26,17 @@ package base64
 // EncodedLen returns the length in bytes of the base64 encoding
 // of an input buffer of length n. Encoding needs to be set to null
 // as only StdEncoding is supported for now.
-EncodedLen: func(encoding: _, n: int) -> int
+EncodedLen: func(encoding: null, n: int) -> int
 
 // DecodedLen returns the maximum length in bytes of the decoded data
 // corresponding to n bytes of base64-encoded data. Encoding needs to be set to
 // null as only StdEncoding is supported for now.
-DecodedLen: func(encoding: _, x: int) -> int
+DecodedLen: func(encoding: null, x: int) -> int
 
 // Encode returns the base64 encoding of src. Encoding needs to be set to null
 // as only StdEncoding is supported for now.
-Encode: func(encoding: _, src: bytes | string) -> string
+Encode: func(encoding: null, src: bytes | string) -> string
 
 // Decode returns the bytes represented by the base64 string s. Encoding needs
 // to be set to null as only StdEncoding is supported for now.
-Decode: func(encoding: _, s: string) -> bytes
+Decode: func(encoding: null, s: string) -> bytes

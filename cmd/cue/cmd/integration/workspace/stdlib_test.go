@@ -132,6 +132,56 @@ out: strings.ToUpper
 	})
 }
 
+// TestStdlibHoverNamedType checks that a signature referencing a type
+// the package itself declares — net.IPv4's #IP — renders the
+// reference, and that the referenced type is an ordinary member: it
+// can be used from user code, and hovering it shows its declaration
+// and documentation.
+func TestStdlibHoverNamedType(t *testing.T) {
+	const files = `
+-- cue.mod/module.cue --
+module: "mod.example/x"
+language: version: "v0.16.0"
+
+-- a.cue --
+package a
+
+import "net"
+
+ok:   net.IPv4
+addr: net.#IP
+`
+	I.WithOptions(I.RootURIAsDefaultFolder()).Run(t, files, func(t *testing.T, env *I.Env) {
+		env.OpenFile("a.cue")
+		env.Await(env.DoneWithOpen())
+
+		mappers := makeMappers(env, files)
+		p := fln("a.cue", 5, 1, "IPv4")
+		p.determinePos(mappers)
+
+		got, _ := env.Hover(protocol.Location{
+			URI:   p.mapper.URI,
+			Range: protocol.Range{Start: p.pos},
+		})
+		qt.Assert(t, qt.IsNotNil(got))
+		qt.Assert(t, qt.StringContains(got.Value,
+			"```cue\nvalidator(#IP) | (func(ip: #IP) -> bool)\n```"))
+		qt.Assert(t, qt.StringContains(got.Value,
+			"IPv4 reports whether ip is a valid IPv4 address"))
+
+		p = fln("a.cue", 6, 1, "#IP")
+		p.determinePos(mappers)
+
+		got, _ = env.Hover(protocol.Location{
+			URI:   p.mapper.URI,
+			Range: protocol.Range{Start: p.pos},
+		})
+		qt.Assert(t, qt.IsNotNil(got))
+		qt.Assert(t, qt.StringContains(got.Value, "string | bytes | [...int]"))
+		qt.Assert(t, qt.StringContains(got.Value, "An #IP is an IP address"))
+	})
+}
+
 // TestStdlibStandalone checks that imports of standard library
 // packages also resolve within standalone files: files that are part
 // of no package or module.

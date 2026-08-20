@@ -391,5 +391,7 @@ CompareIP:     func(ip1: _, ip2: _) -> int
 PathEscape:    func(s: string) -> string
 PathUnescape:  func(s: string) -> string
 QueryEscape:   func(s: string) -> string
-QueryUnescape: func(s: string) -> string`,
+QueryUnescape: func(s: string) -> string
+#IP:           string | bytes | [...int]
+#CIDR:         string | bytes`,
 }

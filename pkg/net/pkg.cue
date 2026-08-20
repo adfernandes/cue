@@ -46,7 +46,7 @@ SplitHostPort: func(s: string) -> [...string]
 // IPv6 addresses, then JoinHostPort returns "[host]:port".
 //
 // See func Dial for a description of the host and port parameters.
-JoinHostPort: func(host: _, port: _) -> string
+JoinHostPort: func(host: #IP, port: string | bytes | int) -> string
 
 // FQDN reports whether is a valid fully qualified domain name.
 //
@@ -68,38 +68,38 @@ ParseIP: func(s: string) -> [...]
 // IPv4 reports whether ip is a valid IPv4 address.
 //
 // The address may be a string or list of bytes.
-IPv4: validator(_) | (func(ip: _) -> bool)
+IPv4: validator(#IP) | (func(ip: #IP) -> bool)
 
 // IPv6 reports whether ip is a valid IPv6 address.
 //
 // The address may be a string or list of bytes.
-IPv6: validator(_) | (func(ip: _) -> bool)
+IPv6: validator(#IP) | (func(ip: #IP) -> bool)
 
 // IP reports whether ip is a valid IPv4 or IPv6 address.
 //
 // The address may be a string or list of bytes.
-IP: validator(_) | (func(ip: _) -> bool)
+IP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // IPCIDR reports whether ip is a valid IPv4 or IPv6 address with CIDR subnet notation.
 //
 // The address may be a string or list of bytes.
-IPCIDR: validator(_) | (func(ip: _) -> bool)
+IPCIDR: validator(#CIDR) | (func(ip: #CIDR) -> bool)
 
 // LoopbackIP reports whether ip is a loopback address.
-LoopbackIP: validator(_) | (func(ip: _) -> bool)
+LoopbackIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // MulticastIP reports whether ip is a multicast address.
-MulticastIP: validator(_) | (func(ip: _) -> bool)
+MulticastIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // InterfaceLocalMulticastIP reports whether ip is an interface-local multicast
 // address.
-InterfaceLocalMulticastIP: validator(_) | (func(ip: _) -> bool)
+InterfaceLocalMulticastIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // LinkLocalMulticastIP reports whether ip is a link-local multicast address.
-LinkLocalMulticastIP: validator(_) | (func(ip: _) -> bool)
+LinkLocalMulticastIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // LinkLocalUnicastIP reports whether ip is a link-local unicast address.
-LinkLocalUnicastIP: validator(_) | (func(ip: _) -> bool)
+LinkLocalUnicastIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // GlobalUnicastIP reports whether ip is a global unicast address.
 //
@@ -107,19 +107,19 @@ LinkLocalUnicastIP: validator(_) | (func(ip: _) -> bool)
 // identification as defined in RFC 1122, RFC 4632 and RFC 4291 with the
 // exception of IPv4 directed broadcast addresses. It returns true even if ip is
 // in IPv4 private address space or local IPv6 unicast address space.
-GlobalUnicastIP: validator(_) | (func(ip: _) -> bool)
+GlobalUnicastIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // UnspecifiedIP reports whether ip is an unspecified address, either the IPv4
 // address "0.0.0.0" or the IPv6 address "::".
-UnspecifiedIP: validator(_) | (func(ip: _) -> bool)
+UnspecifiedIP: validator(#IP) | (func(ip: #IP) -> bool)
 
 // ToIP4 converts a given IP address, which may be a string or a list, to its
 // 4-byte representation.
-ToIP4: func(ip: _) -> [...]
+ToIP4: func(ip: #IP) -> [...]
 
 // ToIP16 converts a given IP address, which may be a string or a list, to its
 // 16-byte representation.
-ToIP16: func(ip: _) -> [...]
+ToIP16: func(ip: #IP) -> [...]
 
 // IPString returns the string form of the IP address ip. It returns one of 4 forms:
 //
@@ -127,16 +127,16 @@ ToIP16: func(ip: _) -> [...]
 // - dotted decimal ("192.0.2.1"), if ip is an IPv4 or IP4-mapped IPv6 address
 // - IPv6 ("2001:db8::1"), if ip is a valid IPv6 address
 // - the hexadecimal form of ip, without punctuation, if no other cases apply
-IPString: func(ip: _) -> string
+IPString: func(ip: #IP) -> string
 
 // AddIP adds a numerical offset to a given IP address.
 // The address can be provided as a string, byte array, or CIDR subnet notation.
 // It returns the resulting IP address or CIDR subnet notation as a string.
-AddIP: func(ip: _, offset: int) -> string
+AddIP: func(ip: #IP, offset: int) -> string
 
 // AddIPCIDR adds a numerical offset to a given CIDR subnet
 // string, returning a CIDR string.
-AddIPCIDR: func(ip: _, offset: int) -> string
+AddIPCIDR: func(ip: #CIDR, offset: int) -> string
 
 // ParseCIDR parses a CIDR notation string and returns its components:
 // prefix_mask (e.g. "255.255.255.0"), prefix_len (e.g. 24),
@@ -145,14 +145,14 @@ AddIPCIDR: func(ip: _, offset: int) -> string
 ParseCIDR: func(s: string) -> {...}
 
 // InCIDR reports whether an IP address is contained a CIDR subnet string.
-InCIDR: (func(cidr: _) -> validator(_)) | (func(ip: _, cidr: _) -> bool)
+InCIDR: (func(cidr: #CIDR) -> validator(#IP)) | (func(ip: #IP, cidr: #CIDR) -> bool)
 
 // CompareIP compares two IP addresses and returns an integer:
 // -1 if ip1 sorts before ip2, 0 if they are equal, and +1 if ip1 sorts after ip2.
 // IPv4 addresses sort before IPv6 addresses.
 //
 // The addresses may be strings or lists of bytes.
-CompareIP: func(ip1: _, ip2: _) -> int
+CompareIP: func(ip1: #IP, ip2: #IP) -> int
 
 // PathEscape escapes the string so it can be safely placed inside a URL path
 // segment, replacing special characters (including /) with %XX sequences as
@@ -184,3 +184,13 @@ URL: validator(string) | (func(s: string) -> bool)
 // AbsURL validates that s is an absolute URL.
 // Note: this does also allow non-ASCII characters.
 AbsURL: validator(string) | (func(s: string) -> bool)
+
+// An #IP is an IP address in any of the forms the builtins of this
+// package accept: its textual representation as a string or as bytes,
+// such as "192.0.2.1" or "2001:db8::68", or a list of the address's
+// byte values.
+#IP: string | bytes | [...int]
+
+// A #CIDR is a subnet in CIDR notation, such as "192.0.2.0/24", as a
+// string or its bytes.
+#CIDR: string | bytes
