@@ -631,7 +631,7 @@ func (n *nodeContext) reportFieldMismatch(p token.Pos, s *StructLit, f Feature, 
 		}
 	}
 
-	err := ctx.NewPosf(p, "cannot combine regular field %q with %v", f, scalar)
+	err := ctx.NewPosf(p, "cannot combine regular field %q with %v", f.SelectorString(ctx), scalar)
 
 	if s != nil { // important to avoid a typed nil
 		err.AddPosition(s)

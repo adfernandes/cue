@@ -77,7 +77,7 @@ cause.
 Code contributions are made via [GitHub Pull
 Requests](https://docs.github.com/en/pull-requests). We assume you have a
 basic understanding of [`git`](https://git-scm.com/) and
-[Go](https://go.dev/) (1.25 or later).
+[Go](https://go.dev/) (1.26 or later).
 
 Code review for the CUE project historically happened on GerritHub; links to
 past code reviews (such as `https://cuelang.org/cl/NNN`) continue to work.
