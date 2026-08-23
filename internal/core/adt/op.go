@@ -20,7 +20,7 @@ import "cuelang.org/go/cue/token"
 // use to evaluate a value.
 type Op int
 
-//go:generate go tool stringer -type=Op -linecomment
+// See the stringer directive in doc.go for the generated String method.
 
 // Values of Op.
 const (

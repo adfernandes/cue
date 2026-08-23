@@ -418,9 +418,9 @@ func (v *Vertex) MayAttach() bool {
 	return !v.Label.IsLet() && !v.anonymous
 }
 
-//go:generate go tool stringer -type=ArcType -trimprefix=Arc
-
 type ArcType uint8
+
+// See the stringer directive in doc.go for the generated String method.
 
 const (
 	// ArcMember means that this arc is a normal non-optional field
@@ -530,7 +530,7 @@ type StructInfo struct {
 // vertexStatus indicates the evaluation progress of a Vertex.
 type vertexStatus int8
 
-//go:generate go tool stringer -type=vertexStatus
+// See the stringer directive in doc.go for the generated String method.
 
 const (
 	// unprocessed indicates a Vertex has not been processed before.

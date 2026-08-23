@@ -175,9 +175,9 @@ import (
 
 type defID uint32
 
-//go:generate go tool stringer -type=defIDType -linecomment
-
 type defIDType int8
+
+// See the stringer directive in doc.go for the generated String method.
 
 const (
 	// defIDTypeUnknown indicates that the ID is not a definition.
