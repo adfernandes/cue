@@ -176,7 +176,7 @@ var NoPos = Pos{}
 // RelPos indicates the relative position of token to the previous token.
 type RelPos int
 
-//go:generate go tool stringer -type=RelPos -linecomment
+// See the stringer directive in token.go for the generated String method.
 
 const (
 	// NoRelPos indicates no relative position is specified.
