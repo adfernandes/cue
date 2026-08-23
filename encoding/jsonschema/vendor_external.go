@@ -23,6 +23,7 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	stdjson "encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -33,8 +34,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	"golang.org/x/mod/sumdb/dirhash"
 	"golang.org/x/sync/errgroup"
 
 	"cuelang.org/go/encoding/jsonschema/internal/externaltest"
@@ -43,6 +46,10 @@ import (
 const (
 	testRepo = "https://github.com/json-schema-org/JSON-Schema-Test-Suite.git"
 	testDir  = "testdata/external"
+
+	// stampFile records which upstream commit the vendored data came from,
+	// letting repeated runs finish without touching the network. See [stamp].
+	stampFile = testDir + "/vendored.txt"
 )
 
 func main() {
@@ -61,6 +68,15 @@ func main() {
 }
 
 func doVendor(commit string) error {
+	// The upstream commit is pinned, so an earlier run at the same commit has
+	// already produced exactly what we would produce again. Detect that via the
+	// stamp file and stop, as the work below costs a network round trip plus a
+	// rewrite of every vendored file.
+	if upToDate(commit) {
+		log.Printf("already vendored at commit %s", commit)
+		return nil
+	}
+
 	// Reading the old test data and fetching a zip file for the upstream data can be done in parallel.
 	// This is useful as each operation takes hundreds of milliseconds.
 	g := new(errgroup.Group)
@@ -182,8 +198,72 @@ func doVendor(commit string) error {
 	if err := externaltest.WriteTestDir(testDir, newTests); err != nil {
 		return err
 	}
+	stampData, err := stamp(commit)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(stampFile, stampData, 0o666); err != nil {
+		return err
+	}
 	log.Printf("finished")
 	return nil
+}
+
+// upToDate reports whether [stampFile] already describes the vendored test
+// data for the given commit. Any failure to tell means vendoring afresh.
+func upToDate(commit string) bool {
+	got, err := os.ReadFile(stampFile)
+	if err != nil {
+		return false
+	}
+	want, err := stamp(commit)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(got, want)
+}
+
+// stamp returns the contents that [stampFile] should have for the given commit
+// and the test data currently on disk. The hash covers the upstream fields we
+// model, with our own skip annotations stripped, so that recording skips via
+// CUE_UPDATE=1 does not make the vendored data look stale.
+func stamp(commit string) ([]byte, error) {
+	testsDir := filepath.Join(testDir, "tests")
+	files, err := dirhash.DirFiles(testsDir, "")
+	if err != nil {
+		return nil, err
+	}
+	files = slices.DeleteFunc(files, func(name string) bool {
+		return !strings.HasSuffix(name, ".json")
+	})
+	hash, err := dirhash.Hash1(files, func(name string) (io.ReadCloser, error) {
+		data, err := os.ReadFile(filepath.Join(testsDir, name))
+		if err != nil {
+			return nil, err
+		}
+		var schemas []*externaltest.Schema
+		if err := stdjson.Unmarshal(data, &schemas); err != nil {
+			return nil, fmt.Errorf("%s: %v", name, err)
+		}
+		for _, schema := range schemas {
+			schema.Skip = nil
+			for _, test := range schema.Tests {
+				test.Skip = nil
+			}
+		}
+		stripped, err := stdjson.Marshal(schemas)
+		if err != nil {
+			return nil, err
+		}
+		return io.NopCloser(bytes.NewReader(stripped)), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fmt.Appendf(nil, `# Written by vendor_external.go; DO NOT EDIT.
+commit %s
+upstream-hash %s
+`, commit, hash), nil
 }
 
 type skipKey struct {

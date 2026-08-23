@@ -1,0 +1,3 @@
+# Written by vendor_external.go; DO NOT EDIT.
+commit 9fc880bfb6d8ccd093bc82431f17d13681ffae8e
+upstream-hash h1:uhGoBkAm2FrLMp+5V9fgynH/PLpmCe6OZ+/F8ABcWQU=
