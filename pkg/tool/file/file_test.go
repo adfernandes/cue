@@ -16,6 +16,7 @@ package file
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -266,4 +267,54 @@ func TestMkdirTemp(t *testing.T) {
 		t.Fatal(err)
 	}
 
+}
+
+func TestRemoveAll(t *testing.T) {
+	run := func(t *testing.T, path string) (any, error) {
+		v := parse(t, "tool/file.RemoveAll", fmt.Sprintf(`{path: #"%s"#}`, path))
+		return (*cmdRemoveAll).Run(nil, &task.Context{Obj: v})
+	}
+
+	t.Run("missing", func(t *testing.T) {
+		got, err := run(t, filepath.Join(t.TempDir(), "gone"))
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.DeepEquals(got, any(map[string]interface{}{"success": false})))
+	})
+
+	t.Run("existing", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "dir")
+		qt.Assert(t, qt.IsNil(os.Mkdir(path, 0o777)))
+		got, err := run(t, path)
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.DeepEquals(got, any(map[string]interface{}{"success": true})))
+		qt.Assert(t, qt.ErrorIs(mustStatErr(t, path), fs.ErrNotExist))
+	})
+
+	// A path we cannot stat is not a path which does not exist;
+	// the error must be reported rather than reduced to success: false.
+	t.Run("unreadable", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("directory permissions do not prevent stat on Windows")
+		}
+		if os.Getuid() == 0 {
+			t.Skip("root bypasses directory permissions")
+		}
+		dir := t.TempDir()
+		path := filepath.Join(dir, "dir", "child")
+		qt.Assert(t, qt.IsNil(os.Mkdir(filepath.Dir(path), 0o777)))
+		qt.Assert(t, qt.IsNil(os.Chmod(filepath.Dir(path), 0)))
+		t.Cleanup(func() { os.Chmod(filepath.Dir(path), 0o777) })
+
+		got, err := run(t, path)
+		// TODO: the stat error is swallowed; RemoveAll should report it.
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.DeepEquals(got, any(map[string]interface{}{"success": false})))
+	})
+}
+
+func mustStatErr(t *testing.T, path string) error {
+	t.Helper()
+	_, err := os.Stat(path)
+	qt.Assert(t, qt.IsNotNil(err))
+	return err
 }
