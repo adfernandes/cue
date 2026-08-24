@@ -1,6 +1,7 @@
 // This module exists just so that we can track extra tooling dependencies
 // to be used via `go tool` without polluting the main go.mod file.
-// TODO(mvdan): once we stabilize on this model, have CI ensure this module is tidy too.
+// It holds no packages; the directory to itself is what makes `go mod tidy`
+// treat this file as the module root rather than the repository root.
 module test/tools
 
 go 1.26.0
