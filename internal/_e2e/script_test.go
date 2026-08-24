@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"cmp"
 	cryptorand "crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,31 +33,26 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	cachedGobin := os.Getenv("CUE_CACHED_GOBIN")
-	if cachedGobin == "" {
-		// Install the cmd/cue version into a cached GOBIN so we can reuse it.
-		// TODO: use "go tool cue" once we can rely on Go's tool dependency tracking in go.mod.
-		// See: https://go.dev/issue/48429
-		cacheDir, err := os.UserCacheDir()
+	cueBinary := os.Getenv("CUE_E2E_BINARY")
+	if cueBinary == "" {
+		// Build the cmd/cue version via Go's tool dependency tracking,
+		// and remember the resulting binary so we can reuse it.
+		out, err := exec.Command("go", "tool", "-n", "cue").Output()
 		if err != nil {
+			if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+				panic(fmt.Errorf("%v: %s", err, exit.Stderr))
+			}
 			panic(err)
 		}
-		cachedGobin = filepath.Join(cacheDir, "cue-e2e-gobin")
-		cmd := exec.Command("go", "install", "cuelang.org/go/cmd/cue")
-		cmd.Env = append(cmd.Environ(), "GOBIN="+cachedGobin)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			panic(fmt.Errorf("%v: %s", err, out))
-		}
-		os.Setenv("CUE_CACHED_GOBIN", cachedGobin)
+		cueBinary = strings.TrimSpace(string(out))
+		os.Setenv("CUE_E2E_BINARY", cueBinary)
 	}
 
 	testscript.Main(m, map[string]func(){
 		"cue": func() {
 			// Note that we could avoid this wrapper entirely by setting PATH,
-			// since TestMain sets up a single cue binary in a GOBIN directory,
-			// but that may change at any point, or we might just switch to "go tool cue".
-			cmd := exec.Command(filepath.Join(cachedGobin, "cue"), os.Args[1:]...)
+			// but the binary does not live in a directory of its own.
+			cmd := exec.Command(cueBinary, os.Args[1:]...)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -94,7 +90,7 @@ func TestScript(t *testing.T) {
 		RequireExplicitExec: true,
 		RequireUniqueNames:  true,
 		Setup: func(env *testscript.Env) error {
-			env.Setenv("CUE_CACHED_GOBIN", os.Getenv("CUE_CACHED_GOBIN"))
+			env.Setenv("CUE_E2E_BINARY", os.Getenv("CUE_E2E_BINARY"))
 
 			// Just like cmd/cue/cmd.TestScript, set up separate cache and config dirs per test.
 			env.Setenv("CUE_CACHE_DIR", filepath.Join(env.WorkDir, "tmp/cachedir"))
