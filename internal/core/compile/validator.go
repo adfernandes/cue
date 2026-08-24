@@ -52,7 +52,7 @@ var matchNBuiltin = &adt.Builtin{
 
 		var errs []*adt.Bottom
 		var count, possibleCount int64
-		for check := range c.Elems(call.Value(2)) {
+		for check := range c.List(call.Value(2)).Elems() {
 			v := adt.Unify(c, self, check)
 			if err := adt.Validate(c, v, finalCfg); err == nil {
 				// TODO: is it always true that the lack of an error signifies

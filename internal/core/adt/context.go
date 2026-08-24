@@ -16,7 +16,6 @@ package adt
 
 import (
 	"fmt"
-	"iter"
 	"reflect"
 	"regexp"
 	"strings"
@@ -1120,20 +1119,19 @@ func (c *OpContext) node(orig Node, x Expr, scalar bool, state Flags) *Vertex {
 	return node
 }
 
-// Elems returns the evaluated elements of a list.
-func (c *OpContext) Elems(v Value) iter.Seq[*Vertex] {
-	list := c.list(v)
+// List returns the list value v with its elements evaluated.
+//
+// Iterate over the elements with [Vertex.Elems] rather than returning an
+// iterator from here: only a method small enough to inline lets the compiler
+// keep the loop's closures on the stack.
+func (c *OpContext) List(v Value) *Vertex {
+	list := c.RawList(v)
 	list.Finalize(c)
-	return list.Elems()
+	return list
 }
 
-// RawElems returns the elements of the list without evaluating them.
-func (c *OpContext) RawElems(v Value) iter.Seq[*Vertex] {
-	list := c.list(v)
-	return list.Elems()
-}
-
-func (c *OpContext) list(v Value) *Vertex {
+// RawList is like [OpContext.List] but does not evaluate the elements.
+func (c *OpContext) RawList(v Value) *Vertex {
 	if v != nil {
 		if a, ok := c.getDefault(v); ok {
 			v = a

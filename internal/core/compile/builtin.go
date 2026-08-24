@@ -228,9 +228,9 @@ var andBuiltin = &adt.Builtin{
 	Result: adt.IntKind,
 	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
-		seq := c.RawElems(call.Value(0))
+		list := c.RawList(call.Value(0))
 		a := []adt.Value{}
-		for c := range seq {
+		for c := range list.Elems() {
 			a = append(a, c)
 		}
 		if len(a) == 0 {
@@ -249,7 +249,7 @@ var orBuiltin = &adt.Builtin{
 		c := call.OpContext()
 
 		var values []adt.Value
-		for v := range c.RawElems(call.Value(0)) {
+		for v := range c.RawList(call.Value(0)).Elems() {
 			values = append(values, v)
 		}
 		if len(values) == 0 {
