@@ -12,34 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package style rewrites a CUE AST to reflect the project's
-// conventional style. We gate each rewrite behind a flag on [Config],
-// so callers pick the subset they want.
+package format
+
+import (
+	"reflect"
+	"strings"
+
+	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal"
+	"cuelang.org/go/internal/pretty"
+)
+
+// ASTStyle rewrites a CUE AST to reflect CUE's conventional style.
+// Each rewrite is gated behind one of the flags below, so callers pick
+// the subset they want. The fields are independent and may be enabled
+// in any combination; the zero value is a no-op, leaving the AST
+// untouched.
 //
-// All flags default to false; with the zero value, [Config.Annotate]
-// leaves the AST untouched and returns false.
+// The rewrites mutate an AST in place rather than printing it: pass
+// the rewritten node to [Node] to obtain formatted bytes.
 //
-// # Flags
-//
-// [Config.RelPos] applies the layout heuristics catalogued below.
+// [ASTStyle.RelPos] applies the layout heuristics catalogued below.
 // These are the "blank line after Package", "one decl per line", and
 // related rules: we only set RelPos on existing nodes, never altering
 // structure.
 //
-// [Config.InlineStructs] strips the Lbrace / Rbrace of single-field
+// [ASTStyle.InlineStructs] strips the Lbrace / Rbrace of single-field
 // StructLit values of Fields when collapsing the chain would be safe -
 // i.e. no attrs or comments would be lost or misplaced.
 //
-// [Config.Labels] rewrites string labels to identifier labels where no
+// [ASTStyle.Labels] rewrites string labels to identifier labels where no
 // reference in the same scope would bind to a different value. A label
 // like `"foo"` becomes `foo` when exposing it as an identifier
 // preserves the semantics.
 //
-// [Config.Ellipsis] defers and merges `...` / `[string]: _` / `[_]: _`
+// [ASTStyle.Ellipsis] defers and merges `...` / `[string]: _` / `[_]: _`
 // patterns within each struct body, so multiple equivalent "open"
 // markers collapse to a single trailing `...`.
 //
-// [Config.ClearPositions] and [Config.ClearComments] wipe, respectively,
+// [ASTStyle.ClearPositions] and [ASTStyle.ClearComments] wipe, respectively,
 // every relative-position layout hint and every comment from the tree.
 // They run first, before the rewrites above, so the remaining passes see
 // a clean slate.
@@ -82,7 +94,7 @@
 //
 // # Order
 //
-// When several flags are enabled in one [Config.Annotate] call, we run
+// When several flags are enabled in one [ASTStyle.Apply] call, we run
 // the rewrites in this order:
 //
 //  1. Labels: BasicLit labels become Idents where safe.
@@ -99,24 +111,9 @@
 // hints are not themselves wiped); and RelPos's pair-iteration depends
 // on the final decl list after Ellipsis has merged and InlineStructs has
 // potentially exposed new chain shapes.
-package style
-
-import (
-	"reflect"
-	"strings"
-
-	"cuelang.org/go/cue/ast"
-	"cuelang.org/go/cue/token"
-	"cuelang.org/go/internal"
-	"cuelang.org/go/internal/pretty"
-)
-
-// Config selects which house-style transformations [Config.Annotate]
-// applies. The zero value is a no-op. The fields are independent and
-// may be enabled in any combination.
-type Config struct {
-	// RelPos applies the layout heuristics described in the package
-	// docs - blank lines after Package and ImportDecl, one decl per
+type ASTStyle struct {
+	// RelPos applies the layout heuristics described above -
+	// blank lines after Package and ImportDecl, one decl per
 	// line, and so on. We only set RelPos on existing nodes and never
 	// alter structure.
 	RelPos bool
@@ -168,19 +165,33 @@ type Config struct {
 	ClearComments bool
 }
 
-// Annotate applies the transformations selected by cfg to n in place.
-// It returns true if we made any change. With the zero Config,
-// Annotate is a no-op and returns false.
-func (cfg Config) Annotate(n ast.Node) bool {
-	if n == nil || cfg == (Config{}) {
+// Apply applies the transformations selected by s to n, mutating the
+// AST nodes in place. With the zero ASTStyle, Apply is a no-op.
+func (s ASTStyle) Apply(n ast.Node) {
+	s.apply(n, true)
+}
+
+// WouldMutate reports whether [ASTStyle.Apply] would change n. It
+// leaves n untouched.
+func (s ASTStyle) WouldMutate(n ast.Node) bool {
+	return s.apply(n, false)
+}
+
+// apply implements [ASTStyle.Apply] and [ASTStyle.WouldMutate],
+// reporting whether it changed - or, when allowChanges is false, would
+// have changed - anything.
+//
+// With allowChanges false nothing is written to the tree: every rewrite
+// asks [walker.tryMutate] for permission first, and the first one to be
+// refused stops the passes, since the answer is settled by then.
+func (cfg ASTStyle) apply(n ast.Node, allowChanges bool) bool {
+	if n == nil || cfg == (ASTStyle{}) {
 		return false
 	}
-	var changed bool
+	w := walker{cfg: cfg, allowChanges: allowChanges}
 
 	if cfg.Labels {
-		if simplifyLabels(n) {
-			changed = true
-		}
+		w.simplifyLabels(n)
 	}
 
 	// Wipe authored layout and/or comments first, in a full pass, so the
@@ -189,48 +200,75 @@ func (cfg Config) Annotate(n ast.Node) bool {
 	// being undone by) the authored ones.
 	if cfg.ClearPositions || cfg.ClearComments {
 		ast.Walk(n, func(node ast.Node) bool {
-			if cfg.ClearPositions && clearPositions(node) {
-				changed = true
+			if w.stopped {
+				return false
 			}
-			if cfg.ClearComments && len(ast.Comments(node)) > 0 {
+			if cfg.ClearPositions {
+				w.clearPositions(node)
+			}
+			if cfg.ClearComments && len(ast.Comments(node)) > 0 && w.tryMutate() {
 				ast.SetComments(node, nil)
-				changed = true
 			}
-			return true
+			return !w.stopped
 		}, nil)
 	}
 
 	if !cfg.RelPos && !cfg.InlineStructs && !cfg.Ellipsis {
-		return changed
+		return w.changed
 	}
 
-	var w walker
-	w.cfg = cfg
 	ast.Walk(n, w.visit, nil)
-	return changed || w.changed
+	return w.changed
 }
 
 // walker shares a single ast.Walk across the InlineStructs, Ellipsis,
 // and RelPos passes. We dispatch from visit to the per-node hooks for
-// each enabled flag.
+// each enabled flag. It also carries the mutation permission that
+// [ASTStyle.WouldMutate] withholds; see [walker.tryMutate].
 type walker struct {
-	cfg     Config
+	cfg ASTStyle
+
+	// allowChanges reports whether the passes may write to the tree.
+	// It is false for [ASTStyle.WouldMutate], which only asks whether
+	// they would.
+	allowChanges bool
+
+	// changed reports whether any rewrite has been made, or - when
+	// allowChanges is false - would have been made.
 	changed bool
+
+	// stopped reports whether a rewrite was refused, which happens only
+	// when allowChanges is false. The passes then have nothing left to
+	// learn and unwind.
+	stopped bool
+}
+
+// tryMutate reports whether the caller may carry out a rewrite it has
+// decided on, and records that the tree is (or would be) changed. When
+// changes are not allowed it refuses and stops the remaining passes.
+//
+// Every rewrite must be guarded by it, and only once the rewrite is
+// certain to happen: a call is what makes [ASTStyle.WouldMutate] answer
+// true.
+func (w *walker) tryMutate() bool {
+	w.changed = true
+	if !w.allowChanges {
+		w.stopped = true
+		return false
+	}
+	return true
 }
 
 func (w *walker) visit(n ast.Node) bool {
-	if mergeDocComments(n) {
-		w.changed = true
+	if w.stopped {
+		return false
 	}
-	if sectionSeparateDocComments(n) {
-		w.changed = true
-	}
+	w.mergeDocComments(n)
+	w.sectionSeparateDocComments(n)
 	switch n := n.(type) {
 	case *ast.File:
 		if w.cfg.Ellipsis {
-			if mergeEllipsisDecls(&n.Decls) {
-				w.changed = true
-			}
+			w.mergeEllipsisDecls(&n.Decls)
 		}
 		if w.cfg.RelPos {
 			w.annotateBody(n.Decls, false, false, true)
@@ -250,9 +288,7 @@ func (w *walker) visit(n ast.Node) bool {
 		}
 	case *ast.StructLit:
 		if w.cfg.Ellipsis {
-			if mergeEllipsisDecls(&n.Elts) {
-				w.changed = true
-			}
+			w.mergeEllipsisDecls(&n.Elts)
 		}
 		if w.cfg.RelPos {
 			// Only authored (braced) StructLits participate in the
@@ -266,17 +302,14 @@ func (w *walker) visit(n ast.Node) bool {
 				// vertically. We promote the closing brace's RelPos to at
 				// least Newline so it lands on its own line and matches the
 				// opener.
-				if n.Rbrace.RelPos() < token.Newline {
+				if n.Rbrace.RelPos() < token.Newline && w.tryMutate() {
 					n.Rbrace = n.Rbrace.WithRel(token.Newline)
-					w.changed = true
 				}
 			}
 		}
 	case *ast.Field:
 		if w.cfg.InlineStructs {
-			if inlineStructValue(n) {
-				w.changed = true
-			}
+			w.inlineStructValue(n)
 		}
 	case *ast.ImportDecl:
 		if w.cfg.RelPos {
@@ -287,23 +320,25 @@ func (w *walker) visit(n ast.Node) bool {
 			w.annotateInterpolation(n)
 		}
 	}
-	return true
+	return !w.stopped
 }
 
 // clearPositions discards the relative-position layout hints on n itself
 // and on every [token.Pos] it embeds (struct braces, list brackets,
-// commas, and so on). It reports whether it changed anything.
-func clearPositions(n ast.Node) (changed bool) {
+// commas, and so on).
+func (w *walker) clearPositions(n ast.Node) {
 	if cg, ok := n.(*ast.CommentGroup); ok && cg.Line {
+		if !w.tryMutate() {
+			return
+		}
 		cg.Line = false
-		changed = true
 	}
 	v := reflect.ValueOf(n)
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
-		return changed
+		return
 	}
 	for i := range v.NumField() {
 		f := v.Field(i)
@@ -312,12 +347,14 @@ func clearPositions(n ast.Node) (changed bool) {
 		}
 		pos := f.Interface().(token.Pos)
 		newPos := pos.WithRel(token.NoRelPos).WithComma(false).WithScanned(false)
-		if newPos != pos {
-			f.Set(reflect.ValueOf(newPos))
-			changed = true
+		if newPos == pos {
+			continue
 		}
+		if !w.tryMutate() {
+			return
+		}
+		f.Set(reflect.ValueOf(newPos))
 	}
-	return changed
 }
 
 var posType = reflect.TypeFor[token.Pos]()
@@ -349,11 +386,13 @@ func (w *walker) annotateInterpolation(x *ast.Interpolation) {
 		// own, so clear only the elements after it.
 		for _, e := range x.Elts[1:] {
 			ast.Walk(e, func(n ast.Node) bool {
-				if n != nil && n.Pos().RelPos() >= token.Newline {
-					ast.SetRelPos(n, token.NoRelPos)
-					w.changed = true
+				if w.stopped {
+					return false
 				}
-				return true
+				if n != nil && n.Pos().RelPos() >= token.Newline && w.tryMutate() {
+					ast.SetRelPos(n, token.NoRelPos)
+				}
+				return !w.stopped
 			}, nil)
 		}
 		return
@@ -374,13 +413,11 @@ func (w *walker) annotateInterpolation(x *ast.Interpolation) {
 		if !exprBreaks && !closerBreaks {
 			continue
 		}
-		if !exprBreaks {
+		if !exprBreaks && w.tryMutate() {
 			ast.SetRelPos(expr, token.Newline)
-			w.changed = true
 		}
-		if closer != nil && !closerBreaks {
+		if closer != nil && !closerBreaks && w.tryMutate() {
 			ast.SetRelPos(closer, token.Newline)
-			w.changed = true
 		}
 	}
 }
@@ -407,16 +444,17 @@ func (w *walker) breakComprehensionBody(body *ast.StructLit) {
 	// (e.g. `if x > 9\n{x}` renders as `if x > 9 {x}`).
 	switch {
 	case !body.Lbrace.IsValid():
-		body.Lbrace = token.NoPos.WithRel(token.Blank)
-		w.changed = true
+		if w.tryMutate() {
+			body.Lbrace = token.NoPos.WithRel(token.Blank)
+		}
 	case body.Lbrace.RelPos() >= token.Newline:
-		body.Lbrace = body.Lbrace.WithRel(token.Blank)
-		w.changed = true
+		if w.tryMutate() {
+			body.Lbrace = body.Lbrace.WithRel(token.Blank)
+		}
 	}
 	if w.annotateBody(body.Elts, true, true, false) {
-		if body.Rbrace.RelPos() < token.Newline {
+		if body.Rbrace.RelPos() < token.Newline && w.tryMutate() {
 			body.Rbrace = body.Rbrace.WithRel(token.Newline)
-			w.changed = true
 		}
 	}
 }
@@ -570,9 +608,8 @@ func (w *walker) annotateImport(d *ast.ImportDecl) {
 		return
 	}
 	// Rparen on its own line (B3).
-	if d.Rparen.RelPos() < token.Newline {
+	if d.Rparen.RelPos() < token.Newline && w.tryMutate() {
 		d.Rparen = d.Rparen.WithRel(token.Newline)
-		w.changed = true
 	}
 	// When the import group holds more than one spec, we place every spec
 	// on its own line. We leave a single-spec parenthesised import alone
@@ -597,6 +634,9 @@ func (w *walker) upgradeLeading(n ast.Node, target token.RelPos) {
 	if pretty.LeadingRelPos(n) >= target {
 		return
 	}
+	if !w.tryMutate() {
+		return
+	}
 	if cg := pretty.FirstCommentAt(n, pretty.PosDoc); cg != nil {
 		setCommentRelPos(cg, target)
 	} else if s := leadingBracelessStruct(n); s != nil {
@@ -610,7 +650,6 @@ func (w *walker) upgradeLeading(n ast.Node, target token.RelPos) {
 	} else {
 		ast.SetRelPos(n, target)
 	}
-	w.changed = true
 }
 
 // leadingBracelessStruct returns the braceless [*ast.StructLit] that
@@ -662,10 +701,9 @@ func hasLeadingDocComment(d ast.Decl) bool {
 
 // mergeDocComments canonicalises a node that carries more than one
 // doc-position (Position 0, Doc) comment group into a single group,
-// joining the originals with an empty `//` line. It reports whether it
-// changed anything. The merged group keeps the first group's leading
-// position. [*ast.File] and [*ast.Package] are exempt and return
-// false (see below).
+// joining the originals with an empty `//` line. The merged group keeps
+// the first group's leading position. [*ast.File] and [*ast.Package]
+// are exempt (see below).
 //
 // Joining with a `//` line keeps both blocks as doc comments, visually
 // separated, and makes the output reparse to exactly this shape:
@@ -675,10 +713,10 @@ func hasLeadingDocComment(d ast.Decl) bool {
 // because they sit at the top of the file with nothing to detach to,
 // so they round-trip fine blank-separated and must keep their section
 // breaks.
-func mergeDocComments(n ast.Node) bool {
+func (w *walker) mergeDocComments(n ast.Node) {
 	switch n.(type) {
 	case *ast.File, *ast.Package:
-		return false
+		return
 	}
 	all := ast.Comments(n)
 	var docs []*ast.CommentGroup
@@ -687,8 +725,8 @@ func mergeDocComments(n ast.Node) bool {
 			docs = append(docs, cg)
 		}
 	}
-	if len(docs) < 2 {
-		return false
+	if len(docs) < 2 || !w.tryMutate() {
+		return
 	}
 
 	var list []*ast.Comment
@@ -716,7 +754,6 @@ func mergeDocComments(n ast.Node) bool {
 		rebuilt = append(rebuilt, cg)
 	}
 	ast.SetComments(n, rebuilt)
-	return true
 }
 
 // sectionSeparateDocComments is the [*ast.File] / [*ast.Package]
@@ -725,27 +762,26 @@ func mergeDocComments(n ast.Node) bool {
 // lines, promoting every group after the first to NewSection so the
 // section breaks between top-level blocks (license header, package
 // banner, package doc) are restored. It never weakens an existing
-// RelPos and reports whether it changed anything. Other node types
-// return false.
-func sectionSeparateDocComments(n ast.Node) bool {
+// RelPos. Other node types are left alone.
+func (w *walker) sectionSeparateDocComments(n ast.Node) {
 	switch n.(type) {
 	case *ast.File, *ast.Package:
 	default:
-		return false
+		return
 	}
-	changed := false
 	seen := false
 	for _, cg := range ast.Comments(n) {
 		if cg.Position != pretty.PosDoc || !cg.Doc {
 			continue
 		}
 		if seen && cg.Pos().RelPos() < token.NewSection {
+			if !w.tryMutate() {
+				return
+			}
 			setCommentRelPos(cg, token.NewSection)
-			changed = true
 		}
 		seen = true
 	}
-	return changed
 }
 
 // endsWithLineComment reports whether n's rendered output ends with a

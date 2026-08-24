@@ -43,6 +43,10 @@ type Config struct {
 	// Width is the target line width for line-breaking decisions. If
 	// zero, it defaults to 120.
 	Width int
+
+	// Prefix is a verbatim string emitted at the start of every line,
+	// before any indentation. It counts towards the line width.
+	Prefix string
 }
 
 func (cfg *Config) indentWidth() int {

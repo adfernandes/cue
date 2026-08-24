@@ -103,8 +103,10 @@ func runEval(cmd *Command, args []string) error {
 
 	// Keep for legacy reasons. Note that `cue eval` is to be deprecated by
 	// `cue` eventually.
+	// TODO use format.Indent("    ") once formatv2 is the only formatter;
+	// unlike these options, it would select formatv2 for this call.
 	opts := []format.Option{
-		format.UseSpaces(4),
+		format.IndentWidth(4),
 		format.TabIndent(false),
 	}
 	if flagSimplify.Bool(cmd) {

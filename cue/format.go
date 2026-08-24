@@ -185,13 +185,13 @@ func formatExpr(state fmt.State, n ast.Node) {
 	if tabwidth, ok := state.Precision(); ok {
 		// TODO: 0 means no newlines.
 		opts = append(opts,
-			format.UseSpaces(tabwidth),
+			format.IndentWidth(tabwidth),
 			format.TabIndent(false))
 	}
 	// TODO: consider this.
 	//  else if state.Flag(' ') {
 	// 	opts = append(opts,
-	// 		format.UseSpaces(4),
+	// 		format.IndentWidth(4),
 	// 		format.TabIndent(false))
 	// }
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package style
+package format
 
 import (
 	"strconv"
@@ -23,20 +23,33 @@ import (
 // simplifyLabels rewrites string labels to identifier labels where the
 // identifier would not collide with any in-scope reference. Nested
 // struct bodies form child scopes that inherit candidates from their
-// parents. Returns true if we rewrote any label.
-func simplifyLabels(n ast.Node) bool {
-	ls := &labelSimplifier{scope: map[string]bool{}}
+// parents.
+//
+// This backs both the [ASTStyle] Labels flag and the [Simplify] option
+// of the pre-v2 formatter, which drives it from [printNode] through a
+// walker that allows every change.
+func (w *walker) simplifyLabels(n ast.Node) {
+	ls := &labelSimplifier{scope: map[string]bool{}, walker: w}
 	ls.markReferences(n)
-	return ls.changed
 }
 
 // labelSimplifier tracks, per scope, a map from candidate names to
 // whether they are still eligible for unquoting (true means no
 // reference observed yet).
 type labelSimplifier struct {
-	parent  *labelSimplifier
-	scope   map[string]bool
-	changed bool
+	parent *labelSimplifier
+	scope  map[string]bool
+
+	// walker is shared by every scope of one simplification run; it
+	// holds the permission to rewrite a label.
+	walker *walker
+}
+
+// newLabelSimplifier returns the root scope of a simplification run
+// that may make every rewrite it finds. The pre-v2 formatter drives the
+// simplifier this way, outside of any [ASTStyle] pass.
+func newLabelSimplifier() *labelSimplifier {
+	return &labelSimplifier{scope: map[string]bool{}, walker: &walker{allowChanges: true}}
 }
 
 // markReferences is the [ast.Walk]-compatible reference visitor, and
@@ -44,6 +57,9 @@ type labelSimplifier struct {
 // [labelSimplifier.processDecls] and return false to stop the outer
 // walk over that body.
 func (s *labelSimplifier) markReferences(n ast.Node) bool {
+	if s.walker.stopped {
+		return false
+	}
 	switch x := n.(type) {
 	case *ast.File:
 		s.processDecls(x.Decls)
@@ -77,7 +93,7 @@ func (s *labelSimplifier) markReferences(n ast.Node) bool {
 
 // processDecls runs the three sub-passes we apply to one body.
 func (s *labelSimplifier) processDecls(decls []ast.Decl) {
-	sc := &labelSimplifier{parent: s, scope: map[string]bool{}}
+	sc := &labelSimplifier{parent: s, scope: map[string]bool{}, walker: s.walker}
 
 	// Sub-pass 1: collect candidates from labels.
 	for _, d := range decls {
@@ -114,8 +130,10 @@ func (s *labelSimplifier) processDecls(decls []ast.Decl) {
 		if !sc.scope[str] {
 			continue
 		}
+		if !s.walker.tryMutate() {
+			return
+		}
 		f.Label = ast.NewIdent(str)
-		s.changed = true
 	}
 }
 

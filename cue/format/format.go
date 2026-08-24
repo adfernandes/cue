@@ -33,7 +33,6 @@ import (
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/cueexperiment"
 	"cuelang.org/go/internal/pretty"
-	"cuelang.org/go/internal/pretty/style"
 )
 
 // An Option sets behavior of the formatter.
@@ -43,35 +42,6 @@ type Option func(c *config)
 // unnecessary quotes.
 func Simplify() Option {
 	return func(c *config) { c.simplify = true }
-}
-
-// TODO: The interaction between UseSpaces and TabIndent is very subtle,
-// especially given how both are actually on by default.
-// Moreover, it's actually impossible to unset [config.useSpaces].
-// We should probably rethink this API.
-
-// UseSpaces specifies that tabs should be converted to spaces and sets the
-// default tab width.
-//
-// When unset, the tab width defaults to 8 for the pre-v2 formatter and 4
-// for the formatv2 formatter.
-func UseSpaces(tabwidth int) Option {
-	return func(c *config) {
-		c.useSpaces = true
-		c.tabWidth = tabwidth
-	}
-}
-
-// TabIndent specifies whether to use tabs for indentation independent of [UseSpaces].
-//
-// This option is set to true by default.
-func TabIndent(indent bool) Option {
-	return func(c *config) { c.tabIndent = indent }
-}
-
-// IndentPrefix specifies the number of tabstops to use as a prefix for every line.
-func IndentPrefix(n int) Option {
-	return func(c *config) { c.indent = n }
 }
 
 // Version specifies the CUE language version to use when formatting.
@@ -85,10 +55,91 @@ func Version(v string) Option {
 	return func(c *config) { c.languageVersion = v }
 }
 
-// TODO: make public
-// sortImportsOption causes import declarations to be sorted.
-func sortImportsOption() Option {
-	return func(c *config) { c.sortImports = true }
+// Indent specifies the string emitted for one level of indentation.
+// The empty string disables indentation entirely; common choices are
+// "\t" for tabs and a fixed run of spaces for space-based indentation.
+// The default is "\t".
+//
+// This option is only honored by the formatv2 formatter, so using it
+// selects that formatter even when the formatv2 experiment is disabled.
+func Indent(s string) Option {
+	return func(c *config) {
+		c.forceV2 = true
+		c.indent = &s
+	}
+}
+
+// IndentWidth specifies the visual column width of one level of
+// indentation. The formatv2 formatter uses it for its line-breaking
+// heuristics; the pre-v2 formatter uses it as the tab width for
+// aligning columns and, with [TabIndent] set to false, as the number
+// of spaces in one level of indentation.
+//
+// When it is left unset, the width is derived from the indentation
+// string: zero when there is no indentation, four for a tab, and the
+// number of characters otherwise. The pre-v2 formatter defaults to
+// eight.
+func IndentWidth(n int) Option {
+	return func(c *config) { c.indentWidth = n }
+}
+
+// IndentPrefix specifies a number of indentation levels to emit at
+// the start of every line, in addition to the indentation of the
+// code itself.
+//
+// This option is only honored by the formatv2 formatter. Unlike the
+// options that formatv2 introduced, it does not select that formatter,
+// because it predates it: the pre-v2 formatter ignores it, as it
+// always has.
+func IndentPrefix(n int) Option {
+	return func(c *config) { c.indentPrefix = n }
+}
+
+// LineWidth specifies the target line width that the line-breaking
+// heuristics aim to stay within. It defaults to 120.
+//
+// This option is only honored by the formatv2 formatter, so using it
+// selects that formatter even when the formatv2 experiment is disabled.
+func LineWidth(n int) Option {
+	return func(c *config) {
+		c.forceV2 = true
+		c.lineWidth = n
+	}
+}
+
+// KeepRelPos specifies that the relative positions of nodes, comments
+// and blank lines are kept as they are found in the AST rather than
+// being adjusted to CUE's conventional layout, as described by
+// [ASTStyle].RelPos. The simplifications implied by [Simplify] are
+// still applied when that option is given; without it, the AST is
+// formatted entirely unchanged.
+//
+// This option is only honored by the formatv2 formatter, so using it
+// selects that formatter even when the formatv2 experiment is disabled.
+func KeepRelPos() Option {
+	return func(c *config) {
+		c.forceV2 = true
+		c.keepRelPos = true
+	}
+}
+
+// UseSpaces sets the indentation width. Despite its name, it does not
+// by itself cause spaces to be used for indentation; see [TabIndent].
+//
+// Deprecated: use [IndentWidth], and [Indent] to indent with spaces.
+//
+//go:fix inline
+func UseSpaces(tabwidth int) Option { return IndentWidth(tabwidth) }
+
+// TabIndent specifies whether to use tabs for indentation. When
+// false, one level of indentation is a run of spaces as wide as the
+// indentation width (see [IndentWidth]).
+//
+// This option is set to true by default.
+//
+// Deprecated: use [Indent] with "\t" or a run of spaces.
+func TabIndent(indent bool) Option {
+	return func(c *config) { c.spaceIndent = !indent }
 }
 
 // TODO: other options:
@@ -105,34 +156,40 @@ func sortImportsOption() Option {
 // The node type must be [*ast.File], [][ast.Decl], [ast.Expr],
 // [ast.Decl], or [ast.Spec]. Imports are not sorted for nodes
 // representing partial source files (for instance, if the node is not
-// an *ast.File). If [Simplify] is enabled then the AST may be
-// mutated in place.
+// an *ast.File).
 //
-// The function may return early (before the entire result is written) and
-// return a formatting error, for instance due to an incorrect AST.
-func Node(node ast.Node, opt ...Option) ([]byte, error) {
+// The AST is never mutated; see [NodeInPlace] for a variant that may.
+//
+// If the AST is incorrect, a partial result may be returned with an error.
+func Node(n ast.Node, opt ...Option) ([]byte, error) {
+	return formatNode(n, opt, false)
+}
+
+// NodeInPlace is like [Node] except that it allows the AST tree
+// to be mutated in place, avoiding a potentially expensive copy
+// operation. The node must not be used concurrently by other
+// goroutines, and its contents are unspecified afterwards.
+func NodeInPlace(n ast.Node, opt ...Option) ([]byte, error) {
+	return formatNode(n, opt, true)
+}
+
+func formatNode(node ast.Node, opt []Option, canMutate bool) ([]byte, error) {
 	cueexperiment.Init()
 
 	cfg := newConfig(opt)
-
-	if cueexperiment.Flags.FormatV2 {
-		styleConfig(cfg).Annotate(node)
-		return configToV2(cfg).Node(node)
+	if !cfg.formatV2() {
+		if cfg.simplify && !canMutate {
+			node = ast.Clone(node) // Ensure immutability of the AST.
+		}
+		return cfg.fprint(node)
 	}
 
-	return cfg.fprint(node)
-}
-
-// styleConfig builds the [style.Config] that drives the v2
-// pre-pass. RelPos is always on (it replaces what the old printer
-// did implicitly); the simplification flags follow cfg.simplify.
-func styleConfig(cfg *config) style.Config {
-	return style.Config{
-		RelPos:        true,
-		InlineStructs: cfg.simplify,
-		Labels:        cfg.simplify,
-		Ellipsis:      cfg.simplify,
+	scfg := cfg.style()
+	if !canMutate && scfg.WouldMutate(node) {
+		node = ast.Clone(node) // Ensure immutability of the AST.
 	}
+	scfg.Apply(node)
+	return cfg.v2().Node(node)
 }
 
 // Source formats src in canonical cue fmt style and returns the result or an
@@ -163,58 +220,85 @@ func Source(b []byte, opt ...Option) ([]byte, error) {
 		return nil, fmt.Errorf("parse: %s", err)
 	}
 
-	if cueexperiment.Flags.FormatV2 {
-		styleConfig(cfg).Annotate(f)
-		return configToV2(cfg).Node(f)
+	if !cfg.formatV2() {
+		return cfg.fprint(f)
 	}
 
-	// print AST
-	return cfg.fprint(f)
+	// The AST is our own, so there is no need to preserve it.
+	cfg.style().Apply(f)
+	return cfg.v2().Node(f)
 }
 
 type config struct {
-	useSpaces bool // default: true
-	tabIndent bool // default: true
-	tabWidth  int  // 0 means unset; the v1 formatter defaults to 8, v2 to 4
-	indent    int  // default: 0 (all code is indented at least by this much)
-
+	keepRelPos      bool // default: false
 	simplify        bool // default: false
-	sortImports     bool // default: false
 	languageVersion string
+
+	// indent holds the indentation string set by [Indent], or nil when
+	// it is to be derived from spaceIndent and indentWidth.
+	indent *string
+	// spaceIndent records the deprecated TabIndent(false): when indent
+	// is nil, one level of indentation is indentWidth spaces rather
+	// than a tab.
+	spaceIndent  bool
+	indentWidth  int // 0 means unset; the v1 formatter defaults to 8, v2 to 4
+	indentPrefix int // default: 0
+	lineWidth    int // 0 means unset; the v2 formatter defaults to 120
+
+	// forceV2 records that an option only the v2 formatter implements
+	// was used, which selects that formatter for this call even when
+	// the formatv2 experiment is explicitly disabled.
+	forceV2 bool
+}
+
+// style builds the [ASTStyle] that drives the v2 pre-pass.
+func (cfg *config) style() ASTStyle {
+	return ASTStyle{
+		RelPos:        !cfg.keepRelPos,
+		InlineStructs: cfg.simplify,
+		Labels:        cfg.simplify,
+		Ellipsis:      cfg.simplify,
+	}
+}
+
+// formatV2 reports whether this call uses the v2 formatter.
+func (cfg *config) formatV2() bool {
+	return cueexperiment.Flags.FormatV2 || cfg.forceV2
 }
 
 func newConfig(opt []Option) *config {
-	cfg := &config{
-		tabIndent: true,
-		useSpaces: true,
-	}
+	cfg := &config{}
 	for _, o := range opt {
 		o(cfg)
 	}
 	return cfg
 }
 
-// tabWidthOr returns the configured tab width, or def if it was left unset.
-// The pre-v2 and v2 formatters resolve different defaults so that the v1
-// formatter stays consistent with release-branch.v0.17 (8) without changing
-// the formatv2 default (4).
-func (cfg *config) tabWidthOr(def int) int {
-	if cfg.tabWidth == 0 {
+// indentWidthOr returns the configured indentation width, or def if it
+// was left unset. The pre-v2 and v2 formatters resolve different
+// defaults so that the v1 formatter stays consistent with
+// release-branch.v0.17 (8) without changing the formatv2 default (4).
+func (cfg *config) indentWidthOr(def int) int {
+	if cfg.indentWidth == 0 {
 		return def
 	}
-	return cfg.tabWidth
+	return cfg.indentWidth
 }
 
-func configToV2(cfg *config) *pretty.Config {
-	tabWidth := cfg.tabWidthOr(4)
+func (cfg *config) v2() *pretty.Config {
 	cfgV2 := &pretty.Config{
-		IndentWidth: tabWidth,
+		IndentWidth: cfg.indentWidth,
+		Width:       cfg.lineWidth,
 	}
-	if cfg.tabIndent {
+	switch {
+	case cfg.indent != nil:
+		cfgV2.Indent = *cfg.indent
+	case cfg.spaceIndent:
+		cfgV2.Indent = strings.Repeat(" ", cfg.indentWidthOr(4))
+	default:
 		cfgV2.Indent = "\t"
-	} else {
-		cfgV2.Indent = strings.Repeat(" ", tabWidth)
 	}
+	cfgV2.Prefix = strings.Repeat(cfgV2.Indent, cfg.indentPrefix)
 	return cfgV2
 }
 
@@ -226,19 +310,11 @@ func (cfg *config) fprint(node any) (out []byte, err error) {
 		return p.output, err
 	}
 
-	padchar := byte('\t')
-	if cfg.useSpaces {
-		padchar = byte(' ')
-	}
-
 	twmode := tabwriter.StripEscape | tabwriter.TabIndent | tabwriter.DiscardEmptyColumns
-	if cfg.tabIndent {
-		twmode |= tabwriter.TabIndent
-	}
 
-	tabWidth := cfg.tabWidthOr(8)
+	tabWidth := cfg.indentWidthOr(8)
 	buf := &bytes.Buffer{}
-	tw := tabwriter.NewWriter(buf, 0, tabWidth, 1, padchar, twmode)
+	tw := tabwriter.NewWriter(buf, 0, tabWidth, 1, ' ', twmode)
 
 	// write printer result via tabwriter/trimmer to output
 	if _, err = tw.Write(p.output); err != nil {
@@ -251,7 +327,7 @@ func (cfg *config) fprint(node any) (out []byte, err error) {
 	}
 
 	b := buf.Bytes()
-	if !cfg.tabIndent {
+	if cfg.spaceIndent {
 		b = bytes.ReplaceAll(b, []byte{'\t'}, bytes.Repeat([]byte{' '}, tabWidth))
 	}
 	return b, nil

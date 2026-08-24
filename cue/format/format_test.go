@@ -17,6 +17,7 @@ package format_test
 // TODO: port more of the tests of go/printer
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestFiles(t *testing.T) {
 		Name: "format",
 	}
 	test.Run(t, func(t *cuetxtar.Test) {
-		opts := []format.Option{format.TabIndent(true)}
+		var opts []format.Option
 		if t.HasTag("simplify") {
 			opts = append(opts, format.Simplify())
 		}
@@ -265,7 +266,7 @@ e2: c*t.z
 	}
 
 	// pretty-print original
-	b, err := format.Node(f1, format.UseSpaces(8))
+	b, err := format.Node(f1, format.IndentWidth(8))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -396,7 +397,7 @@ func TestSourceOptions(t *testing.T) {
 		{
 			name:    "Simplify",
 			options: []format.Option{format.Simplify()},
-			want:    "foo: {\n\ta:         1\n\tlongField: 2\n}\n",
+			want:    "foo: {\n	a:         1\n	longField: 2\n}\n",
 		},
 		// TabIndent(false) makes the indentation use a tabWidth number of spaces.
 		// Note that this exposes the default tabWidth value of 4.
@@ -412,16 +413,22 @@ func TestSourceOptions(t *testing.T) {
 			want:    "\"foo\": {\n  a:         1\n  longField: 2\n}\n",
 		},
 		// IndentPrefix indents every line as a prefix.
-		//
-		// TODO(mvdan): this seems buggy? note the trailing tabs, and the lack of leading tabs.
-		// Or at the very least, the docs are misleading.
 		{
 			name:    "IndentPrefix(3)",
 			options: []format.Option{format.IndentPrefix(3)},
-			want: `"foo": {
-	a:         1
-	longField: 2
-}
+			want: `			"foo": {
+				a:         1
+				longField: 2
+			}
+`},
+		// IndentPrefix follows the indentation string.
+		{
+			name:    "IndentPrefix(2),Indent(2 spaces)",
+			options: []format.Option{format.IndentPrefix(2), format.Indent("  ")},
+			want: `    "foo": {
+      a:         1
+      longField: 2
+    }
 `},
 	}
 	tdtest.Run(t, testCases, func(t *cuetest.T, tc *testCase) {
@@ -460,6 +467,196 @@ func TestFormatV2Smoke(t *testing.T) {
 	got, err = format.Source([]byte(src))
 	qt.Assert(t, qt.IsNil(err))
 	qt.Check(t, qt.Equals(string(got), wantV1))
+}
+
+// TestV2Options exercises the options that only the formatv2 formatter
+// implements. Each of them selects that formatter, so we run the whole
+// test with the formatv2 experiment disabled: the layouts below are out
+// of reach of the pre-v2 formatter, which has no notion of a target
+// width and indents with tabs only.
+func TestV2Options(t *testing.T) {
+	// Clearing the authored positions leaves the layout entirely to the
+	// width-driven heuristics, which is what these options steer.
+	const src = "a: {x: 1, b: [1, 2, 3, 4, 5, 6]}\n"
+
+	testCases := []struct {
+		name string
+		opts []format.Option
+		want string
+	}{{
+		name: "width",
+		opts: []format.Option{format.LineWidth(25)},
+		want: "a: {\n	x: 1\n	b: [1, 2, 3, 4, 5, 6]\n}\n",
+	}, {
+		name: "narrowWidth",
+		opts: []format.Option{format.LineWidth(15)},
+		want: "a: {\n	x: 1\n	b: [\n		1,\n		2,\n		3,\n		4,\n		5,\n		6,\n	]\n}\n",
+	}, {
+		name: "indent",
+		opts: []format.Option{format.LineWidth(25), format.Indent("  ")},
+		want: "a: {\n  x: 1\n  b: [1, 2, 3, 4, 5, 6]\n}\n",
+	}, {
+		name: "noIndent",
+		opts: []format.Option{format.LineWidth(25), format.Indent("")},
+		want: "a: {\nx: 1\nb: [1, 2, 3, 4, 5, 6]\n}\n",
+	}, {
+		// A wider indent leaves less room on the line, so the nested
+		// list no longer fits and breaks.
+		name: "indentWidth",
+		opts: []format.Option{format.LineWidth(25), format.IndentWidth(10)},
+		want: "a: {\n	x: 1\n	b: [\n		1,\n		2,\n		3,\n		4,\n		5,\n		6,\n	]\n}\n",
+	}}
+
+	qt.Assert(t, qt.IsNil(cueexperiment.Init()))
+	// Init is guarded by sync.Once, so overriding Flags directly here is not
+	// undone by the format functions calling cueexperiment.Init again.
+	defer func(orig bool) { cueexperiment.Flags.FormatV2 = orig }(cueexperiment.Flags.FormatV2)
+	cueexperiment.Flags.FormatV2 = false
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := parser.ParseFile("in", src, parser.ParseComments)
+			qt.Assert(t, qt.IsNil(err))
+			format.ASTStyle{ClearPositions: true}.Apply(f)
+
+			got, err := format.Node(f, tc.opts...)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(string(got), tc.want))
+		})
+	}
+}
+
+// TestKeepRelPos checks that KeepRelPos leaves the layout of the AST
+// alone, so that the width-driven heuristics see the positions as they
+// are rather than the ones the conventional layout would impose.
+func TestKeepRelPos(t *testing.T) {
+	const src = "a: {x: 1, b: [1, 2, 3]}\nc: \"str\"\n"
+
+	testCases := []struct {
+		name string
+		opts []format.Option
+		want string
+	}{{
+		// The conventional layout puts every field of a struct on its
+		// own line, undoing the compaction that clearing the positions
+		// asks for.
+		name: "default",
+		want: "a: {\n	x: 1\n	b: [1, 2, 3]\n}\nc: \"str\"\n",
+	}, {
+		name: "keepRelPos",
+		opts: []format.Option{format.KeepRelPos()},
+		want: "a: {x: 1, b: [1, 2, 3]}, c: \"str\"\n",
+	}}
+
+	withoutFormatV2(t)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := parseCleared(t, src)
+			got, err := format.Node(f, tc.opts...)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(string(got), tc.want))
+		})
+	}
+}
+
+// TestKeepRelPosSimplify checks that KeepRelPos does not hold back the
+// rewrites that Simplify asks for.
+func TestKeepRelPosSimplify(t *testing.T) {
+	withoutFormatV2(t)
+
+	f, err := parser.ParseFile("in", "\"a\": {\n	b: 1\n}\n", parser.ParseComments)
+	qt.Assert(t, qt.IsNil(err))
+	got, err := format.Node(f, format.KeepRelPos(), format.Simplify())
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(string(got), "a: b: 1\n"))
+}
+
+// TestNodeInPlace checks that [format.Node] never mutates the AST it
+// is given, and that [format.NodeInPlace] does so instead of copying.
+func TestNodeInPlace(t *testing.T) {
+	// The AST is reformatted with KeepRelPos afterwards to observe
+	// whether the default style was applied to it in place: the layout
+	// hints it adds survive in the tree, so a compact reformat of a
+	// mutated tree comes back expanded.
+	const src = "a: {x: 1, b: [1, 2, 3]}\nc: \"str\"\n"
+	const compact = "a: {x: 1, b: [1, 2, 3]}, c: \"str\"\n"
+	const expanded = "a: {\n	x: 1\n	b: [1, 2, 3]\n}\nc: \"str\"\n"
+
+	t.Run("immutable", func(t *testing.T) {
+		f := parseCleared(t, src)
+		got, err := format.Node(f)
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(string(got), expanded))
+
+		after, err := format.Node(f, format.KeepRelPos())
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(string(after), compact))
+	})
+
+	t.Run("mutable", func(t *testing.T) {
+		f := parseCleared(t, src)
+		got, err := format.NodeInPlace(f)
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(string(got), expanded))
+
+		after, err := format.Node(f, format.KeepRelPos())
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(string(after), expanded))
+	})
+
+	// The rewrites that Simplify asks for are just as much off limits
+	// to Node, whichever formatter is in use.
+	for _, v2 := range []bool{true, false} {
+		t.Run(fmt.Sprintf("simplify-v2=%v", v2), func(t *testing.T) {
+			if !v2 {
+				withoutFormatV2(t)
+			}
+			const src = "\"a\": 1\n"
+			f, err := parser.ParseFile("in", src, parser.ParseComments)
+			qt.Assert(t, qt.IsNil(err))
+			got, err := format.Node(f, format.Simplify())
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(string(got), "a: 1\n"))
+			qt.Assert(t, qt.Satisfies(f.Decls[0].(*ast.Field).Label, func(l ast.Label) bool {
+				_, ok := l.(*ast.BasicLit)
+				return ok
+			}))
+
+			f, err = parser.ParseFile("in", src, parser.ParseComments)
+			qt.Assert(t, qt.IsNil(err))
+			got, err = format.NodeInPlace(f, format.Simplify())
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(string(got), "a: 1\n"))
+			qt.Assert(t, qt.Satisfies(f.Decls[0].(*ast.Field).Label, func(l ast.Label) bool {
+				_, ok := l.(*ast.Ident)
+				return ok
+			}))
+		})
+	}
+}
+
+// parseCleared parses src and clears the positions it carries, leaving
+// the layout entirely to the width-driven heuristics.
+func parseCleared(t *testing.T, src string) *ast.File {
+	t.Helper()
+	f, err := parser.ParseFile("in", src, parser.ParseComments)
+	qt.Assert(t, qt.IsNil(err))
+	format.ASTStyle{ClearPositions: true}.Apply(f)
+	return f
+}
+
+// withoutFormatV2 disables the formatv2 experiment for the duration of
+// the test, so that a formatter selected by an option is selected by
+// that option alone.
+func withoutFormatV2(t *testing.T) {
+	t.Helper()
+	qt.Assert(t, qt.IsNil(cueexperiment.Init()))
+	// Init is guarded by sync.Once, so overriding Flags directly here is not
+	// undone by the format functions calling cueexperiment.Init again.
+	orig := cueexperiment.Flags.FormatV2
+	t.Cleanup(func() { cueexperiment.Flags.FormatV2 = orig })
+	cueexperiment.Flags.FormatV2 = false
 }
 
 // TextX is a skeleton test that can be filled in for debugging one-off cases.

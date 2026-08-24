@@ -10,7 +10,7 @@
 # narrower rule - they only get the upgrade when no leading
 # intent was specified - but definitions don't.
 #
-# The blank line is supplied by style.Config.Annotate's A4 rule, so
+# The blank line is supplied by format.ASTStyle.Apply's A4 rule, so
 # this test enables the house-style pre-pass (#houseStyle).
 -- in --
 {

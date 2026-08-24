@@ -39,8 +39,6 @@ import (
 	"cuelang.org/go/internal/cueexperiment"
 	cueyaml "cuelang.org/go/internal/encoding/yaml"
 	"cuelang.org/go/internal/filetypes"
-	"cuelang.org/go/internal/pretty"
-	"cuelang.org/go/internal/pretty/style"
 	"cuelang.org/go/internal/valuecodec"
 )
 
@@ -351,22 +349,28 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 
 // formatCompactCUE formats f as compact CUE: it discards the authored
 // line layout and all comments so the formatter lays the file out with
-// its width-driven heuristics. It uses the v2 pretty-printer directly
-// rather than the public cue/format API, as the relevant style options
-// are not exposed there.
+// its width-driven heuristics. The house-style layout hints (see
+// [format.ASTStyle]'s RelPos flag) would undo that compaction, so it
+// asks for them to be withheld.
+//
+// f is built by the encoder itself, so the formatter may rewrite it in
+// place.
 func formatCompactCUE(f *ast.File, simplify bool) ([]byte, error) {
-	style.Config{
+	format.ASTStyle{
 		ClearPositions: true,
 		ClearComments:  true,
-		InlineStructs:  simplify,
-		Labels:         simplify,
-		Ellipsis:       simplify,
-	}.Annotate(f)
-	// Use an effectively unbounded width so the layout never wraps purely
-	// to fit a line-width budget; only hard breaks such as multi-line
-	// strings introduce newlines.
-	cfg := &pretty.Config{Indent: "\t", Width: math.MaxInt}
-	return cfg.Node(f)
+	}.Apply(f)
+	opts := []format.Option{
+		format.KeepRelPos(),
+		// Use an effectively unbounded width so the layout never wraps
+		// purely to fit a line-width budget; only hard breaks such as
+		// multi-line strings introduce newlines.
+		format.LineWidth(math.MaxInt),
+	}
+	if simplify {
+		opts = append(opts, format.Simplify())
+	}
+	return format.NodeInPlace(f, opts...)
 }
 
 func (e *Encoder) EncodeFile(f *ast.File) error {

@@ -28,7 +28,7 @@ import (
 func printNode(node interface{}, f *printer) error {
 	s := newFormatter(f)
 
-	ls := labelSimplifier{scope: map[string]bool{}}
+	ls := newLabelSimplifier()
 
 	// format node
 	f.allowed = nooverride // gobble initial whitespace.

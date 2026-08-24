@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package style
+package format
 
 import "cuelang.org/go/cue/ast"
 
-// mergeEllipsisDecls applies the [Config.Ellipsis] rule to a body's
+// mergeEllipsisDecls applies the [ASTStyle] Ellipsis rule to a body's
 // decl slice, mutating it in place. We remove every decl matching
 // [isEllipsisDecl] and, if any were removed, append a single fresh
 // trailing [*ast.Ellipsis] carrying the comments of every removed
-// marker in source order, so no comment is lost. Returns true iff at
-// least one marker was removed.
-func mergeEllipsisDecls(decls *[]ast.Decl) bool {
+// marker in source order, so no comment is lost.
+func (w *walker) mergeEllipsisDecls(decls *[]ast.Decl) {
 	var mergedComments []*ast.CommentGroup
 	kept := make([]ast.Decl, 0, len(*decls))
 	removed := false
@@ -34,13 +33,12 @@ func mergeEllipsisDecls(decls *[]ast.Decl) bool {
 		}
 		kept = append(kept, d)
 	}
-	if !removed {
-		return false
+	if !removed || !w.tryMutate() {
+		return
 	}
 	trailing := &ast.Ellipsis{}
 	ast.SetComments(trailing, mergedComments)
 	*decls = append(kept, trailing)
-	return true
 }
 
 // isEllipsisDecl reports whether d is one of the AST shapes we treat as

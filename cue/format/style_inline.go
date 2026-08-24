@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package style
+package format
 
 import (
 	"cuelang.org/go/cue/ast"
@@ -29,27 +29,28 @@ import (
 // it carries Newline/NewSection: in chain form `outer: inner: leaf` the
 // inner field sits on the outer's line, so the hint would otherwise
 // push the chain back onto multiple lines.
-//
-// Returns true if any Lbrace/Rbrace was zeroed.
-func inlineStructValue(f *ast.Field) bool {
-	changed := false
+func (w *walker) inlineStructValue(f *ast.Field) {
 	for {
 		sl := canInlineFieldValue(f)
 		if sl == nil {
-			return changed
+			return
 		}
 		if sl.Lbrace.IsValid() || sl.Rbrace.IsValid() {
+			if !w.tryMutate() {
+				return
+			}
 			sl.Lbrace = token.NoPos
 			sl.Rbrace = token.NoPos
-			changed = true
 		}
 		inner := sl.Elts[0].(*ast.Field)
 		// canInlineFieldValue rejects any inner Field carrying
 		// comments, so the label's own Pos is the only place a
 		// Newline/NewSection hint can live.
 		if inner.Label.Pos().RelPos() >= token.Newline {
+			if !w.tryMutate() {
+				return
+			}
 			ast.SetPos(inner.Label, inner.Label.Pos().WithRel(token.NoRelPos))
-			changed = true
 		}
 		// Recurse into the freshly-unbraced inner Field.
 		f = inner

@@ -25,11 +25,11 @@ import (
 	"golang.org/x/tools/txtar"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/cuetxtar"
 	"cuelang.org/go/internal/pretty"
-	"cuelang.org/go/internal/pretty/style"
 )
 
 // TestTxtar runs the txtar-based pretty-printer tests in testdata/ via
@@ -73,7 +73,7 @@ func TestTxtar(t *testing.T) {
 			indent = s
 		}
 		// houseStyle is opt-in. Tests that exercise rules owned by the
-		// style package (e.g. A4's blank-line-before-doc upgrades) set
+		// [format.ASTStyle] (e.g. A4's blank-line-before-doc upgrades) set
 		// #houseStyle: true, so we run the style pre-pass - mirroring how
 		// cue/format invokes pretty. Tests that target the pretty layer
 		// in isolation leave it off, exercising the renderer against the
@@ -90,14 +90,14 @@ func TestTxtar(t *testing.T) {
 		}
 		input := trimTrailingNewline(string(data))
 		cfg := &pretty.Config{Width: width, Indent: indent}
-		styleCfg := style.Config{RelPos: houseStyle}
+		styleCfg := format.ASTStyle{RelPos: houseStyle}
 
 		// With RelPos from the parser.
 		syntax, err := parser.ParseFile("in", input, parser.ParseComments)
 		if err != nil {
 			tc.Fatalf("parse error: %v", err)
 		}
-		styleCfg.Annotate(syntax)
+		styleCfg.Apply(syntax)
 		gotRelPos := trimTrailingNewline(string(mustFormat(tc, cfg, syntax)))
 		fmt.Fprintln(tc.Writer("relpos"), gotRelPos)
 		// We run the preservation check on whatever the printer
@@ -111,7 +111,7 @@ func TestTxtar(t *testing.T) {
 		// the clean tree in the same pass.
 		clearCfg := styleCfg
 		clearCfg.ClearPositions = true
-		clearCfg.Annotate(syntax)
+		clearCfg.Apply(syntax)
 		gotNoRelPos := trimTrailingNewline(string(mustFormat(tc, cfg, syntax)))
 		fmt.Fprintln(tc.Writer("norelpos"), gotNoRelPos)
 		checkCommentsPreserved(tc.T, "without RelPos", input, gotNoRelPos)
@@ -449,7 +449,7 @@ x: {
 			// `import (...)`. importDecl reads all break decisions
 			// (opener, inter-spec, closer) from RelPos and wraps the
 			// body in a Group, so with everything zero-valued the flat
-			// branch wins. It is style.Config.Annotate's B3 that supplies
+			// branch wins. It is [format.ASTStyle]'s B3 that supplies
 			// the Newline RelPos in the canonical multi-line shape.
 			name: "compact_import_decl_no_relpos",
 			node: &ast.ImportDecl{

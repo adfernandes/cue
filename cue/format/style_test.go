@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package style_test
+package format_test
 
 import (
 	"reflect"
@@ -20,10 +20,117 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
-	"cuelang.org/go/internal/pretty/style"
+	"cuelang.org/go/internal/astinternal"
 )
+
+// annotate applies s to n and reports what [format.ASTStyle.WouldMutate]
+// says about it. It checks that WouldMutate leaves n untouched, and that
+// it never reports "no change" for an Apply that visibly changes the
+// tree. The converse does not hold: a pass may rebuild a node into an
+// equivalent one, which counts as a change but leaves no trace in the
+// dump.
+func annotate(t *testing.T, s format.ASTStyle, n ast.Node) bool {
+	t.Helper()
+	before := debugDump(n)
+	predicted := s.WouldMutate(n)
+	if got := debugDump(n); got != before {
+		t.Fatalf("WouldMutate mutated the tree:\nbefore:\n%s\nafter:\n%s", before, got)
+	}
+	s.Apply(n)
+	if debugDump(n) != before && !predicted {
+		t.Errorf("WouldMutate reported no change, but Apply changed the tree")
+	}
+	return predicted
+}
+
+// debugDump renders n as a structural fingerprint, including comments
+// and relative positions.
+func debugDump(n ast.Node) string {
+	return string(astinternal.AppendDebug(nil, n, astinternal.DebugConfig{OmitEmpty: true}))
+}
+
+// TestASTStyleWouldMutate checks that WouldMutate answers for the tree
+// it is given without touching it, on source that the parser has fully
+// annotated with positions and comments.
+func TestASTStyleWouldMutate(t *testing.T) {
+	testCases := []struct {
+		name  string
+		src   string
+		style format.ASTStyle
+		want  bool
+		// out is the source formatted after the style is applied.
+		out string
+	}{{
+		name:  "InlineStructs",
+		src:   "a: b: {x: 1}\n",
+		style: format.ASTStyle{InlineStructs: true},
+		want:  true,
+		out:   "a: b: x: 1\n",
+	}, {
+		// The doc comment on the chain head documents the leaf field, so
+		// the leaf's braces must stay. That the copy WouldMutate works on
+		// knows this - the ownership lives in state no exported API
+		// copies - is what this case is really about.
+		name:  "InlineStructsWithDocComment",
+		src:   "// c\na: b: {x: 1}\n",
+		style: format.ASTStyle{InlineStructs: true},
+		want:  false,
+		out:   "// c\na: b: {x: 1}\n",
+	}, {
+		name:  "RelPos",
+		src:   "package p\nx: 1\n",
+		style: format.ASTStyle{RelPos: true},
+		want:  true,
+		out:   "package p\n\nx: 1\n",
+	}, {
+		name:  "RelPosAlreadyCanonical",
+		src:   "package p\n\nx: 1\n",
+		style: format.ASTStyle{RelPos: true},
+		want:  false,
+		out:   "package p\n\nx: 1\n",
+	}, {
+		// A rewrite in a nested body counts just as much as one at the
+		// top level.
+		name:  "LabelsNested",
+		src:   "a: {\"foo\": 1}\n",
+		style: format.ASTStyle{Labels: true},
+		want:  true,
+		out:   "a: {foo: 1}\n",
+	}, {
+		name:  "ZeroStyle",
+		src:   "package p\nx: 1\n",
+		style: format.ASTStyle{},
+		want:  false,
+		out:   "package p\n\nx: 1\n",
+	}}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := parser.ParseFile("in", tc.src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := debugDump(f)
+			if got := tc.style.WouldMutate(f); got != tc.want {
+				t.Errorf("WouldMutate = %v, want %v", got, tc.want)
+			}
+			if got := debugDump(f); got != before {
+				t.Fatalf("WouldMutate mutated the tree:\nbefore:\n%s\nafter:\n%s", before, got)
+			}
+			tc.style.Apply(f)
+			out, err := format.Node(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := string(out); got != tc.out {
+				t.Errorf("after Apply, formatted output = %q, want %q", got, tc.out)
+			}
+		})
+	}
+}
 
 // leadingRel returns the effective leading RelPos of n: the first
 // doc-position (Position==0) comment's Slash RelPos if any, otherwise
@@ -124,18 +231,18 @@ func stringLabelField(label, value string) *ast.Field {
 	return &ast.Field{Label: stringLit(label), Value: ident(value)}
 }
 
-// TestAnnotateRelPos exercises the [style.Config.RelPos] flag: here we
+// TestASTStyleRelPos exercises the RelPos flag of [format.ASTStyle]: here we
 // check the layout heuristics (the A- and B-group rules) one at a time.
-func TestAnnotateRelPos(t *testing.T) {
-	cfg := style.Config{RelPos: true}
+func TestASTStyleRelPos(t *testing.T) {
+	cfg := format.ASTStyle{RelPos: true}
 
 	t.Run("A1_BlankAfterPackage", func(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			packageDecl("p"),
 			field("x", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -147,8 +254,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			importDecl(importSpec(`"list"`)),
 			field("x", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -163,8 +270,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			cg,
 			field("x", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -178,8 +285,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			definitionField("#D", "int"),
 			withDoc(field("x", "int"), "x doc"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -203,8 +310,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			embedDecl("foo"),
 			withDoc(field("x", "int"), "x doc"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -218,8 +325,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			field("a", "int"),
 			withDoc(field("b", "int"), "b doc"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.Newline; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -233,8 +340,8 @@ func TestAnnotateRelPos(t *testing.T) {
 			field("a", "int"),
 			field("b", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := leadingRel(f.Decls[1]), token.Newline; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
@@ -262,8 +369,8 @@ func TestAnnotateRelPos(t *testing.T) {
 				field("a", "int"),
 				tc.decl,
 			}}
-			if !cfg.Annotate(f) {
-				t.Fatal("expected Annotate to report a change")
+			if !annotate(t, cfg, f) {
+				t.Fatal("expected Apply to report a change")
 			}
 			if got, want := leadingRel(f.Decls[1]), token.Newline; got != want {
 				t.Errorf("decl[1] (%s) leading RelPos = %v, want %v",
@@ -277,8 +384,8 @@ func TestAnnotateRelPos(t *testing.T) {
 		// closing Rparen pushed to its own line.
 		d := importDecl(importSpec(`"a"`), importSpec(`"b"`))
 		f := &ast.File{Decls: []ast.Decl{d}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if got, want := d.Rparen.RelPos(), token.Newline; got != want {
 			t.Errorf("Rparen RelPos = %v, want %v", got, want)
@@ -293,7 +400,7 @@ func TestAnnotateRelPos(t *testing.T) {
 			field("b", "int"),
 		}}
 		ast.SetRelPos(f.Decls[1], token.NewSection)
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v (must not weaken)",
 				got, want)
@@ -303,7 +410,7 @@ func TestAnnotateRelPos(t *testing.T) {
 	t.Run("Conservative_PreservesDocCommentRelPos", func(t *testing.T) {
 		// Same conservativeness rule, but here the strong RelPos lives
 		// on the doc comment's Slash (where pretty.LeadingRelPos reads
-		// it from). Annotate must not overwrite it via the decl's own
+		// it from). Apply must not overwrite it via the decl's own
 		// Pos.
 		d := withDoc(field("b", "int"), "b doc")
 		ast.SetRelPos(ast.Comments(d)[0], token.NewSection)
@@ -311,22 +418,22 @@ func TestAnnotateRelPos(t *testing.T) {
 			field("a", "int"),
 			d,
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := leadingRel(d), token.NewSection; got != want {
 			t.Errorf("decl[1] leading RelPos = %v, want %v", got, want)
 		}
 	})
 
 	t.Run("ReturnsFalseWhenNoChanges", func(t *testing.T) {
-		// The file already carries the exact RelPos values Annotate
+		// The file already carries the exact RelPos values Apply
 		// would write, so we expect it to report no change and to leave
 		// the tree untouched.
 		f1 := field("a", "int")
 		f2 := field("b", "int")
 		ast.SetRelPos(f2, token.Newline)
 		f := &ast.File{Decls: []ast.Decl{f1, f2}}
-		if cfg.Annotate(f) {
-			t.Error("expected Annotate to return false on already-canonical input")
+		if annotate(t, cfg, f) {
+			t.Error("expected Apply to return false on already-canonical input")
 		}
 	})
 
@@ -341,7 +448,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			&ast.Field{Label: ident("x"), Value: inner},
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := leadingRel(inner.Elts[1]), token.NewSection; got != want {
 			t.Errorf("inner decl[1] leading RelPos = %v, want %v (A4 inside nested struct)",
 				got, want)
@@ -352,11 +459,11 @@ func TestAnnotateRelPos(t *testing.T) {
 		// The first decl of a body has no predecessor; its leading
 		// position describes placement relative to leading comments /
 		// start of body, which is out of scope for the heuristics.
-		// Annotate must not modify it.
+		// Apply must not modify it.
 		first := field("a", "int")
 		ast.SetRelPos(first, token.Blank)
 		f := &ast.File{Decls: []ast.Decl{first, field("b", "int")}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := first.Pos().RelPos(), token.Blank; got != want {
 			t.Errorf("decl[0] RelPos changed to %v, want %v", got, want)
 		}
@@ -370,7 +477,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		inner := bracedStruct(field("a", "int"), field("b", "int"))
 		outer := &ast.Field{Label: ident("X"), Value: inner}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := leadingRel(inner.Elts[0]), token.Newline; got != want {
 			t.Errorf("first elt leading RelPos = %v, want %v", got, want)
 		}
@@ -386,7 +493,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		inner := bracedStruct(first, second)
 		outer := &ast.Field{Label: ident("X"), Value: inner}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got := leadingRel(first); got >= token.Newline {
 			t.Errorf("first elt leading RelPos = %v, want < Newline", got)
 		}
@@ -400,7 +507,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		inner := bracedStruct(first, field("b", "int"))
 		outer := &ast.Field{Label: ident("X"), Value: inner}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		// The doc comment's Slash should now carry Newline RelPos.
 		docs := ast.Comments(first)
 		if len(docs) == 0 {
@@ -419,7 +526,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		inner := bracedStruct(first)
 		outer := &ast.Field{Label: ident("X"), Value: inner}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got := leadingRel(first); got >= token.Newline {
 			t.Errorf("first elt of single-elt body got RelPos = %v, expected < Newline", got)
 		}
@@ -430,7 +537,7 @@ func TestAnnotateRelPos(t *testing.T) {
 		// placement, not bracket placement, so we must not upgrade it.
 		first := field("a", "int")
 		f := &ast.File{Decls: []ast.Decl{first, field("b", "int")}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got := leadingRel(first); got >= token.Newline {
 			t.Errorf("first decl of File got RelPos = %v, expected < Newline", got)
 		}
@@ -443,7 +550,7 @@ func TestAnnotateRelPos(t *testing.T) {
 			packageDecl("p"),
 			embedDecl("foo"),
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if got, want := leadingRel(f.Decls[1]), token.NewSection; got != want {
 			t.Errorf("EmbedDecl after Package: leading RelPos = %v, want %v",
 				got, want)
@@ -451,13 +558,13 @@ func TestAnnotateRelPos(t *testing.T) {
 	})
 }
 
-// TestAnnotateRelPosBracelessEmbed checks the rule that a leading
+// TestASTStyleRelPosBracelessEmbed checks the rule that a leading
 // RelPos destined for a braceless embedded struct attaches to a
 // materialised opening brace, rather than leaking onto the struct's
 // first element. We assert both halves: the brace appears and the
 // first element stays put.
-func TestAnnotateRelPosBracelessEmbed(t *testing.T) {
-	cfg := style.Config{RelPos: true}
+func TestASTStyleRelPosBracelessEmbed(t *testing.T) {
+	cfg := format.ASTStyle{RelPos: true}
 
 	// topField wraps a braceless container struct (as export emits it)
 	// holding the given embeds in a File, and annotates it for us.
@@ -465,7 +572,7 @@ func TestAnnotateRelPosBracelessEmbed(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			&ast.Field{Label: ident("top"), Value: bracelessStruct(embeds...)},
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		return f
 	}
 
@@ -514,12 +621,12 @@ func TestAnnotateRelPosBracelessEmbed(t *testing.T) {
 	})
 }
 
-// TestAnnotateEllipsis exercises the [style.Config.Ellipsis] flag: we
+// TestASTStyleEllipsis exercises the Ellipsis flag of [format.ASTStyle]: we
 // check that the various "open" markers (`...`, `[string]: _`, `[_]:
 // _`) collapse to a single trailing `...` and that their comments
 // follow.
-func TestAnnotateEllipsis(t *testing.T) {
-	cfg := style.Config{Ellipsis: true}
+func TestASTStyleEllipsis(t *testing.T) {
+	cfg := format.ASTStyle{Ellipsis: true}
 
 	t.Run("LiteralEllipsisMovedToEnd", func(t *testing.T) {
 		// {..., a: 1} -> {a: 1, ...}
@@ -528,8 +635,8 @@ func TestAnnotateEllipsis(t *testing.T) {
 			ell,
 			field("a", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if len(f.Decls) != 2 {
 			t.Fatalf("len(Decls) = %d, want 2", len(f.Decls))
@@ -550,7 +657,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 			field("b", "int"),
 			&ast.Ellipsis{},
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if len(f.Decls) != 3 {
 			t.Fatalf("len(Decls) = %d, want 3 (a, b, ...)", len(f.Decls))
 		}
@@ -569,7 +676,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 			patternField,
 			field("a", "int"),
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if len(f.Decls) != 2 {
 			t.Fatalf("len(Decls) = %d, want 2", len(f.Decls))
 		}
@@ -587,7 +694,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			patternField,
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if len(f.Decls) != 1 {
 			t.Fatalf("len(Decls) = %d, want 1", len(f.Decls))
 		}
@@ -606,7 +713,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 			field("a", "int"),
 			last,
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if len(f.Decls) != 2 {
 			t.Fatalf("len(Decls) = %d, want 2", len(f.Decls))
 		}
@@ -635,8 +742,8 @@ func TestAnnotateEllipsis(t *testing.T) {
 			field("a", "int"),
 			field("b", "int"),
 		}}
-		if cfg.Annotate(f) {
-			t.Error("expected Annotate to report no change on body without ellipses")
+		if annotate(t, cfg, f) {
+			t.Error("expected Apply to report no change on body without ellipses")
 		}
 		if len(f.Decls) != 2 {
 			t.Errorf("len(Decls) = %d, want 2", len(f.Decls))
@@ -648,7 +755,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 			&ast.Ellipsis{},
 			field("a", "int"),
 		}}
-		if (style.Config{}).Annotate(f) {
+		if annotate(t, format.ASTStyle{}, f) {
 			t.Error("zero Config returned true")
 		}
 		if _, ok := f.Decls[0].(*ast.Ellipsis); !ok {
@@ -665,7 +772,7 @@ func TestAnnotateEllipsis(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			&ast.Field{Label: ident("outer"), Value: inner},
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if len(inner.Elts) != 2 {
 			t.Fatalf("len(inner.Elts) = %d, want 2", len(inner.Elts))
 		}
@@ -675,12 +782,12 @@ func TestAnnotateEllipsis(t *testing.T) {
 	})
 }
 
-// TestAnnotateInlineStructs exercises the [style.Config.InlineStructs]
-// flag: we check that a single-field StructLit value collapses to the
+// TestASTStyleInlineStructs exercises the InlineStructs
+// flag of [format.ASTStyle]: we check that a single-field StructLit value collapses to the
 // chain shape when that is safe, and that we hold off whenever attrs
 // or comments would otherwise be lost or misplaced.
-func TestAnnotateInlineStructs(t *testing.T) {
-	cfg := style.Config{InlineStructs: true}
+func TestASTStyleInlineStructs(t *testing.T) {
+	cfg := format.ASTStyle{InlineStructs: true}
 
 	t.Run("StripsSingleFieldStruct", func(t *testing.T) {
 		// outer: {inner: 1} -> outer: inner: 1
@@ -690,8 +797,8 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		s := bracedStruct(inner)
 		outer := &ast.Field{Label: ident("outer"), Value: s}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		if s.Lbrace.IsValid() || s.Rbrace.IsValid() {
 			t.Errorf("expected Lbrace/Rbrace stripped: Lbrace=%v Rbrace=%v",
@@ -706,7 +813,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		outerSL := bracedStruct(mid)
 		outer := &ast.Field{Label: ident("outer"), Value: outerSL}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if outerSL.Lbrace.IsValid() {
 			t.Error("outer struct Lbrace still valid")
 		}
@@ -725,7 +832,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 			Attrs: []*ast.Attribute{{Text: "@attr()"}},
 		}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if !s.Lbrace.IsValid() {
 			t.Error("outer struct's Lbrace stripped despite outer.Attrs")
 		}
@@ -742,7 +849,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		s := bracedStruct(inner)
 		outer := &ast.Field{Label: ident("outer"), Value: s}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if !s.Lbrace.IsValid() {
 			t.Error("Lbrace stripped despite inner.Attrs")
 		}
@@ -755,7 +862,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		s := bracedStruct(inner)
 		outer := &ast.Field{Label: ident("outer"), Value: s}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if !s.Lbrace.IsValid() {
 			t.Error("Lbrace stripped despite inner doc comment")
 		}
@@ -774,7 +881,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		}
 		outer := f.Decls[0].(*ast.Field)
 		s := outer.Value.(*ast.StructLit)
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if !s.Lbrace.IsValid() {
 			t.Error("authored Lbrace stripped under outer doc")
 		}
@@ -786,7 +893,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		s := bracedStruct(field("a", "int"), field("b", "int"))
 		outer := &ast.Field{Label: ident("outer"), Value: s}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		if !s.Lbrace.IsValid() {
 			t.Error("Lbrace stripped on multi-element struct")
 		}
@@ -796,7 +903,7 @@ func TestAnnotateInlineStructs(t *testing.T) {
 		s := bracedStruct(field("inner", "int"))
 		outer := &ast.Field{Label: ident("outer"), Value: s}
 		f := &ast.File{Decls: []ast.Decl{outer}}
-		if (style.Config{}).Annotate(f) {
+		if annotate(t, format.ASTStyle{}, f) {
 			t.Error("zero Config returned true")
 		}
 		if !s.Lbrace.IsValid() {
@@ -805,19 +912,19 @@ func TestAnnotateInlineStructs(t *testing.T) {
 	})
 }
 
-// TestAnnotateLabels exercises the [style.Config.Labels] flag: we
+// TestASTStyleLabels exercises the Labels flag of [format.ASTStyle]: we
 // check that a quoted string label unquotes to an identifier only when
 // no in-scope reference would then bind to a different value.
-func TestAnnotateLabels(t *testing.T) {
-	cfg := style.Config{Labels: true}
+func TestASTStyleLabels(t *testing.T) {
+	cfg := format.ASTStyle{Labels: true}
 
 	t.Run("SafeBasicLitBecomesIdent", func(t *testing.T) {
 		// "foo": 1 - no other reference in scope - becomes foo: 1.
 		f := &ast.File{Decls: []ast.Decl{
 			stringLabelField("foo", "int"),
 		}}
-		if !cfg.Annotate(f) {
-			t.Fatal("expected Annotate to report a change")
+		if !annotate(t, cfg, f) {
+			t.Fatal("expected Apply to report a change")
 		}
 		fld := f.Decls[0].(*ast.Field)
 		if _, ok := fld.Label.(*ast.Ident); !ok {
@@ -833,7 +940,7 @@ func TestAnnotateLabels(t *testing.T) {
 			&ast.Field{Label: ident("foo"), Value: ident("foo")},
 			stringLabelField("foo", "int"),
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		fld := f.Decls[1].(*ast.Field)
 		if _, ok := fld.Label.(*ast.BasicLit); !ok {
 			t.Errorf("label = %T, want *ast.BasicLit (preserved)", fld.Label)
@@ -846,7 +953,7 @@ func TestAnnotateLabels(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{
 			stringLabelField("foo bar", "int"),
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		fld := f.Decls[0].(*ast.Field)
 		if _, ok := fld.Label.(*ast.BasicLit); !ok {
 			t.Errorf("label = %T, want *ast.BasicLit (invalid ident)", fld.Label)
@@ -862,7 +969,7 @@ func TestAnnotateLabels(t *testing.T) {
 				&ast.Field{Label: ident("x"), Value: ident("foo")},
 			)},
 		}}
-		cfg.Annotate(f)
+		annotate(t, cfg, f)
 		// We expect foo at file scope to stay quoted: the inner
 		// reference to `foo` would otherwise bind to it.
 		fld := f.Decls[0].(*ast.Field)
@@ -873,7 +980,7 @@ func TestAnnotateLabels(t *testing.T) {
 
 	t.Run("ZeroConfigIsNoOp", func(t *testing.T) {
 		f := &ast.File{Decls: []ast.Decl{stringLabelField("foo", "int")}}
-		if (style.Config{}).Annotate(f) {
+		if annotate(t, format.ASTStyle{}, f) {
 			t.Error("zero Config should be a no-op, returned true")
 		}
 		fld := f.Decls[0].(*ast.Field)
@@ -883,7 +990,7 @@ func TestAnnotateLabels(t *testing.T) {
 	})
 }
 
-func TestAnnotateClearPositions(t *testing.T) {
+func TestASTStyleClearPositions(t *testing.T) {
 	const src = `a: 1
 b: {
 	x: 1
@@ -898,8 +1005,8 @@ list: [
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !(style.Config{ClearPositions: true}).Annotate(f) {
-		t.Fatal("expected Annotate to report a change")
+	if !annotate(t, format.ASTStyle{ClearPositions: true}, f) {
+		t.Fatal("expected Apply to report a change")
 	}
 	// Every position in the tree must now carry NoRelPos (and no
 	// leftover comma/scanned flags).
@@ -911,12 +1018,12 @@ list: [
 	}, nil)
 
 	// Re-running is now a no-op: there is nothing left to clear.
-	if (style.Config{ClearPositions: true}).Annotate(f) {
+	if annotate(t, format.ASTStyle{ClearPositions: true}, f) {
 		t.Error("second ClearPositions pass reported a change")
 	}
 }
 
-func TestAnnotateClearComments(t *testing.T) {
+func TestASTStyleClearComments(t *testing.T) {
 	const src = `// doc for a
 a: 1 // trailing
 
@@ -929,8 +1036,8 @@ b: {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !(style.Config{ClearComments: true}).Annotate(f) {
-		t.Fatal("expected Annotate to report a change")
+	if !annotate(t, format.ASTStyle{ClearComments: true}, f) {
+		t.Fatal("expected Apply to report a change")
 	}
 	ast.Walk(f, func(n ast.Node) bool {
 		if cs := ast.Comments(n); len(cs) > 0 {
@@ -939,7 +1046,7 @@ b: {
 		return true
 	}, nil)
 
-	if (style.Config{ClearComments: true}).Annotate(f) {
+	if annotate(t, format.ASTStyle{ClearComments: true}, f) {
 		t.Error("second ClearComments pass reported a change")
 	}
 }

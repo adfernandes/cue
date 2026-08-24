@@ -242,15 +242,15 @@ a: {
 		c: int
 	}
 }`,
-			"%3v", `{
-	a: {
-		b: """
-			foo
-			bar
-			"""
-		c: int
-	}
-}`,
+			"%3v", `			{
+				a: {
+					b: """
+						foo
+						bar
+						"""
+					c: int
+				}
+			}`,
 			"%.1v", `{
  a: {
   b: """
@@ -260,15 +260,15 @@ a: {
   c: int
  }
 }`,
-			"%3.1v", `{
- a: {
-  b: """
-   foo
-   bar
-   """
-  c: int
- }
-}`,
+			"%3.1v", `   {
+    a: {
+     b: """
+      foo
+      bar
+      """
+     c: int
+    }
+   }`,
 		),
 	}, {
 		// References to predeclared builtins shadowed by a same-named field must

@@ -32,13 +32,26 @@ const (
 // Render converts a [doc] into bytes using the Wadler-Lindig best-fit
 // algorithm.
 func (cfg Config) Render(doc doc) []byte {
+	// stringLit returns nil for the empty string, so an empty prefix
+	// leaves r.prefix nil.
+	prefix, _ := stringLit(cfg.Prefix).(*docStringLit)
 	r := &renderer{
 		width:       cfg.width(),
 		indent:      cfg.Indent,
 		indentWidth: cfg.indentWidth(),
+		prefix:      prefix,
+	}
+	if r.prefix != nil {
+		r.buf.WriteString(r.prefix.str)
+		r.col = r.prefix.width
 	}
 	r.renderInMode(0, "", modeBreak, false, doc)
-	return r.buf.Bytes()
+	b := r.buf.Bytes()
+	// A trailing newline should not be followed by a prefix-only line.
+	if r.prefix != nil && bytes.HasSuffix(b, []byte("\n"+r.prefix.str)) {
+		b = b[:len(b)-len(r.prefix.str)]
+	}
+	return b
 }
 
 type renderer struct {
@@ -50,6 +63,11 @@ type renderer struct {
 	indent string
 	// indentWidth is the visual column width of one indent level.
 	indentWidth int
+	// prefix is emitted at the start of every line, before basePrefix
+	// and the nest-driven indent. It is held as a [docStringLit] so
+	// that its width is counted once rather than on every newline, and
+	// is nil when there is no prefix.
+	prefix *docStringLit
 	// buf accumulates the rendered output bytes.
 	buf bytes.Buffer
 
@@ -1050,10 +1068,15 @@ func measureDoc(d doc, startMode mode, budget int) (width int, broken, canBreak 
 // indent string repeated indent times. basePrefix is written verbatim.
 func (r *renderer) newline(indent int, basePrefix string) {
 	r.buf.WriteByte('\n')
+	prefixWidth := 0
+	if r.prefix != nil {
+		r.buf.WriteString(r.prefix.str)
+		prefixWidth = r.prefix.width
+	}
 	r.buf.WriteString(basePrefix)
 	for range indent {
 		r.buf.WriteString(r.indent)
 	}
-	r.col = utf8.RuneCountInString(basePrefix) + indent*r.indentWidth
+	r.col = prefixWidth + utf8.RuneCountInString(basePrefix) + indent*r.indentWidth
 	r.lastIndent = indent
 }
