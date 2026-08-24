@@ -21,6 +21,13 @@ Do: {
 	// or not. Defaults to true, like the default net/http client in Go.
 	followRedirects: *true | bool
 
+	// timeout limits the total time spent on the request, including
+	// connection setup, redirects, and reading the response body.
+	// It is a positive duration string as accepted by time.Duration,
+	// such as "300ms" or "1m30s".
+	// If not set, only the surrounding command bounds the request.
+	timeout?: string
+
 	tls: {
 		// Whether the server certificate must be validated.
 		verify: *true | bool

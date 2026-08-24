@@ -416,6 +416,40 @@ func TestServeResponse(t *testing.T) {
 	}
 }
 
+// TestTimeout verifies that the timeout field bounds how long a request
+// may take, and that invalid timeouts are rejected.
+func TestTimeout(t *testing.T) {
+	// The handler never responds, until the client goes away or the test ends.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+	}))
+	t.Cleanup(server.Close)
+
+	v := parse(t, "tool/http.Get", fmt.Sprintf(`{url: "%s", timeout: "10ms"}`, server.URL))
+	_, err := run(t, v)
+	if err == nil {
+		t.Fatal("http call should have timed out")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("got %v; want a deadline error", err)
+	}
+
+	// An invalid timeout is rejected before any request is made.
+	for _, tc := range []struct{ timeout, want string }{
+		{"nope", "invalid timeout"},
+		{"0s", "timeout must be positive"},
+		{"-1s", "timeout must be positive"},
+	} {
+		t.Run(tc.timeout, func(t *testing.T) {
+			v := parse(t, "tool/http.Get", fmt.Sprintf(`{url: "http://localhost", timeout: %q}`, tc.timeout))
+			_, err := run(t, v)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("got %v; want an error containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
 // TestRequestContext verifies that a request is tied to the task context,
 // so that cancelling the flow aborts a server which never responds.
 func TestRequestContext(t *testing.T) {

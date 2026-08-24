@@ -21,6 +21,7 @@ import (
 	"encoding/pem"
 	"io"
 	"net/http"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/errors"
@@ -83,6 +84,22 @@ func (c *httpCmd) Run(ctx *task.Context) (res interface{}, err error) {
 		}
 	}
 
+	var timeout time.Duration
+	timeoutValue := ctx.Obj.LookupPath(cue.MakePath(cue.Str("timeout")))
+	if timeoutValue.Exists() {
+		s, err := timeoutValue.String()
+		if err != nil {
+			return nil, errors.Wrapf(err, timeoutValue.Pos(), "invalid string value")
+		}
+		timeout, err = time.ParseDuration(s)
+		if err != nil {
+			return nil, errors.Wrapf(err, timeoutValue.Pos(), "invalid timeout")
+		}
+		if timeout <= 0 {
+			return nil, errors.Newf(timeoutValue.Pos(), "timeout must be positive, found %q", s)
+		}
+	}
+
 	if ctx.Err != nil {
 		return nil, ctx.Err
 	}
@@ -101,9 +118,10 @@ func (c *httpCmd) Run(ctx *task.Context) (res interface{}, err error) {
 		transport.TLSClientConfig.RootCAs = pool
 	}
 
+	// A zero timeout means no limit, just like the default net/http client.
 	client := &http.Client{
 		Transport: transport,
-		// TODO: timeout
+		Timeout:   timeout,
 	}
 
 	// Rather clumsily, we need to also default followRedirects here because
