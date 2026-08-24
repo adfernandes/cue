@@ -1054,7 +1054,7 @@ func (s *state) definedSchemaForNode(n cue.Value) *definedSchema {
 func (s *state) addDefinition(n cue.Value) *definedSchema {
 	var loc SchemaLoc
 	schemaRoot := s.schemaRoot()
-	loc.ID = ref(*schemaRoot.id)
+	loc.ID = new(*schemaRoot.id)
 	loc.ID.Fragment = mustCUEPathToJSONPointer(relPath(n, schemaRoot.pos))
 	idStr := loc.ID.String()
 	def, ok := s.defs[idStr]

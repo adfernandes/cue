@@ -195,8 +195,6 @@ func TestScript(t *testing.T) {
 	testscript.Run(t, p)
 }
 
-func addr[T any](t T) *T { return &t }
-
 func envMust(t *testing.T, name string) string {
 	if s := os.Getenv(name); s != "" {
 		return s

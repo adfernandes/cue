@@ -188,7 +188,7 @@ func defaultMapRef(
 		fragment = mustCUEPathToJSONPointer(loc.Path)
 	} else {
 		// It's external: use mapURLFn.
-		u := ref(*loc.ID)
+		u := new(*loc.ID)
 		fragment = loc.ID.Fragment
 		u.Fragment = ""
 		var err error

@@ -48,7 +48,7 @@ import (
 //
 // The result can be converted to a [cue.Value] via [cue.Context.BuildFile].
 func Extract(data cue.InstanceOrValue, cfg *Config) (*ast.File, error) {
-	cfg = ref(*cfg)
+	cfg = new(*cfg)
 	if cfg.MapURL == nil {
 		cfg.MapURL = DefaultMapURL
 	}
@@ -332,8 +332,4 @@ func (loc SchemaLoc) String() string {
 		return fmt.Sprintf("id=%v localPath=%v", loc.ID, loc.Path)
 	}
 	return fmt.Sprintf("id=%v", loc.ID)
-}
-
-func ref[T any](x T) *T {
-	return &x
 }

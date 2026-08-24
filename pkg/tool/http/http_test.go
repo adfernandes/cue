@@ -192,40 +192,40 @@ func TestRedirect(t *testing.T) {
 			name:       "/a silent on redirects",
 			path:       "/a",
 			statusCode: 200,
-			body:       ref("hello"),
+			body:       new("hello"),
 		},
 		{
 			name:            "/a with explicit followRedirects: true",
 			path:            "/a",
 			statusCode:      200,
-			followRedirects: ref(true),
-			body:            ref("hello"),
+			followRedirects: new(true),
+			body:            new("hello"),
 		},
 		{
 			name:            "/a with explicit followRedirects: false",
 			path:            "/a",
 			statusCode:      302,
-			followRedirects: ref(false),
+			followRedirects: new(false),
 		},
 		{
 			name:       "/b silent on redirects",
 			path:       "/b",
 			statusCode: 200,
-			body:       ref("hello"),
+			body:       new("hello"),
 		},
 		{
 			name:            "/b with explicit followRedirects: true",
 			path:            "/b",
 			statusCode:      200,
-			followRedirects: ref(true),
-			body:            ref("hello"),
+			followRedirects: new(true),
+			body:            new("hello"),
 		},
 		{
 			name:            "/b with explicit followRedirects: false",
 			path:            "/b",
 			statusCode:      200,
-			followRedirects: ref(true),
-			body:            ref("hello"),
+			followRedirects: new(true),
+			body:            new("hello"),
 		},
 	}
 
@@ -291,8 +291,4 @@ func TestRequestHeaders(t *testing.T) {
 	if got, want := gotHeaders.Values("X-List"), []string{"val-a", "val-b"}; !slices.Equal(got, want) {
 		t.Errorf("X-List: got %v, want %v", got, want)
 	}
-}
-
-func ref[T any](v T) *T {
-	return &v
 }

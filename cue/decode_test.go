@@ -232,12 +232,12 @@ func TestDecode(t *testing.T) {
 		err:   "Decode: myDuration: cannot use value 1 (type int) as (string|bytes)",
 	}, {
 		value: `{intPtr: null}`,
-		dst:   &Types{IntPtr: addr(999)}, // the original value is wiped
+		dst:   &Types{IntPtr: new(999)}, // the original value is wiped
 		want:  Types{},
 	}, {
 		value: `{intPtr: 123}`,
 		dst:   &Types{},
-		want:  Types{IntPtr: addr(123)},
+		want:  Types{IntPtr: new(123)},
 	}, {
 		value: `{intPtr: int}`,
 		dst:   &Types{},
@@ -457,5 +457,3 @@ func (d *MyDuration) UnmarshalText(data []byte) error {
 func (d *MyDuration) MarshalText() ([]byte, error) {
 	return []byte(d.D.String()), nil
 }
-
-func addr[T any](t T) *T { return &t }

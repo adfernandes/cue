@@ -312,7 +312,7 @@ func newGenerator(cfg *GenerateConfig) (*generator, error) {
 		cfg = &GenerateConfig{}
 	} else {
 		// Prevent mutation of the argument.
-		cfg = ref(*cfg)
+		cfg = new(*cfg)
 	}
 	if cfg.NamesFunc == nil {
 		if cfg.NameFunc != nil {
@@ -1154,7 +1154,7 @@ func (g *generator) makeCallItem(v cue.Value, args []cue.Value, mode closedMode)
 			// Try to parse as an int literal for the minimum
 			n, err := constraintVal.Int64()
 			if err == nil {
-				minVal = ref(n)
+				minVal = new(n)
 			} else {
 				// Not a simple integer, accept anything
 				return &itemTrue{}
@@ -1168,7 +1168,7 @@ func (g *generator) makeCallItem(v cue.Value, args []cue.Value, mode closedMode)
 			if err != nil {
 				return &itemTrue{}
 			}
-			minVal = ref(n)
+			minVal = new(n)
 		case cue.AndOp:
 			// Could be >=N & <=M
 			if len(opArgs) != 2 {
@@ -1183,7 +1183,7 @@ func (g *generator) makeCallItem(v cue.Value, args []cue.Value, mode closedMode)
 			if err != nil {
 				return &itemTrue{}
 			}
-			minVal = ref(n)
+			minVal = new(n)
 
 			// Second operand should be <=M
 			op2, op2Args := opArgs[1].Expr()
@@ -1194,7 +1194,7 @@ func (g *generator) makeCallItem(v cue.Value, args []cue.Value, mode closedMode)
 			if err != nil {
 				return &itemTrue{}
 			}
-			maxVal = ref(n)
+			maxVal = new(n)
 		default:
 			// Unknown constraint pattern, accept anything
 			return &itemTrue{}
