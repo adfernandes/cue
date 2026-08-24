@@ -129,8 +129,8 @@ type Error interface {
 // Positions returns the printable positions returned by an error,
 // sorted by relevance when possible and with duplicates removed.
 func Positions(err error) []token.Pos {
-	e := Error(nil)
-	if !errors.As(err, &e) {
+	e, ok := errors.AsType[Error](err)
+	if !ok {
 		return nil
 	}
 
@@ -171,7 +171,7 @@ func comparePosWithNoPosFirst(a, b token.Pos) int {
 
 // Path returns the path of an Error if err is of that type.
 func Path(err error) []string {
-	if e := Error(nil); errors.As(err, &e) {
+	if e, ok := errors.AsType[Error](err); ok {
 		return e.Path()
 	}
 	return nil

@@ -632,7 +632,7 @@ func isNotExist(err error) bool {
 	// Also, some registries return an invalid error code with a 404
 	// response (see https://cuelang.org/issue/2982), so it
 	// seems reasonable to treat that as a non-found error too.
-	if herr := ociregistry.HTTPError(nil); errors.As(err, &herr) {
+	if herr, ok := errors.AsType[ociregistry.HTTPError](err); ok {
 		statusCode := herr.StatusCode()
 		return statusCode == http.StatusForbidden ||
 			statusCode == http.StatusNotFound

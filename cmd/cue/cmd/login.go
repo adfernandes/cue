@@ -119,14 +119,13 @@ The cue tool supports credentials configured via these tools:
 				oauthCfg := cueconfig.RegistryOAuthConfig(host)
 				resp, err := oauthCfg.DeviceAuth(ctx)
 				if err != nil {
-					var re *oauth2.RetrieveError
 					// If the user attempted to use `cue login` with an OCI registry that isn't a CUE registry
 					// like registry.cue.works, try to give some useful guidance. We don't print the full body
 					// because some respond with rather lengthy HTML content. We observed the following status codes:
 					//
 					// * HTTP 404 Not Found: Docker Hub
 					// * HTTP 405 Method Not Allowed: GHCR, Google Cloud, Quay.io
-					if errors.As(err, &re) && (re.Response.StatusCode == http.StatusNotFound || re.Response.StatusCode == http.StatusMethodNotAllowed) {
+					if re, ok := errors.AsType[*oauth2.RetrieveError](err); ok && (re.Response.StatusCode == http.StatusNotFound || re.Response.StatusCode == http.StatusMethodNotAllowed) {
 						code := re.Response.StatusCode
 						return fmt.Errorf(`
 cannot start the OAuth2 device flow: %d %s

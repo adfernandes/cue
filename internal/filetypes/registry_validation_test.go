@@ -74,8 +74,8 @@ func TestValidateEncodingComposition(t *testing.T) {
 func TestValidateEncodingBuiltinConflicts(t *testing.T) {
 	// A built-in encoding name.
 	err := ValidateEncoding(DynamicEncoding{Name: "json"})
-	var conflict *ConflictError
-	if !errors.As(err, &conflict) {
+	conflict, ok := errors.AsType[*ConflictError](err)
+	if !ok {
 		t.Fatalf("ValidateEncoding(name json) = %v; want *ConflictError", err)
 	}
 	if !conflict.BuiltIn || conflict.Kind != "name" || conflict.Owner != "json" {
@@ -84,7 +84,7 @@ func TestValidateEncodingBuiltinConflicts(t *testing.T) {
 
 	// A built-in extension.
 	err = ValidateEncoding(DynamicEncoding{Name: "kvext", Extensions: []string{".json"}})
-	if !errors.As(err, &conflict) {
+	if conflict, ok = errors.AsType[*ConflictError](err); !ok {
 		t.Fatalf("ValidateEncoding(extension .json) = %v; want *ConflictError", err)
 	}
 	if !conflict.BuiltIn || conflict.Kind != "extension" || conflict.Owner != "json" {
@@ -94,7 +94,7 @@ func TestValidateEncodingBuiltinConflicts(t *testing.T) {
 	// A built-in tag that is not an encoding renders as a tag
 	// collision, not as a nonexistent encoding.
 	err = ValidateEncoding(DynamicEncoding{Name: "strict"})
-	if !errors.As(err, &conflict) {
+	if _, ok := errors.AsType[*ConflictError](err); !ok {
 		t.Fatalf("ValidateEncoding(name strict) = %v; want *ConflictError", err)
 	}
 	if want := `cannot register encoding "strict": name already registered as a built-in tag`; err.Error() != want {

@@ -163,8 +163,7 @@ func (ea *errArgs) containsMatch(msg string, err error) bool {
 	if strings.Contains(msg, ea.contains) {
 		return true
 	}
-	var ce cueerrors.Error
-	if errors.As(err, &ce) {
+	if ce, ok := errors.AsType[cueerrors.Error](err); ok {
 		format, _ := ce.Msg()
 		return strings.Contains(format, ea.contains)
 	}
@@ -491,8 +490,8 @@ func (r *inlineRunner) runErrAssertion(t testing.TB, path cue.Path, val cue.Valu
 		logHint(t, pa.hint)
 	}
 	// Validate error path (cueerrors.Error.Path joined with ".", relative to the annotated field).
-	var e cueerrors.Error
-	if ea.path != "" && errors.As(val.Err(), &e) {
+	e, isCUEErr := errors.AsType[cueerrors.Error](val.Err())
+	if ea.path != "" && isCUEErr {
 		gotPath := strings.Join(e.Path(), ".")
 		gotRel := relativePathTo(gotPath, path.String())
 		if gotRel != ea.path && gotPath != ea.path {
@@ -501,7 +500,7 @@ func (r *inlineRunner) runErrAssertion(t testing.TB, path cue.Path, val cue.Valu
 		}
 	}
 	// Validate Msg() args (order-independent).
-	if len(ea.msgArgs) > 0 && errors.As(val.Err(), &e) {
+	if len(ea.msgArgs) > 0 && isCUEErr {
 		checkMsgArgs(t, path, e, ea.msgArgs, "@test(err, args=...)", pa.hint)
 	}
 	// Validate error positions.
@@ -1043,8 +1042,8 @@ func msgArgsMatch(err error, expected []string) bool {
 	if len(expected) == 0 {
 		return true
 	}
-	var e cueerrors.Error
-	if !errors.As(err, &e) {
+	e, ok := errors.AsType[cueerrors.Error](err)
+	if !ok {
 		return false
 	}
 	_, actualArgs := e.Msg()
@@ -1206,8 +1205,7 @@ func (r *inlineRunner) formatErrFillAttr(val cue.Value, pa parsedTestAttr, field
 			b.WriteString(", code=")
 			b.WriteString(code)
 		}
-		var e cueerrors.Error
-		if errors.As(err, &e) {
+		if e, ok := errors.AsType[cueerrors.Error](err); ok {
 			if epath := strings.Join(e.Path(), "."); epath != "" && !isRedundantPath(atPath, epath) {
 				if rel := relativePathTo(epath, fieldPath); rel != "" {
 					b.WriteString(", path=")

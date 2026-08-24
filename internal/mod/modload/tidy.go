@@ -659,10 +659,9 @@ func (ld *loader) resolveDependencies(ctx context.Context, rootPkgPaths []string
 				if err == nil {
 					continue
 				}
-				missingErr := new(modpkgload.ImportMissingError)
 				// "cannot find module providing package P" is confusing here,
 				// as checkTidy simply points out missing dependencies without fetching them.
-				if errors.As(err, &missingErr) {
+				if missingErr, ok := errors.AsType[*modpkgload.ImportMissingError](err); ok {
 					err = &ErrModuleNotTidy{Reason: fmt.Sprintf(
 						"missing dependency providing package %s", missingErr.Path)}
 				}

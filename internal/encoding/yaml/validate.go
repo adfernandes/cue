@@ -70,8 +70,7 @@ func Validate(c *adt.OpContext, b []byte, v cue.Value) (bool, error) {
 			// down to a single error.
 			var errs cueerrors.Error
 			for _, e := range cueerrors.Errors(err) {
-				var b pkg.Bottomer
-				if errors.As(e, &b) {
+				if b, ok := errors.AsType[pkg.Bottomer](e); ok {
 					e = b.Bottom().Err
 				}
 				errs = cueerrors.Append(errs, e)
