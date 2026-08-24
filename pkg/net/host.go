@@ -27,8 +27,10 @@ import (
 	"cuelang.org/go/internal/pkg"
 )
 
-// TODO: revert to using ValidateLabels and StrictDomainName once
-// https://go.dev/issue/74848 is fixed.
+// TODO: revert to using ValidateLabels and StrictDomainName once we
+// require Go 1.27. https://go.dev/issue/74848 is fixed, but the fix rides
+// on the Unicode 17 IDNA tables, which x/net/idna only builds on Go 1.27
+// and later, so the revert still regresses net.FQDN on Go 1.26.
 var idnaProfile = idna.New(
 	idna.MapForLookup(),
 	idna.VerifyDNSLength(true),
