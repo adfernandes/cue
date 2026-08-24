@@ -205,7 +205,8 @@ func TestScript(t *testing.T) {
 				}
 			},
 			// curl is a simple HTTP client for testscripts.
-			// Supports: -X METHOD, -H header, -d data, -L (follow redirects), -w format, -f (fail on error)
+			// Supports: -X METHOD, -H header, -d data, -L (follow redirects), -w format, -f (fail on error).
+			// The -w format supports \n as well as curl's %{http_code}.
 			"curl": func(ts *testscript.TestScript, neg bool, args []string) {
 				method := "GET"
 				var headers []string
@@ -239,6 +240,8 @@ func TestScript(t *testing.T) {
 						writeFormat = args[i]
 					case !strings.HasPrefix(arg, "-"):
 						reqURL = arg
+					default:
+						ts.Fatalf("curl: unsupported argument %q", arg)
 					}
 				}
 				if reqURL == "" {
@@ -273,7 +276,9 @@ func TestScript(t *testing.T) {
 
 				// Handle -w format (mainly for adding newline)
 				if writeFormat != "" {
-					fmt.Fprint(ts.Stdout(), strings.ReplaceAll(writeFormat, `\n`, "\n"))
+					out := strings.ReplaceAll(writeFormat, `\n`, "\n")
+					out = strings.ReplaceAll(out, "%{http_code}", strconv.Itoa(resp.StatusCode))
+					fmt.Fprint(ts.Stdout(), out)
 				}
 
 				// Check for HTTP errors when -f is used
