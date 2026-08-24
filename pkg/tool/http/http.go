@@ -129,7 +129,7 @@ func (c *httpCmd) Run(ctx *task.Context) (res interface{}, err error) {
 		}
 	}
 
-	req, err := http.NewRequest(method, u, r)
+	req, err := http.NewRequestWithContext(ctx.Context, method, u, r)
 	if err != nil {
 		return nil, err
 	}

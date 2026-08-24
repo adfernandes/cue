@@ -15,7 +15,9 @@
 package http
 
 import (
+	"context"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +28,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/errors"
+	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/task"
 	"cuelang.org/go/internal/value"
@@ -66,18 +68,25 @@ func build(t *testing.T, expr string) cue.Value {
 	return v
 }
 
+// run runs an http.Do task on v, tied to the test's context.
+func run(t *testing.T, v cue.Value) (any, error) {
+	t.Helper()
+
+	return (*httpCmd).Run(nil, &task.Context{Context: t.Context(), Obj: v})
+}
+
 func TestTLS(t *testing.T) {
 	s := newTLSServer()
 	t.Cleanup(s.Close)
 
 	v1 := parse(t, "tool/http.Get", fmt.Sprintf(`{url: "%s"}`, s.URL))
-	_, err := (*httpCmd).Run(nil, &task.Context{Obj: v1})
+	_, err := run(t, v1)
 	if err == nil {
 		t.Fatal("http call should have failed")
 	}
 
 	v2 := parse(t, "tool/http.Get", fmt.Sprintf(`{url: "%s", tls: verify: false}`, s.URL))
-	_, err = (*httpCmd).Run(nil, &task.Context{Obj: v2})
+	_, err = run(t, v2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,14 +123,14 @@ func TestTLS(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			v := parse(t, "tool/http.Get", fmt.Sprintf(`{url: %q, tls: caCert: %q}`, s.URL, tc.caCert))
 
-			_, err := (*httpCmd).Run(nil, &task.Context{Obj: v})
+			_, err := run(t, v)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("got %v; want an error containing %q", err, tc.wantErr)
 				}
 				// The error points at caCert rather than at the whole task.
 				want := v.LookupPath(cue.MakePath(cue.Str("tls"), cue.Str("caCert"))).Pos()
-				if got := errors.Positions(err); len(got) == 0 || got[0] != want {
+				if got := cueerrors.Positions(err); len(got) == 0 || got[0] != want {
 					t.Errorf("got error positions %v; want %v", got, want)
 				}
 				return
@@ -280,7 +289,7 @@ func TestRedirect(t *testing.T) {
 				v3 = v3.FillPath(cue.ParsePath("followRedirects"), *tc.followRedirects)
 			}
 
-			resp, err := (*httpCmd).Run(nil, &task.Context{Obj: v3})
+			resp, err := run(t, v3)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -321,7 +330,7 @@ func TestRequestHeaders(t *testing.T) {
 		}
 	}`, server.URL))
 
-	_, err := (*httpCmd).Run(nil, &task.Context{Obj: v})
+	_, err := run(t, v)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -404,5 +413,29 @@ func TestServeResponse(t *testing.T) {
 				t.Errorf("got body %q, want %q", got, tc.wantBody)
 			}
 		})
+	}
+}
+
+// TestRequestContext verifies that a request is tied to the task context,
+// so that cancelling the flow aborts a server which never responds.
+func TestRequestContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	// The handler cancels the task context and then never responds,
+	// until the client goes away or the test ends.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+		<-r.Context().Done()
+	}))
+	t.Cleanup(server.Close)
+
+	v := parse(t, "tool/http.Get", fmt.Sprintf(`{url: "%s"}`, server.URL))
+	_, err := (*httpCmd).Run(nil, &task.Context{Context: ctx, Obj: v})
+	if err == nil {
+		t.Fatal("http call should have been cancelled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("got %v; want a cancellation error", err)
 	}
 }
