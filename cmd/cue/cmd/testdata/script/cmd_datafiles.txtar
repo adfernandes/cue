@@ -1,51 +1,41 @@
-# Data files named on the command line should be unified with the package,
+# Data files named on the command line are unified with the package,
 # just like for commands such as "cue export".
-# TODO(#4473): "cue cmd" ignores the data, and merging the data instance with
-# the package as data also strips the package's optional fields and definitions.
-! exec cue cmd show . data.json data.yaml
-cmp stderr broken.golden
+exec cue cmd show . data.json data.yaml
+cmp stdout json-yaml.golden
 
 # Every value of a stream, such as a multi-document YAML file, is unified too.
-# TODO(#4473): as above.
-! exec cue cmd show . stream.yaml
-cmp stderr broken.golden
+exec cue cmd show . stream.yaml
+cmp stdout stream.golden
 
 # Interpretations which need a schema, such as textproto, use the package.
-# TODO(#4473): as above.
-! exec cue cmd show . data.textproto
-cmp stderr broken.golden
+exec cue cmd show . data.textproto
+cmp stdout textproto.golden
 
 # Data files can also be merged into a package given as a list of files,
 # which must then include the tool files.
-# TODO(#4473): the data is ignored; only one instance is built here, so the
-# package itself survives intact.
-! exec cue cmd show test.cue show_tool.cue data.json
-cmp stderr incomplete.golden
+exec cue cmd show test.cue show_tool.cue data.json
+cmp stdout json.golden
 
 # Definitions in the package remain visible to the tool files.
-# TODO(#4473): as above.
-! exec cue cmd defs . data.json
-cmp stderr broken.golden
+exec cue cmd defs . data.json
+cmp stdout defs.golden
 
 # Data which conflicts with the package is reported as such.
-# TODO(#4473): the conflict goes unnoticed.
 ! exec cue cmd show . bad.json
-cmp stderr broken.golden
+cmp stderr bad.golden
 
 # CUE files named alongside a package stay in their own instance; only the
 # data files are unified into the package.
-# TODO(#4473): the data files are ignored.
-! exec cue cmd show ./_mixed _other/extra.cue data.json
-cmp stderr mixed.golden
+exec cue cmd show ./_mixed _other/extra.cue data.json
+cmp stdout mixed.golden
 
 # Data files are not merged implicitly; they must be named.
 ! exec cue cmd show .
 cmp stderr incomplete.golden
 
 # Data files cannot be combined with more than one package.
-# TODO(#4473): the data files are ignored rather than rejected.
 ! exec cue cmd show ./... data.json
-cmp stderr broken.golden
+cmp stderr toomany.golden
 
 -- cue.mod/module.cue --
 module: "mod.test"
@@ -98,16 +88,25 @@ j: "one"
 y: "two"
 -- data.textproto --
 j: "textproto"
--- broken.golden --
-command.show.print.cmd: reference "y" not found:
-    ./show_tool.cue:6:21
-command.defs.print.cmd: reference "#Def" not found:
-    ./show_tool.cue:9:20
+-- json-yaml.golden --
+json yaml
+-- stream.golden --
+one two
+-- textproto.golden --
+textproto -
+-- json.golden --
+json -
+-- defs.golden --
+json def
 -- mixed.golden --
-command.show.print.cmd: invalid interpolation:
-    ./_mixed/show_tool.cue:6:7
-    ./_mixed/mixed.cue:3:4
+json extra
+-- bad.golden --
+j: conflicting values string and 3 (mismatched types string and int):
+    ./bad.json:1:7
+    ./test.cue:5:4
 -- incomplete.golden --
 command.show.print.cmd: invalid interpolation:
     ./show_tool.cue:6:7
     ./test.cue:5:4
+-- toomany.golden --
+too many packages defined (2) in combination with files

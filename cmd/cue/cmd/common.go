@@ -800,6 +800,52 @@ func buildToolInstances(ctx *cue.Context, binst []*build.Instance) ([]*cue.Insta
 	return instances, nil
 }
 
+// mergeToolData unifies the data files named on the command line, such as JSON
+// or YAML files, with the package they are given alongside, just like commands
+// such as `cue export` do. The orphan instance which held the data files is
+// dropped once its data has been placed.
+func mergeToolData(cmd *Command, binst []*build.Instance) ([]*build.Instance, error) {
+	// load.Instances gathers the files named on the command line in a single
+	// instance, always last. cmd.ctx is nil for `cue help cmd`, which needs no data.
+	orphan := binst[len(binst)-1]
+	if !orphan.User || len(orphan.OrphanedFiles) == 0 || cmd.ctx == nil {
+		return binst, nil
+	}
+	if len(binst) > 2 {
+		return nil, errors.Newf(token.NoPos,
+			"too many packages defined (%d) in combination with files", len(binst)-1)
+	}
+	target := binst[0] // the loaded package, if any; otherwise the orphan itself
+	if len(binst) == 2 && len(orphan.Files) == 0 {
+		binst = binst[:1] // the orphan held nothing but the data files
+	}
+
+	p := &buildPlan{
+		cmd: cmd,
+		cfg: &config{
+			// A non-user instance like the loaded package has its incoming
+			// files filtered by name; the data files were named explicitly on
+			// the command line, so an empty pattern lets all of them through.
+			reFile: regexp.MustCompile(""),
+		},
+		encConfig: &encoding.Config{
+			Stdin:     cmd.InOrStdin(),
+			AllErrors: flagAllErrors.Bool(cmd),
+		},
+	}
+	schemas, values, err := p.getDecoders(orphan)
+	if err != nil {
+		return nil, err
+	}
+	// Interpretations such as textproto need a schema to decode against.
+	// Build a copy, as target is built again later without the tool files.
+	if slices.ContainsFunc(values, func(di *decoderInfo) bool { return di.d == nil }) {
+		schema := *target
+		p.encConfig.Schema = cmd.ctx.BuildInstance(&schema)
+	}
+	return binst, p.placeOrphans(target, append(schemas, values...))
+}
+
 func buildTools(cmd *Command, args []string) (*cue.Instance, error) {
 	cfg, err := defaultConfig()
 	if err != nil {
@@ -812,6 +858,10 @@ func buildTools(cmd *Command, args []string) (*cue.Instance, error) {
 	binst := loadFromArgs(args, &loadCfg)
 	if len(binst) == 0 {
 		return nil, nil
+	}
+	binst, err = mergeToolData(cmd, binst)
+	if err != nil {
+		return nil, err
 	}
 	included := map[string]bool{}
 
