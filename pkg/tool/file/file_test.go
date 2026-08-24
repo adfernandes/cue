@@ -306,9 +306,8 @@ func TestRemoveAll(t *testing.T) {
 		t.Cleanup(func() { os.Chmod(filepath.Dir(path), 0o777) })
 
 		got, err := run(t, path)
-		// TODO: the stat error is swallowed; RemoveAll should report it.
-		qt.Assert(t, qt.IsNil(err))
-		qt.Assert(t, qt.DeepEquals(got, any(map[string]interface{}{"success": false})))
+		qt.Assert(t, qt.ErrorIs(err, fs.ErrPermission))
+		qt.Assert(t, qt.IsNil(got))
 	})
 }
 

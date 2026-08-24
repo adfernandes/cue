@@ -15,6 +15,7 @@
 package file
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -196,7 +197,10 @@ func (c *cmdRemoveAll) Run(ctx *task.Context) (res interface{}, err error) {
 	}
 
 	if _, err := os.Stat(path); err != nil {
-		return map[string]interface{}{"success": false}, nil
+		if errors.Is(err, fs.ErrNotExist) {
+			return map[string]interface{}{"success": false}, nil
+		}
+		return nil, errors.Wrapf(err, ctx.Obj.Pos(), "failed to remove path")
 	}
 
 	if err := os.RemoveAll(path); err != nil {
