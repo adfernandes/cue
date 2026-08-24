@@ -181,7 +181,9 @@
 //		// request data and their output can be used in the response.
 //		response: {
 //			// statusCode sets the HTTP status code. If not set, 200 is used.
-//			statusCode?: int
+//			// HTTP status codes are three digits, so values outside the
+//			// range [100, 999] are rejected.
+//			statusCode?: int & >=100 & <=999
 //
 //			// body is the response body to send.
 //			body?: *bytes | string
@@ -257,7 +259,7 @@ var p = &pkg.Package{
 			trailer: [string]:    [string, ...string]
 		}
 		response: {
-			statusCode?: int
+			statusCode?: int & >=100 & <=999
 			body?:       *bytes | string
 			header?: [string]:  string | [string, ...string]
 			trailer?: [string]: string | [string, ...string]

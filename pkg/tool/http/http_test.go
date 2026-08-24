@@ -46,6 +46,14 @@ func newTLSServer() *httptest.Server {
 func parse(t *testing.T, kind, expr string) cue.Value {
 	t.Helper()
 
+	return value.UnifyBuiltin(build(t, expr), kind)
+}
+
+// build builds a value without unifying it with any builtin schema,
+// so that tests can exercise values which a schema itself rejects.
+func build(t *testing.T, expr string) cue.Value {
+	t.Helper()
+
 	x, err := parser.ParseExpr("test", expr)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +62,7 @@ func parse(t *testing.T, kind, expr string) cue.Value {
 	if err := v.Err(); err != nil {
 		t.Fatal(err)
 	}
-	return value.UnifyBuiltin(v, kind)
+	return v
 }
 
 func TestTLS(t *testing.T) {
@@ -290,5 +298,79 @@ func TestRequestHeaders(t *testing.T) {
 	}
 	if got, want := gotHeaders.Values("X-List"), []string{"val-a", "val-b"}; !slices.Equal(got, want) {
 		t.Errorf("X-List: got %v, want %v", got, want)
+	}
+}
+
+func TestServeResponse(t *testing.T) {
+	tests := []struct {
+		name string
+		expr string
+		// wantErr, when not empty, is a substring of the expected error.
+		// It also implies that nothing at all must be written to the response.
+		wantErr  string
+		wantCode int
+		wantBody string
+	}{{
+		name:     "default status code",
+		expr:     `{response: body: "ok"}`,
+		wantCode: 200,
+		wantBody: "ok",
+	}, {
+		name:     "explicit status code",
+		expr:     `{response: {statusCode: 201, body: "ok"}}`,
+		wantCode: 201,
+		wantBody: "ok",
+	}, {
+		// The body is optional, so a response without one is not an error.
+		name:     "no body",
+		expr:     `{response: statusCode: 204}`,
+		wantCode: 204,
+	}, {
+		// net/http panics when given a status code outside [100, 999].
+		name:    "status code too low",
+		expr:    `{response: {statusCode: 0, body: "ok"}}`,
+		wantErr: "response status code 0 is not in the range [100, 999]",
+	}, {
+		name:    "status code too high",
+		expr:    `{response: {statusCode: 1000, body: "ok"}}`,
+		wantErr: "response status code 1000 is not in the range [100, 999]",
+	}, {
+		name:    "non-concrete status code",
+		expr:    `{response: {statusCode: int, body: "ok"}}`,
+		wantErr: "invalid response status code",
+	}, {
+		name:    "non-encodable body",
+		expr:    `{response: {statusCode: 201, body: string}}`,
+		wantErr: "cannot encode response",
+	}}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c := &serveCmd{w: w}
+			_, err := c.Run(&task.Context{Obj: build(t, tc.expr)})
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("got no error, want %q", tc.wantErr)
+				}
+				if got := err.Error(); !strings.Contains(got, tc.wantErr) {
+					t.Fatalf("got error %q, want it to contain %q", got, tc.wantErr)
+				}
+				// A failure must leave the response untouched, so that the
+				// caller can write a single error response of its own.
+				if w.Body.Len() > 0 || w.Code != 200 {
+					t.Fatalf("wrote a partial response: %d %q", w.Code, w.Body)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != tc.wantCode {
+				t.Errorf("got status code %d, want %d", w.Code, tc.wantCode)
+			}
+			if got := w.Body.String(); got != tc.wantBody {
+				t.Errorf("got body %q, want %q", got, tc.wantBody)
+			}
+		})
 	}
 }

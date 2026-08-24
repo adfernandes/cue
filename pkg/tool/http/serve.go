@@ -56,10 +56,12 @@ var (
 	pathPath   = cue.ParsePath("routing.path")
 	methodPath = cue.ParsePath("routing.method")
 
-	requestPath        = cue.ParsePath("request")
-	respBodyPath       = cue.ParsePath("response.body")
-	respStatusCodePath = cue.ParsePath("response.statusCode")
-	responsePath       = cue.ParsePath("response")
+	requestPath  = cue.ParsePath("request")
+	responsePath = cue.ParsePath("response")
+
+	// Relative to responsePath.
+	respBodyPath       = cue.ParsePath("body")
+	respStatusCodePath = cue.ParsePath("statusCode")
 )
 
 // httpRequest represents the request data to fill into the CUE value.
@@ -205,47 +207,60 @@ func (c *serveCmd) IsService() bool {
 	return true
 }
 
+// Run builds the entire response before writing any of it, so that a failure
+// leaves the response untouched. The caller, the handler set up by
+// [listenCmd.Run], then turns the returned error into the sole error response.
 func (c *serveCmd) Run(ctx *task.Context) (res any, err error) {
 	v := ctx.Obj
 
 	response := v.LookupPath(responsePath)
 	headers, err := parseHeaders(response, "header")
 	if err != nil {
-		http.Error(c.w, fmt.Sprintf("cannot parse headers: %v", err), http.StatusBadRequest)
-		return nil, err
+		return nil, errors.Wrapf(err, response.Pos(), "cannot parse headers")
 	}
 	trailers, err := parseHeaders(response, "trailer")
 	if err != nil {
-		http.Error(c.w, fmt.Sprintf("cannot parse trailers: %v", err), http.StatusBadRequest)
-		return nil, err
+		return nil, errors.Wrapf(err, response.Pos(), "cannot parse trailers")
 	}
 
-	v = v.LookupPath(respBodyPath)
-
-	b, err := v.Bytes()
-	if err != nil {
-		http.Error(c.w, fmt.Sprintf("cannot encode response: %v", err), http.StatusBadRequest)
+	// net/http panics when writing a status code outside the range of the
+	// three-digit HTTP codes. [task.Context.TaskFunc] unifies every task value
+	// with its builtin schema, and Serve bounds statusCode to that range, so
+	// the check below only guards against that unification being bypassed.
+	statusCode := int64(http.StatusOK)
+	if sc := response.LookupPath(respStatusCodePath); sc.Exists() {
+		statusCode, err = sc.Int64()
+		if err != nil {
+			return nil, errors.Wrapf(err, sc.Pos(), "invalid response status code")
+		}
+		if statusCode < 100 || statusCode > 999 {
+			return nil, errors.Newf(sc.Pos(),
+				"response status code %d is not in the range [100, 999]", statusCode)
+		}
 	}
 
-	for k, v := range headers {
-		for _, v := range v {
+	// The body is optional; an absent one results in an empty response.
+	var b []byte
+	if body := response.LookupPath(respBodyPath); body.Exists() {
+		b, err = body.Bytes()
+		if err != nil {
+			return nil, errors.Wrapf(err, body.Pos(), "cannot encode response")
+		}
+	}
+
+	for k, vs := range headers {
+		for _, v := range vs {
 			c.w.Header().Set(k, v)
 		}
 	}
 
-	for k, v := range trailers {
-		for _, v := range v {
+	for k, vs := range trailers {
+		for _, v := range vs {
 			c.w.Header().Set(k, v)
 		}
 	}
 
-	// Set status code if specified, otherwise defaults to 200
-	if sc := ctx.Obj.LookupPath(respStatusCodePath); sc.Exists() {
-		if code, err := sc.Int64(); err == nil {
-			c.w.WriteHeader(int(code))
-		}
-	}
-
+	c.w.WriteHeader(int(statusCode))
 	c.w.Write(b)
 
 	return nil, nil

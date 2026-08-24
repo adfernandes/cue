@@ -40,6 +40,23 @@ cmp stdout out/create-201
 ! curl -f -w '\n' -L 'http://localhost:8082/api/error' -H 'Content-Type: application/json' -d '{}'
 cmp stdout out/create-400
 
+# A response without a body sends no content rather than an error
+curl -w '%{http_code}' -X GET 'http://localhost:8082/api/nocontent'
+stdout '^204$'
+
+# Status codes out of the three-digit HTTP range are rejected by the schema
+# rather than crashing the server; see cue-lang/cue#4465
+curl -w '\n%{http_code}' -X GET 'http://localhost:8082/api/status?code=201'
+stdout '^201$'
+
+! curl -f -w '\n%{http_code}' -X GET 'http://localhost:8082/api/status?code=0'
+stdout 'response\.statusCode: invalid value 0 \(out of bound >=100\)'
+stdout '^500$'
+
+! curl -f -w '\n%{http_code}' -X GET 'http://localhost:8082/api/status?code=1000'
+stdout 'response\.statusCode: invalid value 1000 \(out of bound <=999\)'
+stdout '^500$'
+
 # Error cases
 
 # Malformed JSON input
@@ -108,6 +125,7 @@ package vm
 import (
 	"encoding/json"
 	"encoding/openapi"
+	"strconv"
 )
 
 //#Machine describes a virtual machine.
@@ -220,6 +238,26 @@ command: serve: "/api/vm/create": {
 	}
 }
 
+// This API demonstrates a response with no body at all.
+command: serve: "/api/nocontent": {
+	routing: method: "GET"
+
+	response: statusCode: 204
+}
+
+// This API demonstrates a status code derived from the request, so that it is
+// only validated against the tool/http.Serve schema as a request is handled.
+command: serve: "/api/status": {
+	routing: method: "GET"
+
+	request: form: code: *["200"] | [...string]
+
+	response: {
+		statusCode: strconv.Atoi(request.form.code[0])
+		body:       "status"
+	}
+}
+
 // This API demonstrates returning a custom 400 Bad Request status code.
 command: serve: "/api/error": {
 	routing: method: "POST"
@@ -294,23 +332,23 @@ error handling request: command.serve."/authz".request.value: error in call to e
 
 -- out/error-public-vm --
 error handling request: command.serve."/api/vm".X.access.public: conflicting values false and true:
-    ./api_tool.cue:32:21
-    ./api_tool.cue:92:5
+    ./api_tool.cue:33:21
+    ./api_tool.cue:93:5
     json:1:84
 
 -- out/error-invalid-os --
 error handling request: command.serve."/api/vm".X.os: 3 errors in empty disjunction:
 command.serve."/api/vm".X.os: conflicting values "Linux" and "FreeBSD":
-    ./api_tool.cue:10:23
-    ./api_tool.cue:90:5
+    ./api_tool.cue:11:23
+    ./api_tool.cue:91:5
     json:1:7
 command.serve."/api/vm".X.os: conflicting values "MacOS" and "FreeBSD":
-    ./api_tool.cue:10:33
-    ./api_tool.cue:90:5
+    ./api_tool.cue:11:33
+    ./api_tool.cue:91:5
     json:1:7
 command.serve."/api/vm".X.os: conflicting values "Windows" and "FreeBSD":
-    ./api_tool.cue:10:11
-    ./api_tool.cue:90:5
+    ./api_tool.cue:11:11
+    ./api_tool.cue:91:5
     json:1:7
 
 -- out/vm-research --

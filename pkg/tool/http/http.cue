@@ -191,7 +191,9 @@ Serve: {
 	// request data and their output can be used in the response.
 	response: {
 		// statusCode sets the HTTP status code. If not set, 200 is used.
-		statusCode?: int
+		// HTTP status codes are three digits, so values outside the
+		// range [100, 999] are rejected.
+		statusCode?: int & >=100 & <=999
 
 		// body is the response body to send.
 		body?: *bytes | string
