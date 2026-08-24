@@ -232,8 +232,7 @@ func extractExperimentsFromStruct(structType reflect.Type, srcPath, structName s
 	// Use reflection to get experiment info from the struct
 	var experiments []Experiment
 
-	for i := 0; i < structType.NumField(); i++ {
-		field := structType.Field(i)
+	for field := range structType.Fields() {
 		tagStr, ok := field.Tag.Lookup("experiment")
 		if !ok {
 			continue

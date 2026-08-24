@@ -30,8 +30,8 @@ func TestStatsString(t *testing.T) {
 	// Smoke test that the string form mentions all the fields.
 	s := randCounts().String()
 	ct := reflect.TypeFor[Counts]()
-	for i := range ct.NumField() {
-		name := ct.Field(i).Name
+	for field := range ct.Fields() {
+		name := field.Name
 		switch name {
 		case "EvalVersion":
 			continue

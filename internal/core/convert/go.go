@@ -862,8 +862,7 @@ func (b *typeBuilder) buildStruct(t reflect.Type) ast.Expr {
 // buildStructLit builds the struct literal for a Go struct type.
 func (b *typeBuilder) buildStructLit(t reflect.Type) ast.Expr {
 	obj := &ast.StructLit{}
-	for i := range t.NumField() {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		if f.PkgPath != "" {
 			continue
 		}

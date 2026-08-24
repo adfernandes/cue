@@ -233,8 +233,7 @@ func getActiveExperiments(origVersion, targetVersion string, t any) []string {
 	var active []string
 
 	ft := reflect.TypeOf(t)
-	for i := 0; i < ft.NumField(); i++ {
-		field := ft.Field(i)
+	for field := range ft.Fields() {
 		tagStr, ok := field.Tag.Lookup("experiment")
 		if !ok {
 			continue
@@ -278,8 +277,7 @@ func getUpgradeExperiments(origVersion, targetVersion string, t any) []string {
 	}
 
 	ft := reflect.TypeOf(t)
-	for i := 0; i < ft.NumField(); i++ {
-		field := ft.Field(i)
+	for field := range ft.Fields() {
 		tagStr, ok := field.Tag.Lookup("experiment")
 		if !ok {
 			continue
@@ -318,8 +316,7 @@ func getExperimentInfo(experiment string) *experimentInfo {
 
 func getExperimentInfoT(experiment string, t any) *experimentInfo {
 	ft := reflect.TypeOf(t)
-	for i := 0; i < ft.NumField(); i++ {
-		field := ft.Field(i)
+	for field := range ft.Fields() {
 		if strings.EqualFold(field.Name, experiment) {
 			if tagStr, ok := field.Tag.Lookup("experiment"); ok {
 				return parseExperimentTag(tagStr)

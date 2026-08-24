@@ -40,8 +40,7 @@ func TestExperimentVersionOrdering(t *testing.T) {
 	for _, tt := range testTypes {
 		t.Run(tt.name, func(t *testing.T) {
 			ft := reflect.TypeOf(tt.typeSpec)
-			for i := 0; i < ft.NumField(); i++ {
-				field := ft.Field(i)
+			for field := range ft.Fields() {
 				tagStr, ok := field.Tag.Lookup("experiment")
 				if !ok {
 					continue

@@ -227,14 +227,12 @@ func (d *debugPrinter) sliceElems(v reflect.Value, elemType reflect.Type) (anyEl
 }
 
 func (d *debugPrinter) structFields(v reflect.Value) (anyElems bool) {
-	t := v.Type()
-	for i := range v.NumField() {
-		f := t.Field(i)
+	for f, fv := range v.Fields() {
 		if !gotoken.IsExported(f.Name) {
 			continue
 		}
 		if f.Name == "Node" {
-			nodeVal := v.Field(i)
+			nodeVal := fv
 			if (!d.cfg.IncludeNodeRefs && !d.cfg.IncludePointers) || nodeVal.IsNil() {
 				continue
 			}
@@ -257,7 +255,7 @@ func (d *debugPrinter) structFields(v reflect.Value) (anyElems bool) {
 		elemStart := d.pos()
 		d.newline()
 		d.printf("%s: ", f.Name)
-		if d.value(v.Field(i), nil) {
+		if d.value(fv, nil) {
 			anyElems = true
 		} else {
 			d.truncate(elemStart)
@@ -325,9 +323,7 @@ func (d *debugPrinter) addNodeRefs(v reflect.Value) {
 			d.addNodeRefs(v.Index(i))
 		}
 	case reflect.Struct:
-		t := v.Type()
-		for i := range v.NumField() {
-			f := t.Field(i)
+		for f, fv := range v.Fields() {
 			if !gotoken.IsExported(f.Name) {
 				continue
 			}
@@ -336,7 +332,7 @@ func (d *debugPrinter) addNodeRefs(v reflect.Value) {
 			case "Scope", "Node", "Unresolved":
 				continue
 			}
-			d.addNodeRefs(v.Field(i))
+			d.addNodeRefs(fv)
 		}
 	}
 }
