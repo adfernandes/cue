@@ -18,12 +18,15 @@ import (
 	"fmt"
 )
 
-type nilableNode interface {
+// NilableNode is used for type constraints. In practice, all Node
+// types should be comparable (pointers or interface
+// values containing pointers).
+type NilableNode interface {
 	Node
 	comparable // pointer nodes, which can be compared to nil
 }
 
-func walkIfNotNil[N nilableNode](node N, before func(Node) bool, after func(Node)) {
+func walkIfNotNil[N NilableNode](node N, before func(Node) bool, after func(Node)) {
 	var zero N // nil
 	if node != zero {
 		Walk(node, before, after)
