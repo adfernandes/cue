@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -149,7 +148,9 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 		compact := f.BoolTags["compact"]
 
 		useSep := false
-		format := func(name string, n ast.Node) error {
+		// canMutate reports whether the encoder owns n and hence
+		// whether the formatter is allowed to rewrite it in place.
+		format := func(name string, n ast.Node, canMutate bool) error {
 			if name != "" && cfg.Stream {
 				// TODO: make this relative to DIR
 				fmt.Fprintf(w, "// %s\n", filepath.Base(name))
@@ -164,9 +165,16 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 			}
 
 			// Casting an ast.Expr to an ast.File ensures that it always ends
-			// with a newline.
+			// with a newline. Note that this returns n unchanged when it is
+			// already an *ast.File, so it does not confer ownership.
 			f := internal.ToFile(n, false)
 			if e.cfg.PkgName != "" && f.PackageName() == "" {
+				if !canMutate {
+					// Adding the package clause mutates the file, so take
+					// a copy that we own before doing so.
+					f = ast.Clone(f)
+					canMutate = true
+				}
 				pkg := &ast.Package{
 					PackagePos: token.NoPos.WithRel(token.NewSection),
 					Name:       ast.NewIdent(e.cfg.PkgName),
@@ -176,10 +184,13 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 				ast.SetComments(f, rest)
 				f.Decls = append([]ast.Decl{pkg}, f.Decls...)
 			}
+			if compact {
+				opts = append(opts, format.Compact())
+			}
 			var b []byte
 			var err error
-			if compact {
-				b, err = formatCompactCUE(f, e.autoSimplify)
+			if canMutate {
+				b, err = format.NodeInPlace(f, opts...)
 			} else {
 				b, err = format.Node(f, opts...)
 			}
@@ -190,9 +201,13 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 			return err
 		}
 		e.encValue = func(v cue.Value) error {
-			return format("", v.Syntax(synOpts...))
+			// The syntax is freshly built here, so the formatter may
+			// rewrite it in place.
+			return format("", v.Syntax(synOpts...), true)
 		}
-		e.encFile = func(f *ast.File) error { return format(f.Filename, f) }
+		// The file belongs to the caller of [Encoder.EncodeFile], so it
+		// must not be mutated.
+		e.encFile = func(f *ast.File) error { return format(f.Filename, f, false) }
 
 	case build.JSON, build.JSONL:
 		e.concrete = true
@@ -345,32 +360,6 @@ func NewEncoder(ctx *cue.Context, f *build.File, cfg *Config) (*Encoder, error) 
 	}
 
 	return e, nil
-}
-
-// formatCompactCUE formats f as compact CUE: it discards the authored
-// line layout and all comments so the formatter lays the file out with
-// its width-driven heuristics. The house-style layout hints (see
-// [format.ASTStyle]'s RelPos flag) would undo that compaction, so it
-// asks for them to be withheld.
-//
-// f is built by the encoder itself, so the formatter may rewrite it in
-// place.
-func formatCompactCUE(f *ast.File, simplify bool) ([]byte, error) {
-	format.ASTStyle{
-		ClearPositions: true,
-		ClearComments:  true,
-	}.Apply(f)
-	opts := []format.Option{
-		format.KeepRelPos(),
-		// Use an effectively unbounded width so the layout never wraps
-		// purely to fit a line-width budget; only hard breaks such as
-		// multi-line strings introduce newlines.
-		format.LineWidth(math.MaxInt),
-	}
-	if simplify {
-		opts = append(opts, format.Simplify())
-	}
-	return format.NodeInPlace(f, opts...)
 }
 
 func (e *Encoder) EncodeFile(f *ast.File) error {
