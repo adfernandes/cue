@@ -250,11 +250,8 @@ a: b: 6
 		wantErr: `duplicate value in base data at a\.b`,
 	}} {
 		t.Run(test.testName, func(t *testing.T) {
-			var parseOpts []parser.Option
-			if test.langVersion != "" {
-				parseOpts = append(parseOpts, parser.Version(test.langVersion))
-			}
-			f, err := parser.ParseFile("base.cue", test.base, parseOpts...)
+			f, err := parser.ParseFile("base.cue", test.base,
+				parser.Version(test.langVersion))
 			qt.Assert(t, qt.IsNil(err))
 			var b structBuilder
 			qt.Assert(t, qt.ErrorMatches(b.addBase(f), test.wantErr))

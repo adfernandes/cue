@@ -1,0 +1,190 @@
+# Below language version v0.18.0 the prefix alias syntax is the only one
+# that parses, so the exporter both accepts and emits it here. The output
+# has to be loadable by the module it came from, so it must not reach for
+# the postfix form; alias.txtar covers that form at the current version.
+-- cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
+-- in.cue --
+labelAlias: {
+	X="a-b": 4
+	foo:     X
+}
+
+dynamicAlias: {
+	key:     "k"
+	Y=(key): 1
+	bar:     Y
+}
+
+patternField: {
+	Z=[string]: {n: Z.x, x: 1}
+}
+
+patternLabel: {
+	[W=string]: m: W
+}
+
+valueStruct: {
+	v: V={a: 1, b: V.a}
+}
+
+valueList: {
+	l: L=[1, 2, L[0]]
+}
+-- out/definition-v3 --
+labelAlias: {
+	X="a-b": 4
+	foo:     X
+}
+dynamicAlias: {
+	key:     "k"
+	Y=(key): 1
+	bar:     Y
+}
+patternField: Z=[string]: {
+	n: Z.x
+	x: 1
+}
+patternLabel: [W=string]: m: W
+valueStruct: v: V_1={
+	a: 1
+	b: V_1.a
+}
+valueList: l: L_1=[1, 2, L_1[0]]
+-- out/definition-v3-noshare --
+labelAlias: {
+	X="a-b": 4
+	foo:     X
+}
+dynamicAlias: {
+	key:     "k"
+	Y=(key): 1
+	bar:     Y
+}
+patternField: Z=[string]: {
+	n: Z.x
+	x: 1
+}
+patternLabel: [W=string]: m: W
+valueStruct: v: V_1={
+	a: 1
+	b: V_1.a
+}
+valueList: l: L_1=[1, 2, L_1[0]]
+-- out/doc-v3 --
+[]
+[labelAlias]
+[labelAlias "a-b"]
+[labelAlias foo]
+[dynamicAlias]
+[dynamicAlias key]
+[dynamicAlias bar]
+[dynamicAlias k]
+[patternField]
+[patternLabel]
+[valueStruct]
+[valueStruct v]
+[valueStruct v a]
+[valueStruct v b]
+[valueList]
+[valueList l]
+[valueList l 0]
+[valueList l 1]
+[valueList l 2]
+-- out/value-v3 --
+== Simplified
+{
+	labelAlias: {
+		"a-b": 4
+		foo:   4
+	}
+	dynamicAlias: {
+		key: "k"
+		k:   1
+		bar: 1
+	}
+	patternField: {}
+	patternLabel: {}
+	valueStruct: v: {
+		a: 1
+		b: 1
+	}
+	valueList: l: [1, 2, 1]
+}
+== Raw
+{
+	labelAlias: {
+		"a-b": 4
+		foo:   4
+	}
+	dynamicAlias: {
+		key: "k"
+		k:   1
+		bar: 1
+	}
+	patternField: {}
+	patternLabel: {}
+	valueStruct: v: {
+		a: 1
+		b: 1
+	}
+	valueList: l: [1, 2, 1]
+}
+== Final
+{
+	labelAlias: {
+		"a-b": 4
+		foo:   4
+	}
+	dynamicAlias: {
+		key: "k"
+		k:   1
+		bar: 1
+	}
+	patternField: {}
+	patternLabel: {}
+	valueStruct: v: {
+		a: 1
+		b: 1
+	}
+	valueList: l: [1, 2, 1]
+}
+== All
+{
+	labelAlias: {
+		"a-b": 4
+		foo:   4
+	}
+	dynamicAlias: {
+		key: "k"
+		k:   1
+		bar: 1
+	}
+	patternField: {}
+	patternLabel: {}
+	valueStruct: v: {
+		a: 1
+		b: 1
+	}
+	valueList: l: [1, 2, 1]
+}
+== Eval
+{
+	labelAlias: {
+		"a-b": 4
+		foo:   4
+	}
+	dynamicAlias: {
+		key: "k"
+		k:   1
+		bar: 1
+	}
+	patternField: {}
+	patternLabel: {}
+	valueStruct: v: {
+		a: 1
+		b: 1
+	}
+	valueList: l: [1, 2, 1]
+}

@@ -898,6 +898,8 @@ func (v Value) Syntax(opts ...Option) ast.Node {
 	}
 	o := getOptions(opts)
 
+	inst := v.instance()
+
 	p := export.Profile{
 		Simplify:         !o.raw,
 		TakeDefaults:     o.final,
@@ -910,9 +912,13 @@ func (v Value) Syntax(opts ...Option) ast.Node {
 		InlineImports:    o.inlineImports,
 		Fragment:         o.raw,
 		ExpandReferences: o.concrete,
+
+		// Syntax that a module cannot parse is of no use to it, so target
+		// the language version the value itself was written at.
+		TargetLanguageVersion: inst.languageVersion(),
 	}
 
-	pkgID := v.instance().ID()
+	pkgID := inst.ID()
 
 	bad := func(name string, err error) ast.Node {
 		const format = `"%s: internal error

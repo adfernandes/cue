@@ -1,39 +1,33 @@
-# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
-# @experiment(aliasv2) is stable; pin the language version so
-# that this test keeps exercising it.
--- cue.mod/module.cue --
-module: "test.example"
-language: version: "v0.17.0"
 -- in.cue --
-x: string
-X=(x): 4
-Y=(x): 6
-Z=("y"): int
+x:         string
+(x)~(X):   4
+(x)~(Y):   6
+("y")~(Z): int
 a: {
 	labelX: X
 	labelY: Y
 	labelZ: Z
 }
-E=["cue"]: name: E | null
+["cue"]~(E): name: E | null
 
-q: "q"
-q1: "q1"
-r: "r"
-r1: "r1"
-("s-"+q)?: 1
-("s-"+r)!: 2
-("s-"+q1)?: (r1)!: 3
+q:           "q"
+q1:          "q1"
+r:           "r"
+r1:          "r1"
+("s-" + q)?: 1
+("s-" + r)!: 2
+("s-" + q1)?: (r1)!: 3
 -- out/definition --
-x:     string
-X=(x): 4
-Y=(x): 6
-Z="y": int
+x:       string
+(x)~(X): 4
+(x)~(Y): 6
+"y"~(Z): int
 a: {
 	labelX: X
 	labelY: Y
 	labelZ: Z
 }
-E=["cue"]: name: E | null
+["cue"]~(E): name: E | null
 q:      "q"
 q1:     "q1"
 r:      "r"
@@ -96,16 +90,16 @@ bogus field for a failed dynamic field.
 -- out/value-v3 --
 == Simplified
 {
-	x:     string
-	X=(x): 4
-	Y=(x): 6
-	Z="y": int
+	x:       string
+	(x)~(X): 4
+	(x)~(Y): 6
+	"y"~(Z): int
 	a: {
 		labelX: X
 		labelY: Y
 		labelZ: Z
 	}
-	E=["cue"]: name: E | null
+	["cue"]~(E): name: E | null
 	q:           "q"
 	q1:          "q1"
 	r:           "r"
@@ -116,16 +110,16 @@ bogus field for a failed dynamic field.
 }
 == Raw
 {
-	x:     string
-	X=(x): 4
-	Y=(x): 6
-	Z="y": int
+	x:       string
+	(x)~(X): 4
+	(x)~(Y): 6
+	"y"~(Z): int
 	a: {
 		labelX: X
 		labelY: Y
 		labelZ: Z
 	}
-	E=["cue"]: name: E | null
+	["cue"]~(E): name: E | null
 	q:           "q"
 	q1:          "q1"
 	r:           "r"
@@ -138,16 +132,16 @@ bogus field for a failed dynamic field.
 _|_ // key value of dynamic field must be concrete, found _|_(cycle error) (and 3 more errors)
 == All
 {
-	x:     string
-	X=(x): 4
-	Y=(x): 6
-	Z="y": int
+	x:       string
+	(x)~(X): 4
+	(x)~(Y): 6
+	"y"~(Z): int
 	a: {
 		labelX: X
 		labelY: Y
 		labelZ: Z
 	}
-	E=["cue"]: name: E | null
+	["cue"]~(E): name: E | null
 	q:           "q"
 	q1:          "q1"
 	r:           "r"
@@ -158,16 +152,16 @@ _|_ // key value of dynamic field must be concrete, found _|_(cycle error) (and 
 }
 == Eval
 {
-	x:     string
-	X=(x): 4
-	Y=(x): 6
-	Z="y": int
+	x:       string
+	(x)~(X): 4
+	(x)~(Y): 6
+	"y"~(Z): int
 	a: {
 		labelX: X
 		labelY: Y
 		labelZ: Z
 	}
-	E=["cue"]: name: E | null
+	["cue"]~(E): name: E | null
 	q:           "q"
 	q1:          "q1"
 	r:           "r"
@@ -184,16 +178,16 @@ diff old new
  == Simplified
 -_|_ // invalid non-ground value string (must be concrete string) (and 1 more errors)
 +{
-+	x:     string
-+	X=(x): 4
-+	Y=(x): 6
-+	Z="y": int
++	x:       string
++	(x)~(X): 4
++	(x)~(Y): 6
++	"y"~(Z): int
 +	a: {
 +		labelX: X
 +		labelY: Y
 +		labelZ: Z
 +	}
-+	E=["cue"]: name: E | null
++	["cue"]~(E): name: E | null
 +	q:           "q"
 +	q1:          "q1"
 +	r:           "r"
@@ -205,16 +199,16 @@ diff old new
  == Raw
 -_|_ // invalid non-ground value string (must be concrete string) (and 1 more errors)
 +{
-+	x:     string
-+	X=(x): 4
-+	Y=(x): 6
-+	Z="y": int
++	x:       string
++	(x)~(X): 4
++	(x)~(Y): 6
++	"y"~(Z): int
 +	a: {
 +		labelX: X
 +		labelY: Y
 +		labelZ: Z
 +	}
-+	E=["cue"]: name: E | null
++	["cue"]~(E): name: E | null
 +	q:           "q"
 +	q1:          "q1"
 +	r:           "r"
@@ -229,16 +223,16 @@ diff old new
  == All
 -_|_ // invalid non-ground value string (must be concrete string) (and 1 more errors)
 +{
-+	x:     string
-+	X=(x): 4
-+	Y=(x): 6
-+	Z="y": int
++	x:       string
++	(x)~(X): 4
++	(x)~(Y): 6
++	"y"~(Z): int
 +	a: {
 +		labelX: X
 +		labelY: Y
 +		labelZ: Z
 +	}
-+	E=["cue"]: name: E | null
++	["cue"]~(E): name: E | null
 +	q:           "q"
 +	q1:          "q1"
 +	r:           "r"
@@ -250,16 +244,16 @@ diff old new
  == Eval
 -_|_ // invalid non-ground value string (must be concrete string) (and 1 more errors)
 +{
-+	x:     string
-+	X=(x): 4
-+	Y=(x): 6
-+	Z="y": int
++	x:       string
++	(x)~(X): 4
++	(x)~(Y): 6
++	"y"~(Z): int
 +	a: {
 +		labelX: X
 +		labelY: Y
 +		labelZ: Z
 +	}
-+	E=["cue"]: name: E | null
++	["cue"]~(E): name: E | null
 +	q:           "q"
 +	q1:          "q1"
 +	r:           "r"

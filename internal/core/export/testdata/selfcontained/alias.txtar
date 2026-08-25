@@ -1,16 +1,10 @@
 #path: a.b
 
-# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
-# @experiment(aliasv2) is stable; pin the language version so
-# that this test keeps exercising it.
--- cue.mod/module.cue --
-module: "test.example"
-language: version: "v0.17.0"
 -- in.cue --
-E=ext: one: 1
-E1=("ext1"): two: 2
-E2=("ext2"): { three: 3, a: int}
-a: B=b: {
+ext~(E): one:       1
+("ext1")~(E1): two: 2
+("ext2")~(E2): {three: 3, a: int}
+a: b~(B): {
 	x: string
 	y: B.x
 
@@ -18,13 +12,13 @@ a: B=b: {
 	// above to not shorten (it will point to b, instead of x, as x won't be
 	// reachable).
 	// Reevaluated after value aliases for embeddings are implemented.
-	z: "string"
-	X=(z): 4
-	Y=("y"): "foo"
+	z:         "string"
+	(z)~(X):   4
+	("y")~(Y): "foo"
 	enclosed: {
-		V=x: string
-		y: B.enclosed.x
-		z: V
+		x~(V): string
+		y:     B.enclosed.x
+		z:     V
 
 		// Comment.
 		labelX: X
@@ -32,16 +26,16 @@ a: B=b: {
 	}
 	hoisted: {
 		"ext1": E
-		ext2: E
-		ext3: E1
-		ext4: E2
-		ext5: E2.a
+		ext2:   E
+		ext3:   E1
+		ext4:   E2
+		ext5:   E2.a
 	}
 
-	other: [INNER=string]: name: INNER
+	other: [string]~(INNER,_): name: INNER
 }
 
-[NAME=string]: b: name: NAME
+[string]~(NAME,_): b: name: NAME
 -- out/self/default --
 {
 	x: string
@@ -51,13 +45,13 @@ a: B=b: {
 	// above to not shorten (it will point to b, instead of x, as x won't be
 	// reachable).
 	// Reevaluated after value aliases for embeddings are implemented.
-	z:     "string"
-	X=(z): 4
-	Y="y": "foo"
+	z:       "string"
+	(z)~(X): 4
+	"y"~(Y): "foo"
 	enclosed: {
-		V=x: string
-		y:   enclosed.x
-		z:   V
+		x~(V): string
+		y:     enclosed.x
+		z:     V
 
 		// Comment.
 		labelX: X
@@ -73,7 +67,7 @@ a: B=b: {
 		ext4: EXT2
 		ext5: EXT2.a
 	}
-	other: [INNER=string]: name: INNER
+	other: [string]~(INNER,_): name: INNER
 }
 name: "a"
 

@@ -1,21 +1,15 @@
 #path: result
 
 #Issue: 2944
-# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
-# @experiment(aliasv2) is stable; pin the language version so
-# that this test keeps exercising it.
--- cue.mod/module.cue --
-module: "test.example"
-language: version: "v0.17.0"
 -- in.cue --
 #Test: {
-	name: string
+	name:  string
 	tests: [...#Test]
 }
 
 #Resolver: {
-	parent?:   #Test
-	self=test: #Test
+	parent?:     #Test
+	test~(self): #Test
 
 	resolved: {
 		if parent == _|_ {
@@ -37,11 +31,11 @@ language: version: "v0.17.0"
 }
 
 let root = #Test & {
-	name: "Smoke Tests"
+	name:  "Smoke Tests"
 	tests: [{name: "Inner"}]
 }
 
 result: (#Resolver & {
 	parent: _
-	test: root
+	test:   root
 }).resolved

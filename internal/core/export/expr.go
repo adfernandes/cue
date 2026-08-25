@@ -116,17 +116,15 @@ func (x *exporter) mergeValues(label adt.Feature, src *adt.Vertex, a []conjunct,
 	defer e.popFrame(saved)
 
 	// Handle value aliases and lets
-	var valueAlias *ast.Alias
+	var valueAlias string
 	for _, c := range a {
 		if f, ok := c.c.Field().Source().(*ast.Field); ok {
 			if a, ok := f.Value.(*ast.Alias); ok {
-				if valueAlias == nil {
+				if valueAlias == "" {
 					if e.valueAlias == nil {
-						e.valueAlias = map[*ast.Alias]*ast.Alias{}
+						e.valueAlias = map[*ast.Alias]string{}
 					}
-					name := a.Ident.Name
-					name = e.uniqueAlias(name)
-					valueAlias = &ast.Alias{Ident: ast.NewIdent(name)}
+					valueAlias = e.uniqueAlias(a.Ident.Name)
 				}
 				e.valueAlias[a] = valueAlias
 			}
@@ -137,9 +135,8 @@ func (x *exporter) mergeValues(label adt.Feature, src *adt.Vertex, a []conjunct,
 	defer filterUnusedLets(s)
 
 	defer func() {
-		if valueAlias != nil {
-			valueAlias.Expr = expr
-			expr = valueAlias
+		if valueAlias != "" {
+			expr = e.bindValueAlias(valueAlias, expr)
 		}
 	}()
 
@@ -257,7 +254,7 @@ func (x *exporter) mergeValues(label adt.Feature, src *adt.Vertex, a []conjunct,
 
 		top := e.frame(0, false)
 		if fr, ok := top.fields[f]; ok && fr.alias != "" {
-			setFieldAlias(d, fr.alias)
+			e.setValueAlias(d, fr.alias)
 			fr.node = d
 			top.fields[f] = fr
 		}
@@ -499,10 +496,8 @@ func isComplexStruct(s *adt.StructLit) bool {
 		case *adt.Field:
 			// TODO: remove this and also handle field annotation in expr().
 			// This allows structs to be merged. Ditto below.
-			if x.Src != nil {
-				if _, ok := x.Src.Label.(*ast.Alias); ok {
-					return ok
-				}
+			if _, ok := valueAliasName(x.Src); ok {
+				return true
 			}
 
 		case *adt.LetField:

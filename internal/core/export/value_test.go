@@ -72,23 +72,32 @@ if false {
 		ctx := eval.NewContext(r, v)
 		v.Finalize(ctx)
 
-		all := *export.All
+		// Archives pinning an older language version, such as those covering
+		// the prefix alias syntax, must be exported in syntax valid there.
+		target := func(p *export.Profile) *export.Profile {
+			q := *p
+			q.TargetLanguageVersion = a.LanguageVersion()
+			return &q
+		}
+
+		all := target(export.All)
 		all.ShowErrors = true
 
 		evalWithOptions := export.Profile{
-			TakeDefaults:    true,
-			ShowOptional:    true,
-			ShowDefinitions: true,
-			ShowAttributes:  true,
+			TakeDefaults:          true,
+			ShowOptional:          true,
+			ShowDefinitions:       true,
+			ShowAttributes:        true,
+			TargetLanguageVersion: a.LanguageVersion(),
 		}
 
 		for _, tc := range []struct {
 			name string
 			fn   func(r adt.Runtime, id string, v adt.Value) (ast.Expr, errors.Error)
 		}{
-			{"Simplified", export.Simplified.Value},
-			{"Raw", export.Raw.Value},
-			{"Final", export.Final.Value},
+			{"Simplified", target(export.Simplified).Value},
+			{"Raw", target(export.Raw).Value},
+			{"Final", target(export.Final).Value},
 			{"All", all.Value},
 			{"Eval", evalWithOptions.Value},
 		} {

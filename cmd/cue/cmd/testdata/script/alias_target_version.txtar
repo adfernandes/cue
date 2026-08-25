@@ -1,0 +1,128 @@
+# CUE that we generate lands in the module we generated it for, so it has to
+# parse at that module's language version. Below v0.18.0, where
+# @experiment(aliasv2) is stable, an alias is spelled in the prefix form; from
+# v0.18.0 on it is spelled in the postfix one. Emitting the form the module
+# cannot parse leaves it unable to load its own generated files, which is why
+# each generated file is vetted here as well as compared.
+#
+# TestLatest: skip -- the old module deliberately uses the prefix form.
+
+cd old
+
+# "cue def" reads the prefix form and must keep it.
+exec cue def ./x
+cmp stdout out-def
+cp stdout gen/gen.cue
+exec cue vet ./gen
+
+# "cue import" needs an alias for a dependency key that is not an identifier,
+# so it too has to pick the form the module can parse.
+exec cue import -f -p gen -o gen2/schema.cue schema.json
+cmp gen2/schema.cue out-import
+exec cue vet ./gen2
+
+cd ../new
+
+exec cue def ./x
+cmp stdout out-def
+cp stdout gen/gen.cue
+exec cue vet ./gen
+
+exec cue import -f -p gen -o gen2/schema.cue schema.json
+cmp gen2/schema.cue out-import
+exec cue vet ./gen2
+
+-- old/cue.mod/module.cue --
+module: "old.example"
+language: version: "v0.14.0"
+
+-- old/x/in.cue --
+package x
+
+labelAlias: {
+	X="a-b": 4
+	foo:     X
+}
+patternLabel: [W=string]: m: W
+
+-- old/schema.json --
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"working-directory": {"type": "string"},
+		"run": {"type": "string"}
+	},
+	"dependentRequired": {
+		"working-directory": ["run"]
+	}
+}
+-- old/gen/.keep --
+-- old/gen2/.keep --
+-- old/out-def --
+package x
+
+labelAlias: {
+	X="a-b": 4
+	foo:     X
+}
+patternLabel: [W=string]: m: W
+-- old/out-import --
+package gen
+
+@jsonschema(schema="https://json-schema.org/draft/2020-12/schema")
+"working-directory"?:     string
+run?:                     string
+_t0="working-directory"?: _
+if _t0 != _|_ {
+	run!: _
+}
+{}
+...
+-- new/cue.mod/module.cue --
+module: "new.example"
+language: version: "v0.18.0"
+
+-- new/x/in.cue --
+package x
+
+labelAlias: {
+	"a-b"~X: 4
+	foo:     X
+}
+patternLabel: [string]~(W,_): m: W
+
+-- new/schema.json --
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"working-directory": {"type": "string"},
+		"run": {"type": "string"}
+	},
+	"dependentRequired": {
+		"working-directory": ["run"]
+	}
+}
+-- new/gen/.keep --
+-- new/gen2/.keep --
+-- new/out-def --
+package x
+
+labelAlias: {
+	"a-b"~(X): 4
+	foo:       X
+}
+patternLabel: [string]~(W,_): m: W
+-- new/out-import --
+package gen
+
+@jsonschema(schema="https://json-schema.org/draft/2020-12/schema")
+"working-directory"?:       string
+run?:                       string
+"working-directory"~(_t0)?: _
+if _t0 != _|_ {
+	run!: _
+}
+{}
+...

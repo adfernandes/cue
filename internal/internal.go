@@ -22,6 +22,7 @@ package internal
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -311,6 +312,25 @@ func IsRegularField(f *ast.Field) bool {
 		return false
 	}
 	return true
+}
+
+// BindSelfAlias binds ident to value through a let clause naming the
+// predeclared "self", as the postfix alias syntax has no value form. It
+// returns the struct literal holding the let clause, and reports whether
+// value had to be wrapped in one, which is the case for anything but a
+// struct literal itself.
+//
+// The "self" identifier is marked as predeclared so that
+// [cuelang.org/go/cue/ast/astutil.Sanitize] renames it to "__self" if the
+// name is shadowed in scope.
+func BindSelfAlias(ident *ast.Ident, value ast.Expr) (s *ast.StructLit, let *ast.LetClause, wrapped bool) {
+	s, ok := value.(*ast.StructLit)
+	if !ok {
+		s, wrapped = &ast.StructLit{Elts: []ast.Decl{value}}, true
+	}
+	let = &ast.LetClause{Ident: ident, Expr: ast.NewPredeclared("self")}
+	s.Elts = slices.Insert(s.Elts, 0, ast.Decl(let))
+	return s, let, wrapped
 }
 
 // GenPath reports the directory in which to store generated files.

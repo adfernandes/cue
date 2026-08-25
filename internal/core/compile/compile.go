@@ -328,7 +328,10 @@ func (c *compiler) compileFiles(a []*ast.File) *adt.Vertex { // Or value?
 	}
 
 	for _, file := range a {
-		c.experiments = file.Pos().Experiment()
+		// Ask the file rather than its position: a file a generator
+		// assembled carries experiments of its own, which the positions of
+		// its declarations know nothing about.
+		c.experiments = file.Experiment()
 
 		c.pushScope(nil, 0, file) // File scope
 		v := &adt.StructLit{Src: file}

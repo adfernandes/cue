@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/internal/core/adt"
 	"cuelang.org/go/internal/core/eval"
 	"cuelang.org/go/internal/core/walk"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 const debug = false
@@ -76,6 +77,14 @@ type Profile struct {
 	// ExpandReferences causes all references to be expanded inline. This
 	// disables the ability to prevent billion laughs attacks, so use with care.
 	ExpandReferences bool
+
+	// TargetLanguageVersion holds the language version that the exported
+	// syntax must be valid at. The empty string means the current one.
+	//
+	// It matters wherever a spelling changed between versions: an alias is
+	// written in the postfix form from v0.18.0 on, and in the prefix form
+	// before it.
+	TargetLanguageVersion string
 }
 
 var Simplified = &Profile{
@@ -345,7 +354,15 @@ type exporter struct {
 	// unique let expression.
 	usedFeature map[adt.Feature]adt.Expr
 	labelAlias  map[adt.Expr]adt.Feature
-	valueAlias  map[*ast.Alias]*ast.Alias
+	// valueAlias maps a source value alias to the name it is bound to in the
+	// output, where a let clause naming "self" takes its place.
+	valueAlias map[*ast.Alias]string
+	// experiments are those of cfg.TargetLanguageVersion, resolved once in
+	// newExporter as they are fixed for the exporter's lifetime, along with
+	// the error from resolving them and the one decision taken from them.
+	experiments    *cueexperiment.File
+	experimentsErr error
+	postfixAliases bool
 	// fieldAlias is used to track original alias names of regular fields.
 	fieldAlias map[*ast.Field]fieldAndScope
 	letAlias   map[*ast.LetClause]*ast.LetClause
@@ -407,11 +424,19 @@ func (e *exporter) linkIdentifier(v *adt.Vertex, ident *ast.Ident) {
 // newExporter creates and initializes an exporter.
 func newExporter(p *Profile, r adt.Runtime, pkgID string, v adt.Value) *exporter {
 	n, _ := v.(*adt.Vertex)
+	// The experiments of the target language version decide which spellings
+	// the output may use; aliasv2 is the one that enables postfix aliases.
+	// finalize records them on the file it builds, so resolve them once here.
+	exp, err := cueexperiment.NewFile(p.TargetLanguageVersion)
 	e := &exporter{
 		cfg:   p,
 		ctx:   eval.NewContext(r, n),
 		index: r,
 		pkgID: pkgID,
+
+		experiments:    exp,
+		experimentsErr: err,
+		postfixAliases: exp != nil && exp.AliasV2,
 
 		references: map[*adt.Vertex]*referenceInfo{},
 	}
@@ -437,6 +462,15 @@ func (e *exporter) initPivot(n *adt.Vertex) {
 // that require conversion to a File, Sanitization, and self containment.
 func (e *exporter) finalize(n *adt.Vertex, v ast.Expr) (f *ast.File, err errors.Error) {
 	f = e.toFile(n, v)
+
+	// The file is built rather than parsed, so nothing in it records which
+	// language version it is written for. Say so, both for the passes below
+	// and for whoever receives the file.
+	if e.experimentsErr != nil {
+		return f, errors.Append(e.errs,
+			errors.Promote(e.experimentsErr, "export"))
+	}
+	f.SetExperiments(e.experiments)
 
 	e.completePivot(f)
 
@@ -494,29 +528,116 @@ func (e *exporter) markUsedFeatures(x adt.Expr) {
 	w.Elem(x)
 }
 
-func (e *exporter) getFieldAlias(f *ast.Field, name string) string {
-	a, ok := f.Label.(*ast.Alias)
-	if !ok {
-		a = &ast.Alias{
-			Ident: ast.NewIdent(e.uniqueAlias(name)),
-			Expr:  f.Label.(ast.Expr),
-		}
-		f.Label = a
-	}
-	return a.Ident.Name
+// isNonBlank reports whether ident binds a name that can be referenced.
+// Either half of an [ast.PostfixAlias] may be absent or blank.
+func isNonBlank(ident *ast.Ident) bool {
+	return ident != nil && ident.Name != "_"
 }
 
-func setFieldAlias(f *ast.Field, name string) {
-	if _, ok := f.Label.(*ast.Alias); !ok {
-		x := f.Label.(ast.Expr)
-		f.Label = &ast.Alias{
-			Ident: ast.NewIdent(name),
-			Expr:  x,
-		}
-		ast.SetComments(f.Label, ast.Comments(x))
-		ast.SetComments(x, nil)
-		// TODO: move position information.
+// setValueAlias binds name to f's own value, unless f already binds it to one.
+// The label alias, if any, is left alone.
+func (e *exporter) setValueAlias(f *ast.Field, name string) {
+	if _, ok := valueAliasName(f); ok {
+		return
 	}
+	if e.postfixAliases {
+		if f.Alias == nil {
+			f.Alias = &ast.PostfixAlias{}
+		}
+		f.Alias.Field = ast.NewIdent(name)
+		return
+	}
+	label := f.Label.(ast.Expr)
+	f.Label = &ast.Alias{Ident: ast.NewIdent(name), Expr: label}
+	// Move formatting and comments from the label to the alias.
+	ast.SetComments(f.Label, ast.Comments(label))
+	ast.SetComments(label, nil)
+	// TODO: move position information.
+}
+
+// setLabelAlias binds name to f's concrete label, unless f already binds it to
+// one. f must be a pattern constraint, as only those bind a label.
+func (e *exporter) setLabelAlias(f *ast.Field, name string) {
+	if _, ok := labelAliasName(f); ok {
+		return
+	}
+	list, ok := f.Label.(*ast.ListLit)
+	if !ok || len(list.Elts) != 1 {
+		panic("label alias on a field that is not a pattern constraint")
+	}
+	if !e.postfixAliases {
+		list.Elts[0] = &ast.Alias{Ident: ast.NewIdent(name), Expr: list.Elts[0]}
+		return
+	}
+	if f.Alias == nil {
+		f.Alias = &ast.PostfixAlias{}
+	}
+	f.Alias.Label = ast.NewIdent(name)
+	// Only the dual form binds a label, so force it with a blank field alias.
+	if f.Alias.Field == nil {
+		f.Alias.Field = ast.NewIdent("_")
+	}
+}
+
+// labelAliasName reports the name that f binds to its matched label, if any.
+// It reads both the postfix form (a~(_,X)) and the prefix form ([X=a]), as
+// either may be what the source or the exporter itself used.
+func labelAliasName(f *ast.Field) (name string, ok bool) {
+	if a := f.Alias; a != nil && isNonBlank(a.Label) {
+		return a.Label.Name, true
+	}
+	if list, ok := f.Label.(*ast.ListLit); ok && len(list.Elts) == 1 {
+		if a, ok := list.Elts[0].(*ast.Alias); ok {
+			return a.Ident.Name, true
+		}
+	}
+	return "", false
+}
+
+// valueAliasName reports the name that f binds to its own value, if any. It
+// reads both the postfix form (a~X) and the prefix form (X=a), as either may
+// be what the source or the exporter itself used.
+func valueAliasName(f *ast.Field) (name string, ok bool) {
+	if f == nil {
+		return "", false
+	}
+	if a := f.Alias; a != nil && isNonBlank(a.Field) {
+		return a.Field.Name, true
+	}
+	if a, ok := f.Label.(*ast.Alias); ok {
+		return a.Ident.Name, true
+	}
+	return "", false
+}
+
+// aliasedLabel reports the label f gives its field, looking through a prefix
+// alias, which wraps the label rather than sitting beside it.
+func aliasedLabel(f *ast.Field) ast.Label {
+	if a, ok := f.Label.(*ast.Alias); ok {
+		label, _ := a.Expr.(ast.Label)
+		return label
+	}
+	return f.Label
+}
+
+func (e *exporter) getFieldAlias(f *ast.Field, name string) string {
+	if name, ok := valueAliasName(f); ok {
+		return name
+	}
+	name = e.uniqueAlias(name)
+	e.setValueAlias(f, name)
+	return name
+}
+
+// bindValueAlias returns value with name bound to it. The postfix syntax has
+// no value alias, so a let clause naming the predeclared "self" stands in for
+// it, wrapping value in a struct literal when it cannot hold one itself.
+func (e *exporter) bindValueAlias(name string, value ast.Expr) ast.Expr {
+	if !e.postfixAliases {
+		return &ast.Alias{Ident: ast.NewIdent(name), Expr: value}
+	}
+	s, _, _ := internal.BindSelfAlias(ast.NewIdent(name), value)
+	return s
 }
 
 func (e *exporter) markLets(n ast.Node, scope *ast.StructLit) {
@@ -564,16 +685,13 @@ func (e *exporter) prepareAliasedField(f *ast.Field, scope ast.Node) {
 		return
 	}
 
-	alias, ok := f.Label.(*ast.Alias)
-	if !ok {
+	name, ok := valueAliasName(f)
+	label := aliasedLabel(f)
+	if !ok || label == nil {
 		return // not aliased
 	}
-	field := &ast.Field{
-		Label: &ast.Alias{
-			Ident: ast.NewIdent(alias.Ident.Name),
-			Expr:  alias.Expr,
-		},
-	}
+	field := &ast.Field{Label: label}
+	e.setValueAlias(field, name)
 
 	if e.fieldAlias == nil {
 		e.fieldAlias = make(map[*ast.Field]fieldAndScope)
@@ -800,7 +918,7 @@ func (e *exporter) popFrame(saved []frame) {
 	for _, f := range top.fields {
 		node := f.node
 		if f.alias != "" && f.field != nil {
-			setFieldAlias(f.field, f.alias)
+			e.setValueAlias(f.field, f.alias)
 			node = f.field
 		}
 		if node != nil {

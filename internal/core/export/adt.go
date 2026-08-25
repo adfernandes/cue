@@ -61,14 +61,14 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 		env := &adt.Environment{Up: env, Vertex: e.node()}
 
 		for _, d := range x.Decls {
-			var a *ast.Alias
+			var aliasName string
 			if orig, ok := d.Source().(*ast.Field); ok {
 				if alias, ok := orig.Value.(*ast.Alias); ok {
 					if e.valueAlias == nil {
-						e.valueAlias = map[*ast.Alias]*ast.Alias{}
+						e.valueAlias = map[*ast.Alias]string{}
 					}
-					a = &ast.Alias{Ident: ast.NewIdent(alias.Ident.Name)}
-					e.valueAlias[alias] = a
+					aliasName = alias.Ident.Name
+					e.valueAlias[alias] = aliasName
 				}
 			}
 			decl := e.decl(env, d)
@@ -85,10 +85,9 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			// TODO: use e.copyMeta for positions, but only when the original
 			// source is available.
 
-			if a != nil {
+			if aliasName != "" {
 				if f, ok := decl.(*ast.Field); ok {
-					a.Expr = f.Value
-					f.Value = a
+					f.Value = e.bindValueAlias(aliasName, f.Value)
 				}
 			}
 
@@ -113,22 +112,13 @@ func (e *exporter) adt(env *adt.Environment, expr adt.Elem) ast.Expr {
 			// additional constraint is evaluated by itself.
 			return ast.NewIdent("string")
 		}
-		list, ok := f.field.Label.(*ast.ListLit)
-		if !ok || len(list.Elts) != 1 {
-			panic("label reference to non-pattern constraint field or invalid list")
-		}
-		name := ""
-		if a, ok := list.Elts[0].(*ast.Alias); ok {
-			name = a.Ident.Name
-		} else {
+		name, ok := labelAliasName(f.field)
+		if !ok {
 			if x.Src != nil {
 				name = x.Src.Name
 			}
 			name = e.uniqueAlias(name)
-			list.Elts[0] = &ast.Alias{
-				Ident: ast.NewIdent(name),
-				Expr:  list.Elts[0],
-			}
+			e.setLabelAlias(f.field, name)
 		}
 		ident := ast.NewIdent(name)
 		ident.Scope = f.field
@@ -389,7 +379,8 @@ func (e *exporter) resolve(env *adt.Environment, r adt.Resolver) ast.Expr {
 		if x.Src != nil {
 			if f, ok := x.Src.Node.(*ast.Field); ok {
 				if entry, ok := e.fieldAlias[f]; ok {
-					ident := ast.NewIdent(aliasFromLabel(f))
+					name, _ := valueAliasName(f)
+					ident := ast.NewIdent(name)
 					ident.Node = entry.field
 					ident.Scope = entry.scope
 					return wrapIfOptional(ident, x.Optional)
@@ -425,7 +416,7 @@ func (e *exporter) resolve(env *adt.Environment, r adt.Resolver) ast.Expr {
 		name := x.Label.IdentString(e.ctx)
 		if a, ok := x.Src.Node.(*ast.Alias); ok { // Should always pass
 			if b, ok := e.valueAlias[a]; ok {
-				name = b.Ident.Name
+				name = b
 			}
 		}
 		ident := ast.NewIdent(name)
@@ -586,21 +577,20 @@ func (e *exporter) decl(env *adt.Environment, d adt.Decl) ast.Decl {
 		expr := e.innerExpr(env, x.Filter)
 		frame.labelExpr = expr // see astutil.Resolve.
 
+		f := &ast.Field{
+			Label: ast.NewList(expr),
+		}
 		if x.Label != 0 {
 			// Mark features used in the value expression so that
 			// uniqueAlias can avoid generating a conflicting name
 			// when the alias has the same name as a field in the value.
 			e.markUsedFeatures(x.Value)
-			name := e.uniqueAlias(e.identString(x.Label))
-			expr = &ast.Alias{Ident: ast.NewIdent(name), Expr: expr}
-		}
-		f := &ast.Field{
-			Label: ast.NewList(expr),
+			e.setLabelAlias(f, e.uniqueAlias(e.identString(x.Label)))
 		}
 
 		frame.field = f
 
-		if alias := aliasFromLabel(x.Src); alias != "" {
+		if alias, ok := valueAliasName(x.Src); ok {
 			frame.dynamicFields = append(frame.dynamicFields, &entry{
 				alias: alias,
 				field: f,
@@ -642,7 +632,7 @@ func (e *exporter) decl(env *adt.Environment, d adt.Decl) ast.Decl {
 			f.Label = key.(ast.Label)
 		}
 
-		alias := aliasFromLabel(x.Src)
+		alias, _ := valueAliasName(x.Src)
 
 		frame := e.frame(0, false)
 		frame.dynamicFields = append(frame.dynamicFields, &entry{
@@ -676,15 +666,6 @@ func (e *exporter) setField(label adt.Feature, f *ast.Field) {
 	if frame.fields != nil {
 		frame.fields[label] = entry
 	}
-}
-
-func aliasFromLabel(src *ast.Field) string {
-	if src != nil {
-		if a, ok := src.Label.(*ast.Alias); ok {
-			return a.Ident.Name
-		}
-	}
-	return ""
 }
 
 func (e *exporter) elem(env *adt.Environment, d adt.Elem) ast.Expr {

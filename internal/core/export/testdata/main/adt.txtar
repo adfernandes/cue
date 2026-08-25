@@ -1,20 +1,14 @@
-# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
-# @experiment(aliasv2) is stable; pin the language version so
-# that this test keeps exercising it.
--- cue.mod/module.cue --
-module: "test.example"
-language: version: "v0.17.0"
 -- in.cue --
 import mystrings "strings"
 
 @foo(bar)
 
-p1: [X=string]: name: X
+p1: [string]~(X,_): name: X
 
 d1: "foo\(bar)": int
 bar: "bar"
 
-d2: C="foo\(bar)": {
+d2: "foo\(bar)"~(C): {
 	name: "xx"
 	foo:  C.name
 }
@@ -24,7 +18,7 @@ a: _
 comp: {
 	for k, v in [0]
 	let w = v {
-		"\(a)": w
+		"\(a)":   w
 		"\(bar)": w
 	}
 }
@@ -34,10 +28,10 @@ bytes: '\xeb \x1a\xf5\xaa\xf0\xd6\x06)'
 c1: mystrings.Contains("aa", "a")
 
 s1: """
-    multi
-    \(bar)
-    line
-    """
+	multi
+	\(bar)
+	line
+	"""
 
 l1: [3, ...int]
 l2: [...int]
@@ -145,10 +139,10 @@ errorListDef: {
 import mystrings "strings"
 
 @foo(bar)
-p1: [X=string]: name: X
+p1: [string]~(X,_): name: X
 d1: "foobar": int
 bar: "bar"
-d2: C="foobar": {
+d2: "foobar"~(C): {
 	name: "xx"
 	foo:  C.name
 }

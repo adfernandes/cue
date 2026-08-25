@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/cueexperiment"
 	"cuelang.org/go/internal/mod/semver"
 )
@@ -381,28 +382,14 @@ func fixAliasV2Pass(f *ast.File) (result *ast.File, hasChanges bool) {
 			// Convert: foo: X={x: X.a, y: 1}
 			// To: foo: {let X = self; x: X.a; y: 1}
 
-			// The alias.Expr should be a StructLit
-			s, ok := alias.Expr.(*ast.StructLit)
-			if !ok {
-				// This is possible V=[{a?: V}]. Replace with
-				// {let V = self, [{a?: V}]} in that case.
-				s = &ast.StructLit{Elts: []ast.Decl{alias.Expr}}
-				// References to the enclosing field resolved against the
-				// original value node; point them at the wrapper instead.
+			// A value that is not a StructLit, as in V=[{a?: V}], is wrapped
+			// in one: {let V = self, [{a?: V}]}. References to the enclosing
+			// field resolved against the original value node, so point them
+			// at the wrapper instead.
+			s, letClause, wrapped := internal.BindSelfAlias(alias.Ident, alias.Expr)
+			if wrapped {
 				relink[alias.Expr] = s
 			}
-
-			// Create a let clause: let X = self
-			// Mark the "self" identifier as a predeclared reference so that
-			// Sanitize will rename it to "__self" if shadowed in scope.
-			selfIdent := ast.NewPredeclared("self")
-			letClause := &ast.LetClause{
-				Ident: alias.Ident,
-				Expr:  selfIdent,
-			}
-
-			// Insert the let clause at the beginning of the struct
-			s.Elts = slices.Insert(s.Elts, 0, ast.Decl(letClause))
 
 			n.Value = s
 

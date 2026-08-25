@@ -1,19 +1,13 @@
-# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
-# @experiment(aliasv2) is stable; pin the language version so
-# that this test keeps exercising it.
--- cue.mod/module.cue --
-module: "test.example"
-language: version: "v0.17.0"
 -- in.cue --
-outputs: [Name=string]: metadata: {
-	name: "\(Name)"
+outputs: [string]~(Name,_): metadata: {
+	name:   "\(Name)"
 	labels: string
 }
 outputs: "test": metadata: labels: "test-label"
 -- out/definition-v3 --
 outputs: {
 	{
-		[Name=string]: metadata: {
+		[string]~(Name,_): metadata: {
 			name:   "\(Name)"
 			labels: string
 		}
@@ -23,7 +17,7 @@ outputs: {
 -- out/definition-v3-noshare --
 outputs: {
 	{
-		[Name=string]: metadata: {
+		[string]~(Name,_): metadata: {
 			name:   "\(Name)"
 			labels: string
 		}

@@ -2,10 +2,6 @@
 # must still work in the self-contained result.
 # We also include cases where joining the file values without
 # lexical scopes can introduce duplicate names, such as aliases and lets.
-# TestLatest: skip
-# The files use the old prefix alias syntax, which is only accepted below
-# v0.18.0, where @experiment(aliasv2) is stable; the exporter
-# does not yet emit the postfix form, so pin the language version.
 
 exec cue export .
 cmp stdout export.stdout
@@ -17,9 +13,6 @@ stdin stdout
 ! exec cue export -
 cmp stderr stderr-bug.golden
 
--- cue.mod/module.cue --
-module: "mod.test"
-language: version: "v0.17.0"
 -- def.stdout --
 package p
 
@@ -27,15 +20,17 @@ let L = true
 let L_1 = false
 {
 	crossfile_alias: "referenced from sibling file"
-	A="non ident":   true
+	"non ident"~(A): true
 	if A {
 		alias1_used: true
 	}
 }
+
 {
-	A="another non ident": false
-	crossfile_alias_ref:   crossfile_alias
-	alias2_mark_used:      A
+
+	"another non ident"~(A): false
+	crossfile_alias_ref:     crossfile_alias
+	alias2_mark_used:        A
 }
 {
 	crossfile_let: "referenced from sibling file"
@@ -70,11 +65,11 @@ let2_mark_used:       L_1
 }
 -- stderr-bug.golden --
 crossfile_alias_ref: reference "crossfile_alias" not found:
-    -:14:25
+    -:16:27
 crossfile_let_ref: reference "crossfile_let" not found:
-    -:29:23
+    -:31:23
 crossfile_simple_ref: reference "crossfile_simple" not found:
-    -:30:23
+    -:32:23
 -- simple_1.cue --
 package p
 
@@ -90,16 +85,16 @@ crossfile_simple_ref: crossfile_simple
 package p
 
 crossfile_alias: "referenced from sibling file"
-A="non ident": true
+"non ident"~(A): true
 if A {
-    alias1_used: true
+	alias1_used: true
 }
 -- alias_2.cue --
 package p
 
-A="another non ident": false
-crossfile_alias_ref: crossfile_alias
-alias2_mark_used: A
+"another non ident"~(A): false
+crossfile_alias_ref:     crossfile_alias
+alias2_mark_used:        A
 -- let_1.cue --
 package p
 

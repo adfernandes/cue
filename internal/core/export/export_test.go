@@ -56,7 +56,12 @@ func TestDefinition(t *testing.T) {
 		}
 		v.Finalize(eval.NewContext(r, v))
 
-		file, errs := export.Def(r, "", v)
+		// Archives pinning an older language version, such as those covering
+		// the prefix alias syntax, must be exported in syntax valid there.
+		p := *export.All
+		p.TargetLanguageVersion = a.LanguageVersion()
+
+		file, errs := p.Def(r, "", v)
 		errors.Print(t, errs, nil)
 		_, _ = t.Write(formatNode(t.T, file))
 	})
