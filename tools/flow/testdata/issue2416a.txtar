@@ -18,7 +18,7 @@ import (
 	}
 }
 
-clusters: [CLUSTER=string]: #Cluster & {
+clusters: [string]~(CLUSTER,_): #Cluster & {
 	clusterName: CLUSTER
 }
 
@@ -28,11 +28,10 @@ for clusterName, cluster in clusters {
 	dnsRecords: "\(cluster.dnsPrefix)-monitoring-proxy": "127.0.0.1"
 }
 
-clusters: vagrant: {
+clusters: vagrant: {}
 
-}
-
-#Cluster: CLUSTER={
+#Cluster: {
+	let CLUSTER = self
 	foobar: CLUSTER.clusterName
 }
 
@@ -79,13 +78,13 @@ graph TD
 }
 -- out/run-v3/t1/stats --
 Leaks:  3
-Freed:  44
-Reused: 26
+Freed:  46
+Reused: 28
 Allocs: 21
 Retain: 0
 
-Unifications: 35
-Conjuncts:    76
+Unifications: 37
+Conjuncts:    78
 Disjuncts:    12
 ResolveDep:   12
 
@@ -109,13 +108,13 @@ diff old new
 -
 -NumCloseIDs: 3
 +Leaks:  3
-+Freed:  44
-+Reused: 26
++Freed:  46
++Reused: 28
 +Allocs: 21
 +Retain: 0
 +
-+Unifications: 35
-+Conjuncts:    76
++Unifications: 37
++Conjuncts:    78
 +Disjuncts:    12
 +ResolveDep:   12
 +
@@ -160,13 +159,13 @@ graph TD
 }
 -- out/run-v3/t2/stats --
 Leaks:  3
-Freed:  45
-Reused: 44
+Freed:  47
+Reused: 46
 Allocs: 4
 Retain: 0
 
-Unifications: 36
-Conjuncts:    82
+Unifications: 38
+Conjuncts:    84
 Disjuncts:    12
 ResolveDep:   21
 
@@ -190,13 +189,13 @@ diff old new
 -
 -NumCloseIDs: 3
 +Leaks:  3
-+Freed:  45
-+Reused: 44
++Freed:  47
++Reused: 46
 +Allocs: 4
 +Retain: 0
 +
-+Unifications: 36
-+Conjuncts:    82
++Unifications: 38
++Conjuncts:    84
 +Disjuncts:    12
 +ResolveDep:   21
 +
@@ -217,13 +216,13 @@ MisalignedConjunct: 2
 NumCloseIDs: 3
 -- out/run-v3/stats/totals --
 Leaks:  6
-Freed:  89
-Reused: 70
+Freed:  93
+Reused: 74
 Allocs: 25
 Retain: 0
 
-Unifications: 71
-Conjuncts:    158
+Unifications: 75
+Conjuncts:    162
 Disjuncts:    24
 ResolveDep:   33
 
@@ -247,13 +246,13 @@ diff old new
 -
 -NumCloseIDs: 6
 +Leaks:  6
-+Freed:  89
-+Reused: 70
++Freed:  93
++Reused: 74
 +Allocs: 25
 +Retain: 0
 +
-+Unifications: 71
-+Conjuncts:    158
++Unifications: 75
++Conjuncts:    162
 +Disjuncts:    24
 +ResolveDep:   33
 +

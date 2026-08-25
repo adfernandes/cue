@@ -23,14 +23,14 @@ let p = strings.ToUpper("")
 f: (strings.Join([p, "test"], "")): {}
 f: _ @test(eq, {test: {}})
 -- out/eval/stats --
-Leaks:  7
-Freed:  13
-Reused: 7
-Allocs: 13
+Leaks:  1
+Freed:  10
+Reused: 3
+Allocs: 8
 Retain: 0
 
-Unifications: 17
-Conjuncts:    22
+Unifications: 10
+Conjuncts:    12
 Disjuncts:    0
 
-NumCloseIDs: 3
+NumCloseIDs: 1

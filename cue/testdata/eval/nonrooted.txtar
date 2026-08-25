@@ -60,15 +60,17 @@ issue3977: inlineLet: {
 		contains="conflicting values", args=[1, 2])
 }
 -- out/eval/stats --
-Leaks:  9
-Freed:  48
+Leaks:  4
+Freed:  53
 Reused: 43
 Allocs: 14
-Retain: 27
+Retain: 0
 
-Unifications: 47
-Conjuncts:    87
-Disjuncts:    68
+Unifications: 43
+Conjuncts:    82
+Disjuncts:    10
+
+NumCloseIDs: 13
 -- out/errors.txt --
 [eval] x: conflicting values 1 and 2:
     ./in.cue:2:14

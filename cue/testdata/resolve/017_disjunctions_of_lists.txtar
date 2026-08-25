@@ -4,12 +4,14 @@ l: [ int, int] | [ string, string] @test(eq, [int, int] | [string, string])
 l1: ["a", "b"]      @test(eq, ["a", "b"])
 l2: l & ["c", "d"]  @test(eq, ["c", "d"])
 -- out/eval/stats --
-Leaks:  0
-Freed:  18
-Reused: 13
-Allocs: 5
+Leaks:  3
+Freed:  17
+Reused: 10
+Allocs: 10
 Retain: 0
 
-Unifications: 14
-Conjuncts:    24
-Disjuncts:    18
+Unifications: 12
+Conjuncts:    22
+Disjuncts:    4
+
+NumCloseIDs: 1

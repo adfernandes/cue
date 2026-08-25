@@ -7,10 +7,12 @@ e: a & {foo: 1 @foo(other)} @test(eq, {foo: 1 @foo(other) @foo() @baz(1)})
 -- out/eval/stats --
 Leaks:  0
 Freed:  9
-Reused: 6
-Allocs: 3
+Reused: 3
+Allocs: 6
 Retain: 0
 
 Unifications: 9
 Conjuncts:    16
-Disjuncts:    9
+Disjuncts:    0
+
+NumCloseIDs: 3

@@ -8,7 +8,7 @@ res: [t] @test(eq, [{
 }])
 @test(shareID=T, at=res[0])
 @test(shareID=T, at=t)
-t: [X=string]: {
+t: [string]~(X,_): {
 	a: c + b.str
 	b: str: string
 	c: "X"

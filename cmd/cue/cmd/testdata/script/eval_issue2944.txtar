@@ -8,13 +8,13 @@ cmp stdout stdout.golden
 
 -- in.cue --
 #Test: {
-	name: string
+	name:  string
 	tests: [...#Test]
 }
 
 #Resolver: {
-	parent?:   #Test
-	self=test: #Test
+	parent?:     #Test
+	test~(self): #Test
 
 	resolved: {
 		if parent == _|_ {
@@ -36,13 +36,13 @@ cmp stdout stdout.golden
 }
 
 let root = #Test & {
-	name: "Smoke Tests"
+	name:  "Smoke Tests"
 	tests: [{name: "Inner"}]
 }
 
 result: (#Resolver & {
 	parent: _
-	test: root
+	test:   root
 }).resolved
 -- stdout.golden --
 name: "\(TEST.#x.name) / \(NAME.#x)"

@@ -17,11 +17,13 @@ y.a: conflicting values 2 and 3:
     ./in.cue:2:12
 -- out/eval/stats --
 Leaks:  0
-Freed:  11
-Reused: 6
-Allocs: 5
+Freed:  12
+Reused: 5
+Allocs: 7
 Retain: 0
 
-Unifications: 7
-Conjuncts:    15
-Disjuncts:    11
+Unifications: 6
+Conjuncts:    14
+Disjuncts:    4
+
+NumCloseIDs: 1

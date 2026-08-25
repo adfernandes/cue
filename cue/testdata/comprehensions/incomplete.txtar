@@ -15,12 +15,12 @@ c: {for x in top {}}     @test(err, code=incomplete, pos=[0:14], contains="canno
 -- out/eval/stats --
 Leaks:  0
 Freed:  7
-Reused: 5
-Allocs: 2
+Reused: 0
+Allocs: 7
 Retain: 0
 
 Unifications: 7
 Conjuncts:    7
-Disjuncts:    7
+Disjuncts:    0
 
-NumCloseIDs: 1
+NumCloseIDs: 2

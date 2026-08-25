@@ -5,7 +5,7 @@
 # rather than explicitly re-stated.
 # https://cuelang.org/issue/285
 -- in.cue --
-#TopLevel: [name=string]: {
+#TopLevel: [string]~(name,_): {
 	path:    string
 	content: string
 }

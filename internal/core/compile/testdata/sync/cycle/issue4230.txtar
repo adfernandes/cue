@@ -14,7 +14,8 @@
 	]
 }
 
-x: X={
+x: {
+	let X = self
 	regions: (#transform & {_input: X})._output
 	app: region: or(["west", "east"]) & "west"
 }
@@ -32,8 +33,9 @@ x: X={
     ]
   }
   x: {
+    let X#1 = 〈1〉
     regions: (〈1;#transform〉 & {
-      _input: 〈2〉
+      _input: 〈1;let X#1〉
     })._output
     app: {
       region: (or([

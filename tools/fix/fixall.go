@@ -36,11 +36,7 @@ func Instances(insts []*build.Instance, o ...Option) errors.Error {
 	done := map[*ast.File]bool{}
 
 	for _, b := range insts {
-		var version string
-
-		if b.ModuleFile != nil && b.ModuleFile.Language != nil {
-			version = b.ModuleFile.Language.Version
-		}
+		version := b.LanguageVersion()
 
 		// Update module file language version if upgrading
 		if opts.upgradeVersion != "" && b.ModuleFile != nil &&

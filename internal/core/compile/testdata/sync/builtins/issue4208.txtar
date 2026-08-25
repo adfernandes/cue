@@ -4,7 +4,7 @@
 # Issue: https://cuelang.org/issue/4208
 -- in.cue --
 #Environment: "sbx" | "stg" | "pro" | error("Must specify a valid environment")
-#Envs: [Env=#Environment]: {}
+#Envs: [#Environment]~(Env,_): {}
 
 // Valid key should work fine.
 valid: #Envs
@@ -13,7 +13,6 @@ valid: sbx: {}
 // Invalid key should show the custom error message.
 invalid: #Envs
 invalid: foo: {}
-
 
 
 -- out/compile --

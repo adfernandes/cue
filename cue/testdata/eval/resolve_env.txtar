@@ -19,10 +19,10 @@ b: a1.a2.a3.a4.a5 @test(eq, 5)
 -- out/eval/stats --
 Leaks:  0
 Freed:  15
-Reused: 9
-Allocs: 6
+Reused: 5
+Allocs: 10
 Retain: 0
 
 Unifications: 15
-Conjuncts:    22
-Disjuncts:    15
+Conjuncts:    16
+Disjuncts:    0

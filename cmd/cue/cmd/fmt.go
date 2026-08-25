@@ -87,10 +87,7 @@ Examples:
 					if err := inst.Err; err != nil {
 						return err
 					}
-					var version string
-					if inst.ModuleFile != nil && inst.ModuleFile.Language != nil {
-						version = inst.ModuleFile.Language.Version
-					}
+					version := inst.LanguageVersion()
 					for _, file := range inst.BuildFiles {
 						shouldFormat := inst.User || file.Filename == "-" || filepath.Dir(file.Filename) == inst.Dir
 						if !shouldFormat {

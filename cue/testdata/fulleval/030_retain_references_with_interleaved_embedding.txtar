@@ -4,7 +4,7 @@
 a: d: {
 	#base
 	#info: {...}
-	Y: #info.X
+	Y:     #info.X
 } @test(eq, {
 	#info: {X: "foo"}
 	Y: "foo"
@@ -14,16 +14,20 @@ a: d: {
 	#info: {...} @test(closed)
 } @test(eq, { #info: {} })
 
-a: [Name=string]: {#info: {
-	X: "foo"
-}}
+a: [string]~(Name,_): {
+	#info: {
+		X: "foo"
+	}
+}
 -- out/eval/stats --
 Leaks:  0
 Freed:  8
-Reused: 3
-Allocs: 5
-Retain: 1
+Reused: 1
+Allocs: 7
+Retain: 0
 
 Unifications: 8
-Conjuncts:    19
-Disjuncts:    9
+Conjuncts:    14
+Disjuncts:    0
+
+NumCloseIDs: 3

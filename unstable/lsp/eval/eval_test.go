@@ -1749,7 +1749,8 @@ x: c: x
 		},
 
 		{
-			name: "Alias_Plain_Label_Internal",
+			name:        "Alias_Plain_Label_Internal",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=a: {b: 3, c: l.b}`,
 			expectDefinitions: map[position][]position{
@@ -1777,7 +1778,8 @@ l=a: {b: 3, c: l.b}`,
 		},
 
 		{
-			name: "Alias_Plain_Label_Internal_Implicit",
+			name:        "Alias_Plain_Label_Internal_Implicit",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=a: b: 3
 a: c: l.b`,
@@ -1809,7 +1811,8 @@ a: c: l.b`,
 		},
 
 		{
-			name: "Alias_Plain_Label_Internal_Implicit_Reversed",
+			name:        "Alias_Plain_Label_Internal_Implicit_Reversed",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: b: 3
 l=a: c: l.b`,
@@ -1841,7 +1844,8 @@ l=a: c: l.b`,
 		},
 
 		{
-			name: "Alias_Plain_Label_External",
+			name:        "Alias_Plain_Label_External",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=a: b: 3
 c: l.b`,
@@ -1870,7 +1874,8 @@ c: l.b`,
 		},
 
 		{
-			name: "Alias_Plain_Label_Scoping",
+			name:        "Alias_Plain_Label_Scoping",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: {
 	l=b: {c: l.d, d: 3}
@@ -1932,7 +1937,8 @@ h: a.l
 		},
 
 		{
-			name: "Alias_Dynamic_Label_Internal",
+			name:        "Alias_Dynamic_Label_Internal",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=(a): {b: 3, c: l.b}`,
 			expectDefinitions: map[position][]position{
@@ -1958,7 +1964,8 @@ l=(a): {b: 3, c: l.b}`,
 		},
 
 		{
-			name: "Alias_Dynamic_Label_Internal_Implicit",
+			name:        "Alias_Dynamic_Label_Internal_Implicit",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=(a): b: 3
 (a): c: l.b`,
@@ -1989,7 +1996,8 @@ l=(a): b: 3
 		},
 
 		{
-			name: "Alias_Dynamic_Label_Internal_Implicit_Reversed",
+			name:        "Alias_Dynamic_Label_Internal_Implicit_Reversed",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 (a): b: 3
 l=(a): c: l.b`,
@@ -2020,7 +2028,8 @@ l=(a): c: l.b`,
 		},
 
 		{
-			name: "Alias_Dynamic_Label_External",
+			name:        "Alias_Dynamic_Label_External",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=(a): b: 3
 c: l.b`,
@@ -2047,7 +2056,8 @@ c: l.b`,
 		},
 
 		{
-			name: "Alias_Pattern_Label_Internal",
+			name:        "Alias_Pattern_Label_Internal",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=[a]: {b: 3, c: l.b}`,
 			expectDefinitions: map[position][]position{
@@ -2073,7 +2083,8 @@ l=[a]: {b: 3, c: l.b}`,
 		},
 
 		{
-			name: "Alias_Pattern_Label_Internal_Implicit",
+			name:        "Alias_Pattern_Label_Internal_Implicit",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=[a]: b: 3
 [a]: c: l.b`,
@@ -2103,7 +2114,8 @@ l=[a]: b: 3
 		},
 
 		{
-			name: "Alias_Pattern_Label_Internal_Implicit_Reversed",
+			name:        "Alias_Pattern_Label_Internal_Implicit_Reversed",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 [a]: b: 3
 l=[a]: c: l.b`,
@@ -2131,7 +2143,8 @@ l=[a]: c: l.b`,
 		},
 
 		{
-			name: "Alias_Pattern_Label_External",
+			name:        "Alias_Pattern_Label_External",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l=[a]: b: 3
 c: l.b`,
@@ -2159,7 +2172,8 @@ c: l.b`,
 		},
 
 		{
-			name: "Alias_Pattern_Expr_Internal",
+			name:        "Alias_Pattern_Expr_Internal",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 [l=a]: {b: 3, c: l, d: l.b}`,
 			// This type of alias binds l to the key. So c: l will work,
@@ -2190,7 +2204,8 @@ c: l.b`,
 		},
 
 		{
-			name: "Alias_Pattern_Expr_Internal_Implicit",
+			name:        "Alias_Pattern_Expr_Internal_Implicit",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 [l=a]: b: 3
 [a]: c: l`,
@@ -2218,7 +2233,8 @@ c: l.b`,
 		},
 
 		{
-			name: "Alias_Pattern_Expr_External",
+			name:        "Alias_Pattern_Expr_External",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 [l=a]: b: 3
 c: l`,
@@ -2244,7 +2260,8 @@ c: l`,
 		},
 
 		{
-			name: "Alias_Pattern_Key_Value",
+			name:        "Alias_Pattern_Key_Value",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 v=[k=string]: {a: _, b: v.a, c: k.a}
 `,
@@ -2487,7 +2504,8 @@ a: b: _
 		},
 
 		{
-			name: "Alias_Expr_Internal",
+			name:        "Alias_Expr_Internal",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: l={b: 3, c: l.b}`,
 			expectDefinitions: map[position][]position{
@@ -2516,7 +2534,8 @@ a: l={b: 3, c: l.b}`,
 		},
 
 		{
-			name: "Alias_Expr_Internal_Explicit",
+			name:        "Alias_Expr_Internal_Explicit",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: l={b: 3} & {c: l.b}`,
 			expectDefinitions: map[position][]position{
@@ -2544,7 +2563,8 @@ a: l={b: 3} & {c: l.b}`,
 		},
 
 		{
-			name: "Alias_Expr_Internal_Explicit_Paren",
+			name:        "Alias_Expr_Internal_Explicit_Paren",
+			langVersion: oldAliasVersion,
 			// The previous test case works because it's parsed like
 			// this:
 			archive: `-- a.cue --
@@ -2576,7 +2596,8 @@ a: l=({b: 3} & {c: l.b})`,
 		},
 
 		{
-			name: "Alias_Expr_External",
+			name:        "Alias_Expr_External",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: l={b: 3}
 c: l.b
@@ -2613,7 +2634,8 @@ d: a.b`,
 		},
 
 		{
-			name: "Alias_Expr_Call",
+			name:        "Alias_Expr_Call",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: n=(2 * (div(n, 2))) | error("\(n) is not even")
 `,
@@ -3540,7 +3562,8 @@ y: x."💩"
 		},
 
 		{
-			name: "Comprehension_If",
+			name:        "Comprehension_If",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 a: 17
 b: 3
@@ -4281,7 +4304,8 @@ w: a: b: 6
 		},
 
 		{
-			name: "MultiFile_Aliases",
+			name:        "MultiFile_Aliases",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 package x
 
@@ -5354,9 +5378,16 @@ func definitionKeysForOffset(fe *eval.FileEvaluator, offset int) []ast.Node {
 	return keys
 }
 
+// oldAliasVersion is the last language version accepting the prefix alias
+// syntax, which is rejected from v0.18.0 on where @experiment(aliasv2) is
+// stable.
+const oldAliasVersion = "v0.17.0"
+
 type testCase struct {
-	name              string
-	archive           string
+	name    string
+	archive string
+	// langVersion pins the language version used to parse the archive.
+	langVersion       string
 	expectDefinitions map[position][]position
 	expectCompletions map[offsetRange]fieldEmbedCompletions
 	expectUsagesExtra map[position]map[bool][]position
@@ -5383,7 +5414,8 @@ func (tcs testCases) run(t *testing.T) {
 			qt.Assert(t, qt.IsTrue(len(ar.Files) > 0))
 
 			for _, fh := range ar.Files {
-				fileAst, _ := parser.ParseFile(fh.Name, fh.Data, parser.ParseComments)
+				fileAst, _ := parser.ParseFile(fh.Name, fh.Data,
+					parser.ParseComments, parser.Version(tc.langVersion))
 				fileAst.Pos().File().SetContent(fh.Data)
 				qt.Assert(t, qt.IsNotNil(fileAst))
 				files = append(files, fileAst)

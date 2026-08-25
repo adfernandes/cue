@@ -43,7 +43,7 @@ noCyclePattern: _
 
 noCyclePattern: t1: {
 	#D: [string]: #D
-	a: {}
+	a:        {}
 	[string]: #D
 	[string]: b: c: {}
 	@test(eq, {#D: {}, a: {b: {c: {}}}})
@@ -51,7 +51,7 @@ noCyclePattern: t1: {
 
 noCyclePattern: t2: {
 	#D: [string]: x: #D
-	a: {}
+	a:        {}
 	[string]: #D
 	[string]: b: x: c: {}
 	@test(eq, {#D: {}, a: {b: {x: {c: {x: {}}}}}})
@@ -59,7 +59,7 @@ noCyclePattern: t2: {
 
 noCyclePattern: t3: {
 	_D: [string]: _T
-	_T: x: _D
+	_T: x:        _D
 	[string]: _D
 	[string]: b: x: c: {}
 	a: {}
@@ -104,13 +104,12 @@ noCyclePattern: t6: {
 	#E: t: #T
 
 	#T: {
-		{ object: #S }
+		{object: #S}
 	}
 
-	#S: y: #D
+	#S: y:       #D
 	[string]: x: #D
-	[string]: x: r: t: object: y: foo: t: object: {
-	}
+	[string]: x: r: t: object: y: foo: t: object: {}
 	bar: {}
 	@test(eq, {
 		#D: {}
@@ -138,7 +137,6 @@ noCancelSelfInvoke: t1: {
 	@test(err, code=structural_cycle)
 }
 
-
 // Even though these cycles cross pattern boundaries, they are still structural
 // cycles as the reference includes a field that triggers the pattern.
 selfTriggerCycle: _
@@ -150,12 +148,13 @@ selfTriggerCycle: t1: {
 	a: #T @test(shareID=T)
 	#T: {
 		[string]: #T
-		b: {} @test(err, at=b, code=structural_cycle)
+		b:        {} @test(err, at=b, code=structural_cycle)
 	} @test(shareID=T)
 }
 
 selfTriggerCycle: t2: {
-	#T: [string]: X={
+	#T: [string]: {
+		let X = self
 		a: X
 	}
 	b: #T
@@ -166,8 +165,8 @@ selfTriggerCycle: long1: {
 	// The long string of nested fields will initially exempt the structural
 	// cycle, but they will eventually run out, causing the cycle to be
 	// triggered.
-	a: [string]: b: a     // -> record conjunct from pattern per field.
-	a: c: b: c: b: c: {}  // -> track if any of the fields is not a cycle.
+	a: [string]: b: a // -> record conjunct from pattern per field.
+	a: c: b: c: b: c: {} // -> track if any of the fields is not a cycle.
 	@test(err, at=a.c.b.c.b.c.b, code=structural_cycle)
 }
 
@@ -308,13 +307,13 @@ selfTriggerCycle.t1.a, brokenRing.t1.p1.D.a?, brokenRing.t1.p2.T.b). v2 addition
 reports cyclicRing.t1.D.a.b as structural cycle.
 -- out/eval/stats --
 Leaks:  4
-Freed:  190
-Reused: 164
+Freed:  191
+Reused: 165
 Allocs: 30
 Retain: 0
 
-Unifications: 183
-Conjuncts:    359
+Unifications: 184
+Conjuncts:    360
 Disjuncts:    2
 
 NumCloseIDs: 60

@@ -18,11 +18,13 @@ t1: {
 }
 -- out/eval/stats --
 Leaks:  0
-Freed:  9
-Reused: 5
-Allocs: 4
+Freed:  10
+Reused: 3
+Allocs: 7
 Retain: 0
 
-Unifications: 9
-Conjuncts:    17
-Disjuncts:    9
+Unifications: 10
+Conjuncts:    18
+Disjuncts:    0
+
+NumCloseIDs: 1

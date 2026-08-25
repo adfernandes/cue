@@ -1,6 +1,6 @@
 -- in.cue --
-a="a": 3
-b:     a
+"a"~(a): 3
+b: a
 o: {"a\nb": 2}
 c: o["a\nb"]
 -- out/compile --

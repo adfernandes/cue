@@ -24,13 +24,13 @@ package c
     ./b/b.cue:5:6
 -- out/eval/stats --
 Leaks:  5
-Freed:  2
+Freed:  18
 Reused: 0
-Allocs: 7
+Allocs: 23
 Retain: 0
 
-Unifications: 6
-Conjuncts:    8
+Unifications: 22
+Conjuncts:    24
 Disjuncts:    0
 
 NumCloseIDs: 1

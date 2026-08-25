@@ -20,10 +20,10 @@ e: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  11
-Reused: 7
-Allocs: 4
-Retain: 1
+Reused: 3
+Allocs: 8
+Retain: 0
 
 Unifications: 11
-Conjuncts:    13
-Disjuncts:    11
+Conjuncts:    11
+Disjuncts:    0

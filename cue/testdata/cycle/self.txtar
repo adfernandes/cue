@@ -1,6 +1,4 @@
 -- in.cue --
-@experiment(aliasv2)
-
 import "list"
 
 expr: error1: {
@@ -149,237 +147,36 @@ disjList: ok4: {
 	@test(eq, {x: string, #A: string})
 }
 
--- old.cue --
-name: "foo"
-dynamicSelf: ok1: {
-	X=(name): string | X
-	x: X
-	@test(eq, {x: string | _, foo: string | _})
-}
-
-dynamicSelf: ok2: {
-	x: X
-	X=(name): string | X
-	@test(eq, {x: string | _, foo: string | _})
-}
-
-dynamicSelf: ok3: {
-	X=(name): X | string
-	x: X
-	@test(eq, {x: _ | string, foo: _ | string})
-}
-
-dynamicSelf: ok4: {
-	x: X
-	X=(name): X | string
-	@test(eq, {x: _ | string, foo: _ | string})
-}
-
-dynamicEmbed: ok1: {
-	X=(name): string | {X}
-	x: X
-	@test(eq, {x: string | {}, foo: string | {}})
-}
-
-dynamicEmbed: ok2: {
-	x: X
-	X=(name): string | {X}
-	@test(eq, {x: string | {}, foo: string | {}})
-}
-
-dynamicEmbed: ok3: {
-	X=(name): {X} | string
-	x: X
-	@test(eq, {x: {} | string, foo: {} | string})
-}
-
-dynamicEmbed: ok4: {
-	x: X
-	X=(name): {X} | string
-	@test(eq, {x: {} | string, foo: {} | string})
-}
-
-dynamicList: _
-dynamicList: ok1: {
-	X=(name): string | [X]
-	x: X
-
-	y: x
-	y: [[[[string]]]]
-	@test(eq, {
-		x: string
-		y: [[[[string]]]]
-		foo: string
-	})
-}
-
-dynamicList: ok2: {
-	x: X
-	X=(name): string | [X]
-	@test(eq, {x: string, foo: string})
-}
-
-dynamicList: ok3: {
-	X=(name): [X] | string
-	x: X
-	@test(eq, {x: string, foo: string})
-}
-
-dynamicList: ok4: {
-	x: X
-	X=(name): [X] | string
-	@test(eq, {x: string, foo: string})
-}
-
-dynamicPatternSelf: ok1: {
-	X=[string]: string | X
-	@test(eq, {})
-}
-dynamicPatternSelf: ok2: {
-	X=[string]: X | string
-	@test(eq, {})
-}
-dynamicPatternEmbed: ok1: {
-	X=[string]: string | {X}
-	@test(eq, {})
-}
-dynamicPatternEmbed: ok2: {
-	X=[string]: {X} | string
-	@test(eq, {})
-}
-dynamicPatternList: ok1: {
-	X=[string]: string | [X]
-	@test(eq, {})
-}
-dynamicPatternList: ok2: {
-	X=[string]: [X] | string
-	@test(eq, {})
-}
-
-valueSelf: ok1: {
-	y: X={string | X}
-	x: y
-	@test(eq, {y: string | {}, x: string | {}})
-}
-
-valueSelf: ok2: {
-	x: y
-	y: X={string | X}
-	@test(eq, {x: string | {}, y: string | {}})
-}
-
-valueSelf: ok3: {
-	y: X={X | string}
-	x: y
-	@test(eq, {y: {} | string, x: {} | string})
-}
-
-valueSelf: ok4: {
-	x: y
-	y: X={X | string}
-	@test(eq, {x: {} | string, y: {} | string})
-}
-
-valueEmbed: ok1: {
-	y: X={string | {X}}
-	x: y
-	@test(eq, {y: string | {}, x: string | {}})
-}
-
-valueEmbed: ok2: {
-	x: y
-	y: X={string | {X}}
-	@test(eq, {x: string | {}, y: string | {}})
-}
-
-valueEmbed: ok3: {
-	y: X={{X} | string}
-	x: y
-	@test(eq, {y: {} | string, x: {} | string})
-}
-
-valueEmbed: ok4: {
-	x: y
-	y: X={{X} | string}
-	@test(eq, {x: {} | string, y: {} | string})
-}
-
-valueList: ok1: {
-	y: X={string | [X]}
-	x: y
-	@test(eq, {y: string, x: string})
-}
-
-valueList: ok2: {
-	x: y
-	y: X={string | [X]}
-	@test(eq, {x: string, y: string})
-}
-
-valueList: ok3: {
-	y: X={[X] | string}
-	x: y
-	@test(eq, {y: string, x: string})
-}
-
-valueList: ok4: {
-	x: y
-	y: X={[X] | string}
-	@test(eq, {x: string, y: string})
-}
-
-// Issue #1729
-issue1729: t1: {
-	#x: { #x | {} }
-	x: #x & {}
-	@test(eq, {#x: {}, x: {}})
-}
-
-issue1729: t2: {
-	x: #x & {}
-	#x: { #x | {} }
-	@test(eq, {x: {}, #x: {}})
-}
-
 -- selfnew.cue --
-@experiment(aliasv2)
-
 issue4125: t1_self: {
 	let Root = self
 	a: Root.a
 	@test(eq, {a: _})
 }
--- selfold.cue --
-issue4125: t2_alias: X={
-	let Y = X
-	b: Y.b
-	@test(eq, {b: _})
-}
-
 -- out/errors.txt --
 [eval] expr.error1.a: conflicting values 4 and 3:
-    ./in.cue:6:5
-    ./in.cue:7:5
+    ./in.cue:4:5
+    ./in.cue:5:5
 [eval] expr.error2.a: conflicting values 4 and 3:
-    ./in.cue:11:5
-    ./in.cue:12:5
+    ./in.cue:9:5
+    ./in.cue:10:5
 [structural_cycle] listConcat.error1.a: error in call to list.Concat: structural cycle:
-    ./in.cue:17:5
+    ./in.cue:15:5
 [structural_cycle] listConcat.error2.a: error in call to list.Concat: structural cycle:
-    ./in.cue:22:5
+    ./in.cue:20:5
 -- out/todo.txt --
 listConcat.error1/error2.a: v2 shows list elements inside structural cycle error, v3 shows proper error message.
 selfEmbed.ok2.a and ok6.a: v2 expands a as independent struct, v3 uses structure sharing ~(x).
 issue4125: not present in v2 (feature added later), only evaluated in v3.
 -- out/eval/stats --
-Leaks:  42
-Freed:  297
-Reused: 275
-Allocs: 64
+Leaks:  13
+Freed:  132
+Reused: 114
+Allocs: 31
 Retain: 0
 
-Unifications: 219
-Conjuncts:    435
-Disjuncts:    100
+Unifications: 102
+Conjuncts:    182
+Disjuncts:    34
 
-NumCloseIDs: 86
+NumCloseIDs: 29

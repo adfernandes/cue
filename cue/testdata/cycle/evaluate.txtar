@@ -148,9 +148,9 @@ printCycle: {
 }
 -- self.cue --
 issue3978: {
-	a: self={
-		if self.missing != _|_ {
-		}
+	a: {
+		let this = self
+		if this.missing != _|_ {}
 	}
 	@test(eq, {a: {}})
 }
@@ -191,14 +191,14 @@ forCycle.#A.a: v2 errors directly, v3 shows as ~(forCycle.#B).
 listAddCycle/listMulCycle: different error messages between v2 and v3.
 letCycleFail.t2: v2 X was a struct, v3 X is structural cycle error.
 -- out/eval/stats --
-Leaks:  10
-Freed:  114
-Reused: 91
+Leaks:  11
+Freed:  115
+Reused: 93
 Allocs: 33
 Retain: 0
 
-Unifications: 104
-Conjuncts:    150
+Unifications: 106
+Conjuncts:    151
 Disjuncts:    4
 
 NumCloseIDs: 47

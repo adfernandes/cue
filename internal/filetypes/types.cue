@@ -260,7 +260,7 @@ modes: [string]: {
 }
 
 // forms defines schema for all forms. It does not include the form ID.
-forms: [Name=string]: #FileInfo
+forms: [string]~(Name,_): #FileInfo
 
 forms: schema: {
 	form: *"schema" | "final" | "graph"
@@ -312,7 +312,7 @@ forms: data: {
 	optional:    false
 }
 
-interpretations: [Name=string]: #FileInfo & {
+interpretations: [string]~(Name,_): #FileInfo & {
 	interpretation: Name
 }
 

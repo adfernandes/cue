@@ -57,18 +57,14 @@ issue2473: two: {
     ./in.cue:4:7
     ./in.cue:9:7
 -- out/eval/stats --
-Leaks:  2
-Freed:  19
-Reused: 13
-Allocs: 8
-Retain: 10
+Leaks:  4
+Freed:  17
+Reused: 9
+Allocs: 12
+Retain: 0
 
 Unifications: 13
-Conjuncts:    37
-Disjuncts:    21
+Conjuncts:    36
+Disjuncts:    8
 
-MisalignedConjunct: 5
-
-NumCloseIDs: 2
-
-
+NumCloseIDs: 8

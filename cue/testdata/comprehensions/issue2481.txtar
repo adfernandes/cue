@@ -97,7 +97,8 @@ Allocs: 17
 Retain: 0
 
 Unifications: 26
-Conjuncts:    54
+Conjuncts:    50
 Disjuncts:    0
+Notifications: 2
 
-NumCloseIDs: 22
+NumCloseIDs: 24

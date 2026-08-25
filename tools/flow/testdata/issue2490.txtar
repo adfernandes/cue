@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 )
 
-input: [name=string]: {
+input: [string]~(name,_): {
 	{#in: name, #out: #in}.#out
 }
 root: foo: {

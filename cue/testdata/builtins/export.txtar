@@ -28,12 +28,12 @@ issue3972: {
 -- out/eval/stats --
 Leaks:  2
 Freed:  11
-Reused: 2
-Allocs: 11
+Reused: 1
+Allocs: 12
 Retain: 0
 
 Unifications: 13
-Conjuncts:    18
+Conjuncts:    14
 Disjuncts:    0
 
 NumCloseIDs: 5

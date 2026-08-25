@@ -13,8 +13,8 @@ import "strings"
 reduced: {
 	#Input: {
 		@test(shareID=reducedInput)
-		name:  string
-		age:   "one" | "two"
+		name: string
+		age:  "one" | "two"
 		if name != _|_ {
 			if true {
 				age: "one"
@@ -23,17 +23,17 @@ reduced: {
 	}
 
 	#def1: {
-		IN=_in: _
-		def1: #def2 & {_in: IN}
+		_in~(IN): _
+		def1:     #def2 & {_in: IN}
 	}
 
 	#def2: {
-		IN=_in: _
-		def2: #def3 & {_in: IN}
+		_in~(IN): _
+		def2:     #def3 & {_in: IN}
 	}
 
 	#def3: {
-		_in: #Input @test(shareID=reducedInput)
+		_in:  #Input @test(shareID=reducedInput)
 		def3: _in.age
 	}
 
@@ -102,13 +102,13 @@ full: {
 	}
 
 	_#cronjob: {
-		c=_config: #CronjobConfig @test(shareID=cronjobConfig)
+		_config~(c): #CronjobConfig @test(shareID=cronjobConfig)
 
 		out: spec: jobTemplate: spec: template: _#pod & {_config: c}
 	}
 
 	_#pod: {
-		c=_config: #PodConfig @test(shareID=podConfig)
+		_config~(c): #PodConfig @test(shareID=podConfig)
 
 		spec: containers: [{
 			_#container & {
@@ -118,7 +118,7 @@ full: {
 	}
 
 	_#container: {
-		c=_config: #ContainerConfig @test(shareID=containerConfig)
+		_config~(c): #ContainerConfig @test(shareID=containerConfig)
 
 		imagePullPolicy: c.imagePullPolicy
 	}

@@ -72,13 +72,13 @@ issue3908: full: {
 }
 -- out/eval/stats --
 Leaks:  30
-Freed:  352
-Reused: 326
+Freed:  344
+Reused: 318
 Allocs: 56
 Retain: 0
 
-Unifications: 62
-Conjuncts:    466
-Disjuncts:    278
+Unifications: 60
+Conjuncts:    454
+Disjuncts:    272
 
-NumCloseIDs: 101
+NumCloseIDs: 98

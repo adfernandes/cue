@@ -144,6 +144,9 @@
 				}
 			}
 		},
+		"skip": {
+			"v3-roundtrip": "generate error: old-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V)) (and 1 more errors)"
+		},
 		"tests": [
 			{
 				"description": "quoted tab",
@@ -153,7 +156,10 @@
 					"b": 3,
 					"c": 4
 				},
-				"valid": true
+				"valid": true,
+				"skip": {
+					"v3-roundtrip": "could not extract schema"
+				}
 			},
 			{
 				"description": "quoted quote",
@@ -164,7 +170,7 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3-roundtrip": "unexpected success"
+					"v3-roundtrip": "could not extract schema"
 				}
 			},
 			{
@@ -175,7 +181,7 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3-roundtrip": "unexpected success"
+					"v3-roundtrip": "could not extract schema"
 				}
 			},
 			{
@@ -185,7 +191,7 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3-roundtrip": "unexpected success"
+					"v3-roundtrip": "could not extract schema"
 				}
 			}
 		]

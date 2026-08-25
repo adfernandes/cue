@@ -12,8 +12,8 @@ import "strings"
 
 reduced: {
 	#Input: {
-		name:  string
-		age:   "one" | "two"
+		name: string
+		age:  "one" | "two"
 		if name != _|_ {
 			if true {
 				age: "one"
@@ -22,17 +22,17 @@ reduced: {
 	}
 
 	#def1: {
-		IN=_in: _
-		def1: #def2 & {_in: IN}
+		_in~(IN): _
+		def1:     #def2 & {_in: IN}
 	}
 
 	#def2: {
-		IN=_in: _
-		def2: #def3 & {_in: IN}
+		_in~(IN): _
+		def2:     #def3 & {_in: IN}
 	}
 
 	#def3: {
-		_in: #Input
+		_in:  #Input
 		def3: _in.age
 	}
 
@@ -66,13 +66,13 @@ full: {
 	}
 
 	_#cronjob: {
-		c=_config: #CronjobConfig
+		_config~(c): #CronjobConfig
 
 		out: spec: jobTemplate: spec: template: _#pod & {_config: c}
 	}
 
 	_#pod: {
-		c=_config: #PodConfig
+		_config~(c): #PodConfig
 
 		spec: containers: [{
 			_#container & {
@@ -82,7 +82,7 @@ full: {
 	}
 
 	_#container: {
-		c=_config: #ContainerConfig
+		_config~(c): #ContainerConfig
 
 		imagePullPolicy: c.imagePullPolicy
 	}

@@ -24,7 +24,7 @@ foo1: {
 
 #Bar: {
 	field: int
-	{[A=_]: int}
+	{[_]~(A,_): int}
 
 }
 bar: #Bar

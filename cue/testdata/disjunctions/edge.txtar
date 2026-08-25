@@ -19,7 +19,7 @@ cyclicalInsertInDisjunction: {
 		// disjunctions would _not_ case the reference to cross disjunction
 		// boundaries.
 		c: {d: e, e: _}
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 		@test(eq, {c: {d: 2, e: 2}})
 	}
 	maybe1: {
@@ -27,7 +27,7 @@ cyclicalInsertInDisjunction: {
 		// However, since the reference starts from within a disjunction, this
 		// could be allowed, if we define it to be.
 		c: d: c.e
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 		@test(eq, {c: {d: 2, e: 2}})
 	}
 	err1: {
@@ -38,7 +38,7 @@ cyclicalInsertInDisjunction: {
 		@test(permute, count=6)
 		x: c.e
 		c: d: x
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 		@test(eq, {x: 2, c: {d: 2, e: 2}})
 	}
 	err2: {
@@ -50,7 +50,7 @@ cyclicalInsertInDisjunction: {
 		@test(permute, count=6)
 		x: div(c.e, 2)
 		c: d: x
-		c: {d: 1, e: 2} | {d : 2, e: 3}
+		c: {d: 1, e: 2} | {d: 2, e: 3}
 		@test(eq, {x: 1, c: {d: 1, e: 2}})
 	}
 	err3: {
@@ -59,7 +59,7 @@ cyclicalInsertInDisjunction: {
 		@test(permute, count=6)
 		x: c.e @test(err, code=incomplete, contains="unresolved disjunction", pos=[0:6])
 		c: d: 1 | 2 | x
-		c: {d: 1, e: 2} | {d : 2, e: 3}
+		c: {d: 1, e: 2} | {d: 2, e: 3}
 		@test(eq, {
 			x: _|_ @test(err, code=incomplete, contains="unresolved disjunction", pos=[4:6])
 			c: {d: 1, e: 2} | {d: 2, e: 3}
@@ -83,14 +83,14 @@ preseveBottomSemantics: ok: {
 	// `a: _ | X`. As we do not simplify disjunctions, the result is `a: _ | X`.
 	// However, we could consider simplifying in this case to `a: _` if we can
 	// come up with a good general mechanism for subsumption.
-	#x: { #x | {} }
+	#x: {#x | {}}
 	@test(eq, {#x: {}})
 }
 
 eliminateOpenVariant: ok: {
 	// We have two structs in the disjunction that are identical in every way
 	// except openness. TODO: should we disambiguate those?
-	c: {a: 1} | #b
+	c:  {a: 1} | #b
 	#b: {a: 1}
 	@test(eq, {c: {a: 1} | {a: 1}, #b: {a: 1}})
 }
@@ -105,32 +105,35 @@ cyclicSelfElimination: ok: {
 // Value aliases must resolve to the specific disjunct arm's value,
 // not the original unresolved disjunction.
 issue4251_notC: {
-	#NotC: x={
+	#NotC: {
+		let x = self
 		string
-		_must: true & x != "c" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -2:11, -1:3])
+		_must: true & x != "c" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -3:9, -1:3])
 	}
-	@test(err, at=#NotC._must, =incomplete, contains="non-concrete value string in operand to !=", pos=[3:17, 1:11, 2:3])
+	@test(err, at=#NotC._must, =incomplete, contains="non-concrete value string in operand to !=", pos=[4:17, 1:9, 3:3])
 
 	a: #NotC
 	a: "a" | "b"
 	a: "a" @test(eq, {"a", _must: true})
 }
 issue4251_notB: {
-	#NotB: x={
+	#NotB: {
+		let x = self
 		string
-		_must: true & x != "b" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -2:11, -1:3])
+		_must: true & x != "b" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -3:9, -1:3])
 	}
-	@test(err, at=#NotB._must, code=incomplete, contains="non-concrete value string in operand to !=", pos=[3:17, 1:11, 2:3])
+	@test(err, at=#NotB._must, code=incomplete, contains="non-concrete value string in operand to !=", pos=[4:17, 1:9, 3:3])
 	a: #NotB
 	a: "a" | "b"
 	a: "a" @test(eq, {"a", _must: true})
 }
 issue4251_notB_reversed: {
-	#NotB: x={
+	#NotB: {
+		let x = self
 		string
-		_must: true & x != "b" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -2:11, -1:3])
+		_must: true & x != "b" @test(err, code=incomplete, contains="non-concrete value string in operand to !=", pos=[0:17, -3:9, -1:3])
 	}
-	@test(err, at=#NotB._must, code=incomplete, contains="non-concrete value string in operand to !=", pos=[3:17, 1:11, 2:3])
+	@test(err, at=#NotB._must, code=incomplete, contains="non-concrete value string in operand to !=", pos=[4:17, 1:9, 3:3])
 	a: #NotB
 	a: "b" | "a"
 	a: "a" @test(eq, {"a", _must: true})
@@ -175,26 +178,26 @@ panic1: {
 [incomplete] cyclicalInsertInDisjunction.err3.x: unresolved disjunction {d:1,e:2} | {d:2,e:3} (type struct):
     ./in.cue:54:6
 [incomplete] issue4251_notC.#NotC._must: non-concrete value string in operand to !=:
-    ./in.cue:104:17
-    ./in.cue:102:11
-    ./in.cue:103:3
+    ./in.cue:105:17
+    ./in.cue:102:9
+    ./in.cue:104:3
 [incomplete] issue4251_notB.#NotB._must: non-concrete value string in operand to !=:
-    ./in.cue:115:17
-    ./in.cue:113:11
-    ./in.cue:114:3
+    ./in.cue:117:17
+    ./in.cue:114:9
+    ./in.cue:116:3
 [incomplete] issue4251_notB_reversed.#NotB._must: non-concrete value string in operand to !=:
-    ./in.cue:125:17
-    ./in.cue:123:11
-    ./in.cue:124:3
+    ./in.cue:128:17
+    ./in.cue:125:9
+    ./in.cue:127:3
 -- out/eval/stats --
-Leaks:  24
-Freed:  175
-Reused: 144
-Allocs: 55
+Leaks:  27
+Freed:  184
+Reused: 153
+Allocs: 58
 Retain: 0
 
-Unifications: 83
-Conjuncts:    228
+Unifications: 89
+Conjuncts:    234
 Disjuncts:    53
 Notifications: 9
 

@@ -523,6 +523,15 @@ func parseArgs(cmd *Command, args []string, cfg *config) (p *buildPlan, err erro
 		return nil, errors.Newf(token.NoPos, "invalid args")
 	}
 
+	// Any CUE we generate from another encoding lands in this module, so it
+	// must be valid at the language version the module declares.
+	for _, b := range builds {
+		if version := b.LanguageVersion(); version != "" {
+			p.encConfig.TargetLanguageVersion = version
+			break
+		}
+	}
+
 	if err := p.parsePlacementFlags(); err != nil {
 		return nil, err
 	}

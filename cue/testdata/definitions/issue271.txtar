@@ -20,9 +20,11 @@ Freed:  14
 Reused: 5
 Allocs: 9
 Retain: 0
+
 Unifications: 10
 Conjuncts:    20
 Disjuncts:    0
+
 NumCloseIDs: 3
 -- out/diff-v2-v3.txt --
 Positions: v3 reports fewer positions than v2 for the "field not allowed" error.

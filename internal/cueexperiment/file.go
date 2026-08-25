@@ -76,12 +76,13 @@ type File struct {
 	// AliasV2 enables the use of 'self' identifier to refer to the
 	// enclosing struct and enables the postfix alias syntax (~X and ~(K,V)).
 	// The file where this experiment is enabled disallows the use of old prefix
-	// alias syntax (X=).
+	// alias syntax (X=). It is stable as of v0.18.0, so a file at that
+	// language version or later must use the postfix syntax.
 	//
 	// Proposal:      https://cuelang.org/issue/4014
 	// Spec change:   https://cuelang.org/cl/1222377
 	// Requires cue fix when upgrading
-	AliasV2 bool `experiment:"preview:v0.15.0"`
+	AliasV2 bool `experiment:"preview:v0.15.0,stable:v0.18.0"`
 
 	// Try enables the try clause and optional reference markers (?).
 	// The try clause allows conditional field inclusion based on whether

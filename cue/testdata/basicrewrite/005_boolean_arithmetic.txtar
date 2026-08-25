@@ -12,10 +12,10 @@ f: true & false   @test(err, code=eval, pos=[0:4, 0:11])
 -- out/eval/stats --
 Leaks:  0
 Freed:  7
-Reused: 5
-Allocs: 2
+Reused: 0
+Allocs: 7
 Retain: 0
 
 Unifications: 7
 Conjuncts:    9
-Disjuncts:    7
+Disjuncts:    0

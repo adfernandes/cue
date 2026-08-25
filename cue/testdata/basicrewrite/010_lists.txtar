@@ -25,12 +25,14 @@ e5:    [1, 2, 4, 8] & [1, 2, ...>=4 & <=5] @test(err, code=eval, pos=[0:39, 0:18
     ./in.cue:10:39
     ./in.cue:10:18
 -- out/eval/stats --
-Leaks:  4
-Freed:  23
-Reused: 20
-Allocs: 7
-Retain: 4
+Leaks:  0
+Freed:  31
+Reused: 18
+Allocs: 13
+Retain: 0
 
-Unifications: 27
+Unifications: 26
 Conjuncts:    46
-Disjuncts:    26
+Disjuncts:    0
+
+NumCloseIDs: 1

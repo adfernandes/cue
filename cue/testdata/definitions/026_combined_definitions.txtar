@@ -37,9 +37,11 @@ Freed:  29
 Reused: 17
 Allocs: 12
 Retain: 0
+
 Unifications: 29
 Conjuncts:    41
 Disjuncts:    0
+
 NumCloseIDs: 2
 -- out/diff-v2-v3.txt --
 Missing positions: v3 reports fewer positions than v2 for "field not allowed" errors.

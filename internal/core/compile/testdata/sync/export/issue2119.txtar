@@ -5,20 +5,22 @@ import (
 )
 
 simplified: {
-	x: d: R={
+	x: d: {
+		let R = self
 		".*"
-		[R+""][0]
+		[R + ""][0]
 	}
 	out: yaml.Marshal(x)
 }
 
 original: {
-	#testableRegexp: R={
+	#testableRegexp: {
+		let R = self
 		string
 
 		#test: close({
 			in:  string
-			out: regexp.FindSubmatch("^"+R+"$", in)[1]
+			out: regexp.FindSubmatch("^" + R + "$", in)[1]
 		})
 	}
 
@@ -38,9 +40,10 @@ original: {
   simplified: {
     x: {
       d: {
+        let R#1 = 〈1〉
         ".*"
         [
-          (〈2〉 + ""),
+          (〈1;let R#1〉 + ""),
         ][0]
       }
     }
@@ -48,10 +51,11 @@ original: {
   }
   original: {
     #testableRegexp: {
+      let R#2 = 〈1〉
       string
       #test: close({
         in: string
-        out: 〈import;regexp〉.FindSubmatch((("^" + 〈2〉) + "$"), 〈0;in〉)[1]
+        out: 〈import;regexp〉.FindSubmatch((("^" + 〈1;let R#2〉) + "$"), 〈0;in〉)[1]
       })
     }
     rule: {

@@ -8,7 +8,7 @@ a: "foo"
 e: 2
 
 b: "bar"
-X="\(b)": {
+"\(b)"~(X): {
 	a: 1
 }
 c: X
@@ -27,12 +27,12 @@ parenExprRefParent: {
 }
 parenExprRefEqual: {
 	(x): {}
-	x: "foo"
+	x:   "foo"
 }
 chainedResolution: x: {
 	(x.baz): "bar"
 	(x.foo): "baz"
-	baz: "foo"
+	baz:     "foo"
 }
 
 // A dynamic field key that references an incomplete value (string interpolation
@@ -61,7 +61,7 @@ constraints: {
 issue3828: reduced: {
 	a: b: {}
 	a: [_]: {
-		if true let x=str {
+		if true let x = str {
 			(x): true
 		}
 	}
@@ -72,7 +72,8 @@ issue3828: full: {
 		repos: repo1: {}
 	}
 	botUser: "bot1"
-	orgs: [_]: config={
+	orgs: [_]: {
+		let config = self
 		for repo_name, _ in config.repos
 		let orgBotUser = botUser {
 			collaborators: (repo_name): (orgBotUser): true
@@ -194,7 +195,8 @@ invalidKeyValue: {
       botUser: "bot1"
       orgs: {
         [_]: {
-          for repo_name, _ in 〈1〉.repos let orgBotUser = 〈3;botUser〉 {
+          let config#1 = 〈1〉
+          for repo_name, _ in 〈0;let config#1〉.repos let orgBotUser = 〈3;botUser〉 {
             collaborators: {
               〈3;repo_name〉: {
                 〈3;orgBotUser〉: true

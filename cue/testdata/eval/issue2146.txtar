@@ -69,9 +69,9 @@ Allocs: 63
 Retain: 0
 
 Unifications: 79
-Conjuncts:    157
+Conjuncts:    161
 Disjuncts:    12
 
-NumCloseIDs: 38
+NumCloseIDs: 42
 -- out/todo.txt --
 p1.b and p2.b: v2 uses structure-shared let (list#1multi/list#2multi), v3 evaluates it per arc.

@@ -1,7 +1,7 @@
 #name: optional expanded before lookup
 #evalFull
 -- in.cue --
-test: [ID=_]: {
+test: [_]~(ID,_): {
 	name: ID
 }
 

@@ -1,0 +1,37 @@
+#upgrade:v0.18.0
+
+# aliasv2 is stable as of v0.18.0, so upgrading to it rewrites the
+# old prefix aliases. No @experiment(aliasv2) attribute is added: the
+# experiment is already on for the target version.
+
+-- cue.mod/module.cue --
+module: "upgrade.test"
+
+language: { version: "v0.17.0" }
+
+-- a.cue --
+package foo
+
+X=a: {
+	foo: 1
+	bar: X.foo + 2 @test(eq, 3)
+}
+
+[Name=string]: n?: Name
+
+v: V={x: 1, y: V.x @test(eq, 1)}
+-- out/fixmod --
+--- cue.mod/module.cue
+module: "upgrade.test"
+language: version: "v0.18.0"
+--- a.cue
+package foo
+
+a~(X): {
+	foo: 1
+	bar: X.foo + 2 @test(eq, 3)
+}
+
+[string]~(Name,_): n?: Name
+
+v: {let V = self, x: 1, y: V.x @test(eq, 1)}

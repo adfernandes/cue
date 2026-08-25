@@ -32,6 +32,11 @@ var crdSchema = sync.OnceValue(func() cue.Value {
 // CRDConfig holds configuration for [ExtractCRDs].
 // Although this empty currently, it allows configuration
 // to be added in the future without breaking the API.
+//
+// TODO: give it a target language version, as
+// [Config.TargetLanguageVersion] is, if or when the syntax written here
+// stops being valid at every version. Nothing it writes today has a
+// spelling or a meaning that varies by one.
 type CRDConfig struct{}
 
 // ExtractedCRD holds an extracted Kubernetes CRD and the data it was derived from.

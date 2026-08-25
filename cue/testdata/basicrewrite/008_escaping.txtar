@@ -6,10 +6,10 @@ b: a          @test(eq, "foo\nbar")
 -- out/eval/stats --
 Leaks:  0
 Freed:  3
-Reused: 1
-Allocs: 2
+Reused: 0
+Allocs: 3
 Retain: 0
 
 Unifications: 3
-Conjuncts:    4
-Disjuncts:    3
+Conjuncts:    3
+Disjuncts:    0

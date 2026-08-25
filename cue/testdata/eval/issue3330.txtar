@@ -54,12 +54,14 @@ eliminated.x.n: field not allowed:
     ./in.cue:21:14
     ./in.cue:22:16
 -- out/eval/stats --
-Leaks:  0
-Freed:  43
-Reused: 34
-Allocs: 9
-Retain: 3
+Leaks:  2
+Freed:  31
+Reused: 21
+Allocs: 12
+Retain: 0
 
-Unifications: 35
-Conjuncts:    69
-Disjuncts:    46
+Unifications: 25
+Conjuncts:    45
+Disjuncts:    4
+
+NumCloseIDs: 7

@@ -17,7 +17,7 @@ list: [
 	25, 26, 27, 28, 29, 30,
 ]
 
-a: [X=string]: text: *"default" | string
+a: [string]~(X,_): text: *"default" | string
 a: {
 	for i in list {
 		"\(i)": text: string

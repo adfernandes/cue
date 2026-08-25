@@ -42,6 +42,8 @@ type graphTestCase struct {
 	// deps maps import paths to txtar archives of packages that the
 	// package under test imports.
 	deps map[string]string
+	// langVersion pins the language version used to parse the archives.
+	langVersion string
 	// check expresses the expectations for this case.
 	check func(t *graphTest)
 }
@@ -54,7 +56,7 @@ func (tcs graphTestCases) run(t *testing.T) {
 			deps := make(map[string]*eval.Evaluator, len(tc.deps))
 			for importPath, archive := range tc.deps {
 				ip := ast.ParseImportPath(importPath).Canonical()
-				deps[ip.String()] = eval.New(eval.Config{IP: ip}, parseArchive(t, archive)...)
+				deps[ip.String()] = eval.New(eval.Config{IP: ip}, parseArchive(t, archive, tc.langVersion)...)
 			}
 			cfg := eval.Config{
 				IP: ast.ParseImportPath("example.test/p").Canonical(),
@@ -62,20 +64,21 @@ func (tcs graphTestCases) run(t *testing.T) {
 					return deps[ip.String()]
 				},
 			}
-			ev := eval.New(cfg, parseArchive(t, tc.archive)...)
+			ev := eval.New(cfg, parseArchive(t, tc.archive, tc.langVersion)...)
 			tc.check(&graphTest{T: t, ev: ev, deps: deps})
 		})
 	}
 }
 
-func parseArchive(t *testing.T, archive string) []*ast.File {
+func parseArchive(t *testing.T, archive, langVersion string) []*ast.File {
 	t.Helper()
 	ar := txtar.Parse([]byte(archive))
 	qt.Assert(t, qt.IsTrue(len(ar.Files) > 0))
 
 	var files []*ast.File
 	for _, fh := range ar.Files {
-		f, err := parser.ParseFile(fh.Name, fh.Data, parser.ParseComments)
+		f, err := parser.ParseFile(fh.Name, fh.Data,
+			parser.ParseComments, parser.Version(langVersion))
 		qt.Assert(t, qt.IsNil(err))
 		f.Pos().File().SetContent(fh.Data)
 		files = append(files, f)
@@ -441,7 +444,8 @@ d: e: 4
 		},
 
 		{
-			name: "PatternsDynamicsOptionality",
+			name:        "PatternsDynamicsOptionality",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 package p
 
@@ -1008,7 +1012,8 @@ inline: {ia: _}.ia
 		},
 
 		{
-			name: "ResolveAliasesAndLets",
+			name:        "ResolveAliasesAndLets",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 package p
 

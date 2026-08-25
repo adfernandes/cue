@@ -45,7 +45,16 @@ func TestValueForOffset(t *testing.T) {
 		// tooBig indicates that rendering is expected to be abandoned
 		// because the result would exceed the node budget.
 		tooBig bool
+		// langVersion pins the language version used to parse the
+		// archive, for cases exercising syntax that is only accepted
+		// below (or above) a given version.
+		langVersion string
 	}
+
+	// oldAliasVersion is the last language version accepting the prefix
+	// alias syntax, which is rejected from v0.18.0 on where
+	// @experiment(aliasv2) is stable.
+	const oldAliasVersion = "v0.17.0"
 
 	var bigStruct strings.Builder
 	bigStruct.WriteString("-- a.cue --\nx: {\n")
@@ -591,7 +600,8 @@ x: int
 			want: "{5, a: 1} & int",
 		},
 		{
-			name: "alias_expression_hovers_the_element",
+			name:        "alias_expression_hovers_the_element",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l: [A=‸5, A]
 l: [6, 7]
@@ -599,7 +609,8 @@ l: [6, 7]
 			want: "6",
 		},
 		{
-			name: "alias_whitespace_hovers_the_element",
+			name:        "alias_whitespace_hovers_the_element",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l: [A=‸ 5, A]
 l: [6, 7]
@@ -607,7 +618,8 @@ l: [6, 7]
 			want: "6",
 		},
 		{
-			name: "list_element_alias_rendered",
+			name:        "list_element_alias_rendered",
+			langVersion: oldAliasVersion,
 			archive: `-- a.cue --
 l: [A=5, A]
 l: [‸6, 7]
@@ -786,7 +798,8 @@ package b
 				}
 				// Parse errors are tolerated: several cases exercise
 				// incomplete declarations such as `x: `.
-				fileAst, _ := parser.ParseFile(fh.Name, data, parser.ParseComments)
+				fileAst, _ := parser.ParseFile(fh.Name, data,
+					parser.ParseComments, parser.Version(tc.langVersion))
 				qt.Assert(t, qt.IsNotNil(fileAst))
 				fileAst.Pos().File().SetContent(data)
 				pkgName := fileAst.PackageName()

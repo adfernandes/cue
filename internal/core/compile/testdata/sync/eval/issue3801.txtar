@@ -4,7 +4,7 @@ issue3801: let: reduced: {
 	let F = {
 		base: {
 			in: string
-			let X = {a: "\(in)" }.a
+			let X = {a: "\(in)"}.a
 			out: X
 		}
 		filled: base & {in: "foo"} // failure is here
@@ -14,9 +14,9 @@ issue3801: let: reduced: {
 issue3801: nonRooted: reduced: {
 	#Output: output: {
 		#base: {
-			val0: string
+			val0:   string
 			msgObj: {a: val0}.a
-			value: msgObj
+			value:  msgObj
 		}
 		out: #base & {val0: "foo"}
 	}
@@ -25,7 +25,7 @@ issue3801: nonRooted: reduced: {
 issue3801: let: full: {
 	#Resource: {
 		someMsg: string
-		obs: {} | *{missing: true}
+		obs:     {} | *{missing: true}
 
 		let pickMsg = [
 			if obs.missing {msg: "\(someMsg)"},
@@ -41,8 +41,8 @@ issue3801: let: full: {
 	#Patches: [string]: _
 	#JSONPatch: {
 		namespace?: string
-		patch: [...#JSONOp]
-		output: #Patches & {(namespace): patch}
+		patch:      [...#JSONOp]
+		output:     #Patches & {(namespace): patch}
 	}
 	#JSONOp: {
 		op:    "add"
@@ -54,7 +54,7 @@ issue3801: let: full: {
 	}
 
 	#Main: {
-		NS=namespace: string
+		namespace~(NS): string
 
 		output: jsonPatch.output
 
@@ -71,7 +71,7 @@ issue3801: let: full: {
 }
 issue3801: nonRooted: full: {
 	#Output: {
-		NS=namespace: string
+		namespace~(NS): string
 		output: (#SubOutput & {
 			namespace: NS
 			let base2 = {

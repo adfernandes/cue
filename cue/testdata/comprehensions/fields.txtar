@@ -94,13 +94,13 @@ issue560: {
     ./in.cue:50:13
 -- out/eval/stats --
 Leaks:  0
-Freed:  30
+Freed:  38
 Reused: 18
-Allocs: 12
+Allocs: 20
 Retain: 0
 
-Unifications: 30
-Conjuncts:    37
+Unifications: 38
+Conjuncts:    45
 Disjuncts:    0
 
 NumCloseIDs: 12

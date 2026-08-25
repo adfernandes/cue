@@ -347,7 +347,7 @@ issue2209: simplified: t1: {
 	#SpecFoo: foo: min: 1
 	#SpecBar: bar: min: 1
 	spec: bar: {}
-	spec:  #SpecFoo | #SpecBar
+	spec: #SpecFoo | #SpecBar
 	out: {
 		{nullFoo: null} | {nullBar: null}
 		{minFoo: int} | {minBar: int}
@@ -428,8 +428,8 @@ issue2209: simplified: t3: {
 	{f1: int} | {b2: int}
 	{f2: int} | {b2: int}
 	BAZ: S.y
-	S: *#A | #B
-	#B: {x: 1, y: 1}
+	S:   *#A | #B
+	#B:  {x: 1, y: 1}
 	S: x: 1
 	@test(eq, {
 		#A: {v: 1}
@@ -491,7 +491,8 @@ issue2209: full: {
 	@test(shareID=BarSpec, at=Bar.spec)
 	@test(shareID=BarSpec, at=Bar.resource._X.spec)
 
-	#Abstract: X={
+	#Abstract: {
+		let X = self
 		spec: _#Spec
 
 		resource: _Thing & {_X: spec: X.spec}
@@ -670,7 +671,6 @@ issue2209: full: {
 	// 	}
 	// })
 }
-
 
 -- issue2246.cue --
 // Evaluator regression where repeated use of an embedded disjunction resulted
@@ -1158,13 +1158,13 @@ issue2685: {
 }
 -- out/eval/stats --
 Leaks:  212
-Freed:  2557
-Reused: 2518
+Freed:  2560
+Reused: 2521
 Allocs: 251
 Retain: 0
 
-Unifications: 663
-Conjuncts:    2733
+Unifications: 666
+Conjuncts:    2736
 Disjuncts:    1298
 Notifications: 8
 

@@ -46,10 +46,10 @@ me2: mod(2, 1.0) @test(err, code=eval, pos=[0:13], contains="cannot use")
 -- out/eval/stats --
 Leaks:  0
 Freed:  25
-Reused: 23
-Allocs: 2
+Reused: 0
+Allocs: 25
 Retain: 0
 
 Unifications: 25
 Conjuncts:    25
-Disjuncts:    25
+Disjuncts:    0

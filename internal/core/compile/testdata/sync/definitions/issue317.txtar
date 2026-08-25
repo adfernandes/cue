@@ -19,13 +19,13 @@ s: #T & {
 	concrete: foo: otherField: "hello"
 }
 #Container: {
-	Env: [Name=string]: {
+	Env: [string]~(Name,_): {
 		name:  string
 		value: string
 	}
 }
 #Deployment: {
-	#Containers: [Name=string]: #Container
+	#Containers: [string]~(Name,_): #Container
 	containers: [for c in #Containers {c}] // Problem is here.
 }
 Something: {

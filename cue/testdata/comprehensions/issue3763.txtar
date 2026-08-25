@@ -34,10 +34,10 @@ full: {
 	}
 
 	let nc = {
-		_ports: [ID=_]: _core_v1.#cp
+		_ports: [_]~(ID,_): _core_v1.#cp
 	}
 
-	_cl: [ID=_]: nc & {
+	_cl: [_]~(ID,_): nc & {
 		_ports: {
 			"1": {}
 			"2": {}
@@ -45,7 +45,7 @@ full: {
 		}
 	}
 
-	k: n: [ID=_]: {
+	k: n: [_]~(ID,_): {
 		_CL: string
 		_cs: (_CL): _cl[(_CL)]
 	}
@@ -103,14 +103,14 @@ the full _ports struct inline.
 reduced.let Z: v3 shows a multi-comprehension (let Z#3multi) where v2 shows a
 concrete list.
 -- out/eval/stats --
-Leaks:  19
+Leaks:  18
 Freed:  53
-Reused: 48
-Allocs: 24
+Reused: 43
+Allocs: 28
 Retain: 0
 
 Unifications: 68
-Conjuncts:    126
+Conjuncts:    124
 Disjuncts:    0
 
 NumCloseIDs: 38

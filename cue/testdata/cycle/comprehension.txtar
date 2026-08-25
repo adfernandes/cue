@@ -8,11 +8,11 @@ import (
 // concrete.
 A: {
 	a: {
-		parent: ""
+		parent:   ""
 		children: [for k, v in A if v.parent == k {k}]
 	} @test(eq, {parent: "", children: []})
 	b: {
-		parent: "a"
+		parent:   "a"
 		children: [for k, v in A if v.parent == k {k}]
 	} @test(eq, {parent: "a", children: []})
 }
@@ -21,7 +21,7 @@ A: {
 // as incomplete).
 B: {
 	a: {
-		parent: ""
+		parent:   ""
 		children: [for k, v in B for _, w in v.children {k}]
 	} @test(eq, {
 		parent: ""
@@ -35,20 +35,20 @@ B: {
 Issue486: {
 	A: {
 		a: {
-			parent: ""
+			parent:   ""
 			children: [...string]
 		}
 		b: {
-			parent: "a"
+			parent:   "a"
 			children: [...string]
 		}
 		c: {
-			parent: "b"
+			parent:   "b"
 			children: [...string]
 		}
 	}
 
-	A: [Name=string]: {
+	A: [string]~(Name,_): {
 		children: [
 			for k, v in A
 			if v.parent == Name {
@@ -108,9 +108,9 @@ issue779: {
 			}
 		}
 	}
-	Y: STATE & { message: X }
-	X: "test"
-	STATE: { code: 101 }
+	Y:     STATE & {message: X}
+	X:     "test"
+	STATE: {code: 101}
 	@test(eq, {
 		X: "test"
 		STATE: {code: 101}
@@ -165,12 +165,12 @@ selfReferential: insertionError: {
 // A comprehension should not recursively evaluated arcs, so that a
 // structural cycle can be avoided when unnecessary.
 selfReferential: acrossOr: t1: p1: {
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 
 	#Output: or([for name, config in #AllOutputs {
@@ -192,12 +192,12 @@ selfReferential: acrossOr: t1: p2: {
 		(name): config
 	}])
 
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 	@test(eq, {
 		#Output: {reject: string} | {resource: string}
@@ -218,10 +218,10 @@ selfReferential: acrossOr: t1: p3: {
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 	@test(eq, {
 		#Output: {reject: string} | {resource: string}
 		#AllOutputs: {
@@ -234,8 +234,8 @@ selfReferential: acrossOr: t1: p3: {
 }
 
 selfReferential: acrossOr: t2: p1: {
-	d: or([for x, y in #A { y }])
-	o: d & { b: 2 }
+	d: or([for x, y in #A {y}])
+	o: d & {b: 2}
 	#A: {
 		d1: int
 		d2: string
@@ -253,8 +253,8 @@ selfReferential: acrossOr: t2: p1: {
 }
 
 selfReferential: acrossOr: t2: p2: {
-	o: d & { b: 2 }
-	d: or([for x, y in #A { y }])
+	o: d & {b: 2}
+	d: or([for x, y in #A {y}])
 	#A: {
 		d1: int
 		d2: string
@@ -272,13 +272,13 @@ selfReferential: acrossOr: t2: p2: {
 }
 
 selfReferential: acrossOr: t2: p3: {
-	o: d & { b: 2 }
+	o: d & {b: 2}
 	#A: {
 		d1: int
 		d2: string
 		d3: b: d
 	}
-	d: or([for x, y in #A { y }])
+	d: or([for x, y in #A {y}])
 	@test(eq, {
 		o: {b: 2}
 		#A: {
@@ -294,7 +294,7 @@ selfReferential: acrossOr: t2: p3: {
 // fully evaluated before iterating, causing false structural cycle errors.
 // https://cuelang.org/issue/1881
 issue1881: p1: {
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
@@ -325,7 +325,7 @@ issue1881: p2: {
 		retry: output: #Output
 	}
 
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 
 	#Output: or([for name, config in #AllOutputs {
 		(name): config
@@ -354,7 +354,7 @@ issue1881: p3: {
 		(name): config
 	}])
 
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 	@test(eq, {
 		#AllOutputs: {
 			reject: string
@@ -469,8 +469,7 @@ siblingInsertion: t2: p2: {
 selfReferential: fail: {
 	a: {}
 	b: a.x != ""
-	if b {
-	}
+	if b {}
 	@test(err, code=incomplete, contains="undefined field: x", pos=[2:7])
 }
 
@@ -591,7 +590,7 @@ issue2310: reduced: {
 		#X: ["X", for i, _ in #subs {#s, #str: #X[i]}]
 	}
 
-	#s: {#str: string, #str + "a"}
+	#s:    {#str: string, #str + "a"}
 	#subs: [0, 1, 2]
 	@test(eq, {
 		res: {
@@ -748,23 +747,25 @@ issue3941: full: {
 // A list comprehension whose result was unified back into the same list caused
 // an endless recursion and panic rather than being caught as a structural cycle.
 // https://cuelang.org/issue/2229
-issue2229: full_ok: X={
+issue2229: full_ok: {
+	let X = self
 	build: bool | *true
 	test:  bool | *true
 
-	make: [ for k, v in X if (v & true) != _|_ { k } ]
+	make: [for k, v in X if (v & true) != _|_ {k}]
 } @test(eq, {
 	build: *true | bool
 	test: *true | bool
 	make: ["build", "test"]
 })
-issue2229: reduced_fail: X={
+issue2229: reduced_fail: {
+	let X = self
 	x: true
-	y: [ for _, v in X if v & true { _ } ]
+	y: [for _, v in X if v & true {_}]
 } @test(err, code=eval,
-	suberr=(code=eval, contains="conflicting values", pos=[2:5, 2:24, 2:28]),
-	suberr=(code=eval, contains="conflicting values", pos=[2:5, 2:24, 2:28]),
-	suberr=(code=eval, contains="structural cycle", pos=[2:24]),
+	suberr=(code=eval, contains="conflicting values", pos=[3:5, 3:23, 3:27]),
+	suberr=(code=eval, contains="conflicting values", pos=[3:5, 3:23, 3:27]),
+	suberr=(code=eval, contains="structural cycle", pos=[3:23]),
 )
 -- issue4100.cue --
 // Segmentation fault in `adt.(*OpContext).freeNodeContext` in v0.14.1,
@@ -782,13 +783,13 @@ issue4100: {
 }
 -- out/eval/stats --
 Leaks:  90
-Freed:  821
-Reused: 789
+Freed:  823
+Reused: 791
 Allocs: 122
 Retain: 0
 
-Unifications: 553
-Conjuncts:    1549
+Unifications: 555
+Conjuncts:    1551
 Disjuncts:    147
 Notifications: 14
 
@@ -806,26 +807,26 @@ MaxRedirect:         1
 [incomplete] selfReferential.fail.b: undefined field: x:
     ./in.cue:470:7
 [incomplete] issue2310.original.#s: error in call to strings.Replace: non-concrete value string:
-    ./in.cue:491:46
-    ./in.cue:491:38
+    ./in.cue:490:46
+    ./in.cue:490:38
 [incomplete] issue2310.original.#sub.#_1.#_1: error in call to strings.Replace: non-concrete value string:
-    ./in.cue:491:46
-    ./in.cue:491:12
+    ./in.cue:490:46
+    ./in.cue:490:12
 [incomplete] issue2310.original.#subs.0: error in call to strings.Replace: non-concrete value string:
-    ./in.cue:491:46
-    ./in.cue:491:12
+    ./in.cue:490:46
+    ./in.cue:490:12
 [incomplete] issue2310.original.#subs.1: error in call to strings.Replace: non-concrete value string:
-    ./in.cue:491:46
-    ./in.cue:491:12
+    ./in.cue:490:46
+    ./in.cue:490:12
 [incomplete] issue2310.original.#subs.2: error in call to strings.Replace: non-concrete value string:
-    ./in.cue:491:46
-    ./in.cue:491:12
+    ./in.cue:490:46
+    ./in.cue:490:12
 [incomplete] issue2310.reduced.#s: non-concrete value string in operand to +:
-    ./in.cue:593:21
-    ./in.cue:593:13
+    ./in.cue:592:24
+    ./in.cue:592:16
 [eval] conflicting values true and [for _, v in X if (v & true) {_}] (mismatched types bool and list):
-    ./issue2229.cue:16:5
-    ./issue2229.cue:16:24
-    ./issue2229.cue:16:28
+    ./issue2229.cue:18:5
+    ./issue2229.cue:18:23
+    ./issue2229.cue:18:27
 structural cycle:
-    ./issue2229.cue:16:24
+    ./issue2229.cue:18:23

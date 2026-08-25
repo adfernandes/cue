@@ -7,7 +7,8 @@ full: {
 	Foo: #Abstract & {spec: foo: {}}
 	Bar: #Abstract & {spec: bar: {}}
 
-	#Abstract: X={
+	#Abstract: {
+		let X = self
 		spec: _#Spec
 
 		resource: _Thing & {_X: spec: X.spec}
@@ -131,7 +132,8 @@ reduced: {
 	Foo: #Obj & {spec: foo: {}}
 	Bar: #Obj & {spec: bar: {}}
 
-	#Obj: X={
+	#Obj: {
+		let X = self
 		spec: *#SpecFoo | #SpecBar
 
 		out: #Out & {
@@ -176,13 +178,13 @@ full: evalv2 produced errors ("empty disjunction") for full.Bar.resource.spec
 and reduced.Bar.out.minBar; evalv3 evaluates both correctly without errors.
 -- out/eval/stats --
 Leaks:  92
-Freed:  910
-Reused: 853
+Freed:  916
+Reused: 847
 Allocs: 161
 Retain: 0
 
-Unifications: 158
-Conjuncts:    952
+Unifications: 152
+Conjuncts:    967
 Disjuncts:    610
 
 NumCloseIDs: 96

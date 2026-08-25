@@ -24,14 +24,12 @@ c: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  12
-Reused: 5
-Allocs: 7
-Retain: 12
+Reused: 2
+Allocs: 10
+Retain: 0
 
 Unifications: 12
-Conjuncts:    17
-Disjuncts:    16
+Conjuncts:    16
+Disjuncts:    0
 
-MisalignedConjunct: 2
-
-NumCloseIDs: 2
+NumCloseIDs: 4

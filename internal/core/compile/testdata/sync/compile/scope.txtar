@@ -23,8 +23,8 @@ e & {
 }
 
 p: {
-	{X=["foo"]: b: X | null}
-	{[Y="bar"]: b: Y}
+	{["foo"]~(X): b: X | null}
+	{["bar"]~(Y,_): b: Y}
 
 }
 

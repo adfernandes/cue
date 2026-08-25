@@ -25,7 +25,8 @@ a: 1
 c: 3
 d: e: f: "jam"
 -- issue2542/input.cue --
-obj: this={
+obj: {
+	let this = self
 	(#makeName & {enable: this._enable}).out
 }
 
@@ -45,5 +46,5 @@ obj2: obj
 -- issue2542/stdout.golden --
 "enabled"
 -- issue4442/expect-stderr --
-alias values not allowed in this position:
-    --expression:1:2
+old-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V)):
+    --expression:1:3

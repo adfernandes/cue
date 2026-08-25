@@ -3,12 +3,14 @@ import "struct"
 
 v: {a: struct.MaxFields(2) & {}}.a @test(eq, {}) @test(eq:todo, struct.MaxFields(2) & {})
 -- out/eval/stats --
-Leaks:  2
-Freed:  2
+Leaks:  0
+Freed:  4
 Reused: 0
 Allocs: 4
-Retain: 2
+Retain: 0
 
-Unifications: 4
-Conjuncts:    7
-Disjuncts:    4
+Unifications: 3
+Conjuncts:    5
+Disjuncts:    0
+
+NumCloseIDs: 1

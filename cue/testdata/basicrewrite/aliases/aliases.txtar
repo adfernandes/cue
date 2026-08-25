@@ -1,6 +1,6 @@
 -- in.cue --
 t0: {
-	a=_a: _
+	_a~(a): _
 	let _b = a
 	_out: _b
 	@test(eq, {
@@ -12,19 +12,21 @@ t0: {
 t1: {
 	_a: b
 	let b = c
-	c=d: 3
+	d~(c): 3
 } @test(eq, {
 	_a: 3
 	let b = 3
 	d: 3
 })
 -- out/eval/stats --
-Leaks:  0
+Leaks:  1
 Freed:  9
-Reused: 4
-Allocs: 5
-Retain: 3
+Reused: 3
+Allocs: 7
+Retain: 0
 
 Unifications: 9
-Conjuncts:    14
-Disjuncts:    10
+Conjuncts:    10
+Disjuncts:    0
+
+NumCloseIDs: 1

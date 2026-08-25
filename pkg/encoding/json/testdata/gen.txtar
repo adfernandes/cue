@@ -12,13 +12,13 @@ validate: t1: schema: {b: string}
 validate: t2: schema: {a: <3}
 
 validate: disjunctionRequired: schema: {a!: int} | {b!: int}
-validate: disjunctionClosed: schema: close({a: int}) | close({b: int})
+validate: disjunctionClosed: schema:   close({a: int}) | close({b: int})
 
 validate: invalidDisjuntion: schema: {a: 1 | 2}
 
 // Issue #2395
 validate: enforceRequired: {
-	str: "{}"
+	str:    "{}"
 	schema: {x!: int}
 }
 
@@ -40,21 +40,24 @@ valid: [string]: {
 }
 valid: t1: "1"
 
-compact: [string]: X={
+compact: [string]: {
+	let X = self
 	_ // input
 	#result: json.Compact(X)
 }
 compact: t1: "[1, 2]"
 
-indent: [string]: X={
+indent: [string]: {
+	let X = self
 	string // input
 	#initial: *"" | string
 	#indent:  *"  " | string
-	#result: json.Indent(X, #initial, #indent)
+	#result:  json.Indent(X, #initial, #indent)
 }
 indent: t1: #"{"a": 1, "b": 2}"#
 
-unmarshal: [string]: X={
+unmarshal: [string]: {
+	let X = self
 	string // input
 	#result: json.Unmarshal(X)
 }
@@ -64,7 +67,8 @@ unmarshal: {
 	trailingInvalid: #"{"a": 1}}invalid json"#
 }
 
-marshalStream: [string]: X={
+marshalStream: [string]: {
+	let X = self
 	[...] // input
 	#result: json.MarshalStream(X)
 }
@@ -72,32 +76,34 @@ marshalStream: t1: [{a: 1}, {b: 2}]
 marshalStream: t2: [{a: 1}, {b: int | *2}]
 marshalStream: t3: [{a: #"\ " & < >"#}, {b: ""}]
 
-
-marshal: [string]: X={
+marshal: [string]: {
+	let X = self
 	_ // input
 	#result: json.Marshal(X)
 }
 marshal: t1: {
 	#x: int
-	a: #x
+	a:  #x
 }
 
 marshal: t2: {a: #"\ " & < >"#}
 
-htmlEscape: [string]: X={
+htmlEscape: [string]: {
+	let X = self
 	string // input
 	#result: json.HTMLEscape(X)
 }
 htmlEscape: t1: marshal.t2.#result
 htmlEscape: t2: marshalStream.t3.#result
 
-unmarshalStream: [string]: X={
+unmarshalStream: [string]: {
+	let X = self
 	string | bytes // input
 	#result: json.UnmarshalStream(X)
 }
 unmarshalStream: {
-	t1:    #"{"a": 1}{"b": 2}"#
-	t2:    #'{"a": 1}{"b": 2}'#
+	t1:     #"{"a": 1}{"b": 2}"#
+	t2:     #'{"a": 1}{"b": 2}'#
 	empty1: ''
 	empty2: ""
 	nums1:  '1 2'
@@ -132,9 +138,9 @@ validate.t2.result: error in call to encoding/json.Validate: invalid value 10 (o
     ./in.cue:9:27
     json.Validate:1:6
 unmarshal.trailingInvalid.#result: error in call to encoding/json.Unmarshal: json: invalid JSON:
-    ./in.cue:56:11
+    ./in.cue:59:11
 unmarshal.trailingValid.#result: error in call to encoding/json.Unmarshal: json: invalid JSON:
-    ./in.cue:56:11
+    ./in.cue:59:11
 
 Result:
 import "encoding/json"
@@ -240,6 +246,7 @@ marshalStream: {
 }
 marshal: {
 	t1: {
+		let X = self
 		#result: json.Marshal(X)
 		#x:      int
 		a:       int

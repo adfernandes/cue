@@ -22,10 +22,12 @@ x: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  14
-Reused: 5
-Allocs: 9
-Retain: 9
+Reused: 1
+Allocs: 13
+Retain: 0
 
 Unifications: 14
-Conjuncts:    23
-Disjuncts:    23
+Conjuncts:    22
+Disjuncts:    0
+
+NumCloseIDs: 7

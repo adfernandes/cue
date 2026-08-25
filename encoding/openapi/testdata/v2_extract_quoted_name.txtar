@@ -24,7 +24,7 @@ info: {
 	version: "1"
 }
 
-#_9=#: "some-name": close({id?: int})
+#~(#_9): "some-name": close({id?: int})
 
 paths: "/x": get: responses: "200": content: "application/json": schema: #: #_9."some-name"
 -- out/TestExtractV2-v3-noshare/out.cue --
@@ -34,6 +34,6 @@ info: {
 	version: "1"
 }
 
-#_9=#: "some-name": close({id?: int})
+#~(#_9): "some-name": close({id?: int})
 
 paths: "/x": get: responses: "200": content: "application/json": schema: #: #_9."some-name"

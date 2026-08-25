@@ -196,17 +196,17 @@ selfRefInEmbed: t1: {
     ./in.cue:80:7
 -- out/eval/stats --
 Leaks:  4
-Freed:  132
-Reused: 111
-Allocs: 25
+Freed:  95
+Reused: 76
+Allocs: 23
 Retain: 0
 
-Unifications: 126
-Conjuncts:    284
+Unifications: 89
+Conjuncts:    158
 Disjuncts:    4
-Notifications: 12
+Notifications: 2
 
-NumCloseIDs: 124
+NumCloseIDs: 61
 -- out/diff-v2-v3.txt --
 v3 uses structure sharing for intEmbed.a2.w: ~(intEmbed.a2.v) and stringEmbed.s2[0]: ~(stringEmbed.s1).
 v2 expands these fields independently.

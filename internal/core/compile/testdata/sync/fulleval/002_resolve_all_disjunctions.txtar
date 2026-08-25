@@ -1,5 +1,5 @@
 -- in.cue --
-service: [Name=string]: {
+service: [string]~(Name,_): {
 	name: string | *Name
 	port: int | *7080
 }

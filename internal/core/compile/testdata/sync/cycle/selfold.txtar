@@ -1,0 +1,448 @@
+# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
+# @experiment(aliasv2) is stable, so pin the language version. The
+# postfix counterparts of these cases live in self.txtar, which runs at
+# the current version.
+-- cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
+-- old.cue --
+name: "foo"
+dynamicSelf: ok1: {
+	X=(name): string | X
+	x: X
+}
+
+dynamicSelf: ok2: {
+	x: X
+	X=(name): string | X
+}
+
+dynamicSelf: ok3: {
+	X=(name): X | string
+	x: X
+}
+
+dynamicSelf: ok4: {
+	x: X
+	X=(name): X | string
+}
+
+dynamicEmbed: ok1: {
+	X=(name): string | {X}
+	x: X
+}
+
+dynamicEmbed: ok2: {
+	x: X
+	X=(name): string | {X}
+}
+
+dynamicEmbed: ok3: {
+	X=(name): {X} | string
+	x: X
+}
+
+dynamicEmbed: ok4: {
+	x: X
+	X=(name): {X} | string
+}
+
+dynamicList: _
+dynamicList: ok1: {
+	X=(name): string | [X]
+	x: X
+
+	y: x
+	y: [[[[string]]]]
+}
+
+dynamicList: ok2: {
+	x: X
+	X=(name): string | [X]
+}
+
+dynamicList: ok3: {
+	X=(name): [X] | string
+	x: X
+}
+
+dynamicList: ok4: {
+	x: X
+	X=(name): [X] | string
+}
+
+dynamicPatternSelf: ok1: {
+	X=[string]: string | X
+}
+dynamicPatternSelf: ok2: {
+	X=[string]: X | string
+}
+dynamicPatternEmbed: ok1: {
+	X=[string]: string | {X}
+}
+dynamicPatternEmbed: ok2: {
+	X=[string]: {X} | string
+}
+dynamicPatternList: ok1: {
+	X=[string]: string | [X]
+}
+dynamicPatternList: ok2: {
+	X=[string]: [X] | string
+}
+
+valueSelf: ok1: {
+	y: X={string | X}
+	x: y
+}
+
+valueSelf: ok2: {
+	x: y
+	y: X={string | X}
+}
+
+valueSelf: ok3: {
+	y: X={X | string}
+	x: y
+}
+
+valueSelf: ok4: {
+	x: y
+	y: X={X | string}
+}
+
+valueEmbed: ok1: {
+	y: X={string | {X}}
+	x: y
+}
+
+valueEmbed: ok2: {
+	x: y
+	y: X={string | {X}}
+}
+
+valueEmbed: ok3: {
+	y: X={{X} | string}
+	x: y
+}
+
+valueEmbed: ok4: {
+	x: y
+	y: X={{X} | string}
+}
+
+valueList: ok1: {
+	y: X={string | [X]}
+	x: y
+}
+
+valueList: ok2: {
+	x: y
+	y: X={string | [X]}
+}
+
+valueList: ok3: {
+	y: X={[X] | string}
+	x: y
+}
+
+valueList: ok4: {
+	x: y
+	y: X={[X] | string}
+}
+
+// Issue #1729
+issue1729: t1: {
+	#x: { #x | {} }
+	x: #x & {}
+}
+
+issue1729: t2: {
+	x: #x & {}
+	#x: { #x | {} }
+}
+
+-- selfold.cue --
+issue4125: t2_alias: X={
+	let Y = X
+	b: Y.b
+}
+
+-- out/compile --
+--- old.cue
+{
+  name: "foo"
+  dynamicSelf: {
+    ok1: {
+      〈2;name〉: (string|〈0;(〈2;name〉)〉)
+      x: 〈0;(〈2;name〉)〉
+    }
+  }
+  dynamicSelf: {
+    ok2: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: (string|〈0;(〈2;name〉)〉)
+    }
+  }
+  dynamicSelf: {
+    ok3: {
+      〈2;name〉: (〈0;(〈2;name〉)〉|string)
+      x: 〈0;(〈2;name〉)〉
+    }
+  }
+  dynamicSelf: {
+    ok4: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: (〈0;(〈2;name〉)〉|string)
+    }
+  }
+  dynamicEmbed: {
+    ok1: {
+      〈2;name〉: (string|{
+        〈1;(〈2;name〉)〉
+      })
+      x: 〈0;(〈2;name〉)〉
+    }
+  }
+  dynamicEmbed: {
+    ok2: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: (string|{
+        〈1;(〈2;name〉)〉
+      })
+    }
+  }
+  dynamicEmbed: {
+    ok3: {
+      〈2;name〉: ({
+        〈1;(〈2;name〉)〉
+      }|string)
+      x: 〈0;(〈2;name〉)〉
+    }
+  }
+  dynamicEmbed: {
+    ok4: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: ({
+        〈1;(〈2;name〉)〉
+      }|string)
+    }
+  }
+  dynamicList: _
+  dynamicList: {
+    ok1: {
+      〈2;name〉: (string|[
+        〈1;(〈2;name〉)〉,
+      ])
+      x: 〈0;(〈2;name〉)〉
+      y: 〈0;x〉
+      y: [
+        [
+          [
+            [
+              string,
+            ],
+          ],
+        ],
+      ]
+    }
+  }
+  dynamicList: {
+    ok2: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: (string|[
+        〈1;(〈2;name〉)〉,
+      ])
+    }
+  }
+  dynamicList: {
+    ok3: {
+      〈2;name〉: ([
+        〈1;(〈2;name〉)〉,
+      ]|string)
+      x: 〈0;(〈2;name〉)〉
+    }
+  }
+  dynamicList: {
+    ok4: {
+      x: 〈0;(〈2;name〉)〉
+      〈2;name〉: ([
+        〈1;(〈2;name〉)〉,
+      ]|string)
+    }
+  }
+  dynamicPatternSelf: {
+    ok1: {
+      [string]: (string|〈0;(〈0;-〉)〉)
+    }
+  }
+  dynamicPatternSelf: {
+    ok2: {
+      [string]: (〈0;(〈0;-〉)〉|string)
+    }
+  }
+  dynamicPatternEmbed: {
+    ok1: {
+      [string]: (string|{
+        〈1;(〈0;-〉)〉
+      })
+    }
+  }
+  dynamicPatternEmbed: {
+    ok2: {
+      [string]: ({
+        〈1;(〈0;-〉)〉
+      }|string)
+    }
+  }
+  dynamicPatternList: {
+    ok1: {
+      [string]: (string|[
+        〈1;(〈0;-〉)〉,
+      ])
+    }
+  }
+  dynamicPatternList: {
+    ok2: {
+      [string]: ([
+        〈1;(〈0;-〉)〉,
+      ]|string)
+    }
+  }
+  valueSelf: {
+    ok1: {
+      y: {
+        (string|〈1〉)
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueSelf: {
+    ok2: {
+      x: 〈0;y〉
+      y: {
+        (string|〈1〉)
+      }
+    }
+  }
+  valueSelf: {
+    ok3: {
+      y: {
+        (〈1〉|string)
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueSelf: {
+    ok4: {
+      x: 〈0;y〉
+      y: {
+        (〈1〉|string)
+      }
+    }
+  }
+  valueEmbed: {
+    ok1: {
+      y: {
+        (string|{
+          〈2〉
+        })
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueEmbed: {
+    ok2: {
+      x: 〈0;y〉
+      y: {
+        (string|{
+          〈2〉
+        })
+      }
+    }
+  }
+  valueEmbed: {
+    ok3: {
+      y: {
+        ({
+          〈2〉
+        }|string)
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueEmbed: {
+    ok4: {
+      x: 〈0;y〉
+      y: {
+        ({
+          〈2〉
+        }|string)
+      }
+    }
+  }
+  valueList: {
+    ok1: {
+      y: {
+        (string|[
+          〈2〉,
+        ])
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueList: {
+    ok2: {
+      x: 〈0;y〉
+      y: {
+        (string|[
+          〈2〉,
+        ])
+      }
+    }
+  }
+  valueList: {
+    ok3: {
+      y: {
+        ([
+          〈2〉,
+        ]|string)
+      }
+      x: 〈0;y〉
+    }
+  }
+  valueList: {
+    ok4: {
+      x: 〈0;y〉
+      y: {
+        ([
+          〈2〉,
+        ]|string)
+      }
+    }
+  }
+  issue1729: {
+    t1: {
+      #x: {
+        (〈1;#x〉|{})
+      }
+      x: (〈0;#x〉 & {})
+    }
+  }
+  issue1729: {
+    t2: {
+      x: (〈0;#x〉 & {})
+      #x: {
+        (〈1;#x〉|{})
+      }
+    }
+  }
+}
+--- selfold.cue
+{
+  issue4125: {
+    t2_alias: {
+      let Y#1 = 〈1〉
+      b: 〈0;let Y#1〉.b
+    }
+  }
+}

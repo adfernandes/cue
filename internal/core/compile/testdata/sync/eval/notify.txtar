@@ -18,9 +18,9 @@ t3: {
 // itself via a self-referential disjunction path.
 // https://cuelang.org/issue/3437
 issue3437: {
-	r: L=L.a
-	d: a: a: a: {b: 4}|d
-	out: r&d
+	r: {let L = self, L.a}
+	d: a: a: a: {b: 4} | d
+	out: r & d
 	// TODO(perf): either use structure sharing or stronger pruning. This seems
 	// disproportional.
 }
@@ -50,7 +50,10 @@ issue3437: {
 --- issue3437.cue
 {
   issue3437: {
-    r: 〈0〉.a
+    r: {
+      let L#1 = 〈1〉
+      〈0;let L#1〉.a
+    }
     d: {
       a: {
         a: {

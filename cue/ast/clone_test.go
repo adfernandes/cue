@@ -53,7 +53,6 @@ k: (j)
 m: {n: 1} & {o: 2}
 p: d[0]
 q: {a}
-r: X=d
 s: _|_
 t: [for x in d {try y = x, {v: y}}]
 
@@ -80,11 +79,22 @@ const (
 	cloneBadDeclSrc = "X=b\n"
 )
 
+// cloneOldAliasSrc holds the prefix alias form, which only parses below
+// language version v0.18.0, where @experiment(aliasv2) became stable.
+// It is also what leaves an *ast.BadDecl behind in cloneBadDeclSrc, so
+// both are parsed at the older version.
+const cloneOldAliasSrc = "r: X=d\n"
+
+// oldAliasVersion is the last language version accepting cloneOldAliasSrc
+// and cloneBadDeclSrc.
+const oldAliasVersion = "v0.17.0"
+
 func TestClone(t *testing.T) {
 	tests := []struct {
-		name string
-		src  string
-		file func() *ast.File
+		name    string
+		src     string
+		version string
+		file    func() *ast.File
 	}{{
 		name: "plain",
 		src:  cloneSrc,
@@ -95,8 +105,13 @@ func TestClone(t *testing.T) {
 		name: "badExpr",
 		src:  cloneBadExprSrc,
 	}, {
-		name: "badDecl",
-		src:  cloneBadDeclSrc,
+		name:    "badDecl",
+		src:     cloneBadDeclSrc,
+		version: oldAliasVersion,
+	}, {
+		name:    "oldAlias",
+		src:     cloneOldAliasSrc,
+		version: oldAliasVersion,
 	}, {
 		name: "func",
 		file: funcFile,
@@ -113,7 +128,8 @@ func TestClone(t *testing.T) {
 			} else {
 				// Parse errors are expected for some cases; the parser
 				// still returns a usable file.
-				f, _ = parser.ParseFile("clone.cue", test.src, parser.ParseComments)
+				f, _ = parser.ParseFile("clone.cue", test.src,
+					parser.ParseComments, parser.Version(test.version))
 				qt.Assert(t, qt.IsNotNil(f))
 				astutil.Resolve(f, func(token.Pos, string, ...any) {})
 			}

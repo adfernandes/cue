@@ -1,5 +1,5 @@
 -- a.cue --
-deployment: [ID=_]: {
+deployment: [_]~(ID,_): {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
 	metadata: name: ID
@@ -17,7 +17,7 @@ deployment: [ID=_]: {
 
 #Component: string
 
-deployment: [ID=_]: _spec & {
+deployment: [_]~(ID,_): _spec & {
 	_name: ID
 	spec: replicas: *1 | int
 }
@@ -38,7 +38,7 @@ _spec: {
 }
 -- out/trim --
 == a.cue
-deployment: [ID=_]: {
+deployment: [_]~(ID,_): {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
 	metadata: name: ID
@@ -56,7 +56,7 @@ deployment: [ID=_]: {
 
 #Component: string
 
-deployment: [ID=_]: _spec & {
+deployment: [_]~(ID,_): _spec & {
 	_name: ID
 	spec: replicas: *1 | int
 }

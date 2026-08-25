@@ -30,7 +30,7 @@
 }
 
 #sub: {
-	$p=#p: #AS
+	#p~($p): #AS
 	dict: [string]: _
 
 	for rn, rd in $p.d.r if rd.a.k == "complex" {
@@ -51,11 +51,10 @@ _test: {
 		n: "c1"
 	}
 
-
 	s3: #AS
 	s3: d: {
 		n: "s3"
-		r: r1: a:c1
+		r: r1: a: c1
 	}
 
 	s2: #AS

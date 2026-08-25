@@ -41,8 +41,8 @@ for k, v in {f3: int} {
 -- out/eval/stats --
 Leaks:  0
 Freed:  28
-Reused: 16
-Allocs: 12
+Reused: 14
+Allocs: 14
 Retain: 0
 
 Unifications: 28

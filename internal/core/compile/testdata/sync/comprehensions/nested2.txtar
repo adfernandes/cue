@@ -123,8 +123,7 @@ issue3940: reduced1: {
 
 		objects: {
 			for v in a
-			for _ in ({} & v).objects {
-			}
+			for _ in ({} & v).objects {}
 		}
 	}
 
@@ -144,8 +143,7 @@ issue3940: reduced2: {
 
 		objects: {
 			for v in a
-			for _ in ({} & v).objects {
-			}
+			for _ in ({} & v).objects {}
 		}
 	}
 	// The pushdown fix resolves the spurious "undefined field" error
@@ -167,7 +165,7 @@ issue3940: reduced4: {
 		_imports: [{
 			objects: {...}
 			#export: Exporter & {
-				_imports: [{ #export: Exporter }]
+				_imports: [{#export: Exporter}]
 			}
 		}]
 	}
@@ -192,8 +190,7 @@ issue3940: let: {
 		objects: {
 			for v in a
 			let x = ({} & v)
-			for _ in x.objects {
-			}
+			for _ in x.objects {}
 		}
 	}
 }
@@ -205,7 +202,7 @@ issue3940: full: {
 
 	_branch: {
 		objects: branch: {
-			#conf: {...}
+			#conf:  {...}
 			region: #conf.global.region
 		}
 		imports: [_leaf]
@@ -216,7 +213,7 @@ issue3940: full: {
 	}
 	_leaf: {
 		objects: leaf: {
-			#conf: {...}
+			#conf:  {...}
 			region: #conf.global.region
 		}
 		#export: #Exporter & {
@@ -224,9 +221,9 @@ issue3940: full: {
 		}
 	}
 	#Exporter: {
-		CONF=#conf: {...}
-		_objects: {...}
-		_imports: [...]
+		#conf~(CONF): {...}
+		_objects:     {...}
+		_imports:     [...]
 
 		objects: [
 			// local objects
@@ -262,9 +259,10 @@ issue3990: {
 	}
 
 	for import in _imports
-	for _, obj in ({extra: "unused"} & import).exportObjs {(import.name): obj},
+	for _, obj in ({extra: "unused"} & import).exportObjs {(import.name): obj}
 
-	_Deployment: this={
+	_Deployment: {
+		let this = self
 		_names: {
 			for _, v in this.volumes {
 				(v.name): v.name
@@ -608,8 +606,9 @@ issue3990: {
       〈2;import〉.name: 〈1;obj〉
     }
     _Deployment: {
+      let this#1 = 〈1〉
       _names: {
-        for _, v in 〈2〉.volumes {
+        for _, v in 〈1;let this#1〉.volumes {
           〈1;v〉.name: 〈1;v〉.name
         }
       }
@@ -627,8 +626,8 @@ issue3990: {
 {
   T: int
   for _, C in 〈0;Y〉 {
-    let X#1multi = 〈1;C〉.M
-    T: 〈0;let X#1〉.V
+    let X#2multi = 〈1;C〉.M
+    T: 〈0;let X#2〉.V
   }
   Y: {
     x: {

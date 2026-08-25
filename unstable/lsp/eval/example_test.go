@@ -124,7 +124,7 @@ config: {
 	[=~"^flag_"]: bool
 
 	// Anything else must declare its kind.
-	rest=[string]: {kind: string}
+	[string]~(rest): {kind: string}
 }
 `
 

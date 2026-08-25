@@ -66,7 +66,6 @@ embed: {
 	}
 	fail1: p: "foo" // this should fail, as p is not present.
 
-
 	success2: #C2 @test(eq, {p: "foo"})
 	#C2: {
 		if true {
@@ -76,7 +75,7 @@ embed: {
 	success2: p: "foo" // this succeeds as p is present.
 
 	success3: #C3 @test(eq, {})
-	#C3: {}
+	#C3:      {}
 	success3: {
 		if false {
 			// p does not exist in success3, but it is okay, as it is not added.
@@ -86,7 +85,7 @@ embed: {
 
 	success4: {
 		#X: y: string
-		x: y: string
+		x: y:  string
 		x: {
 			for _ in ["iter-once"] {
 				#X
@@ -98,7 +97,7 @@ embed: {
 	} @test(eq, {#X: {y: string}, x: {y: string}})
 
 	fail4: #C4
-	#C4: {}
+	#C4:   {}
 	fail4: {
 		if true {
 			// error as p is not allowed in fail4
@@ -141,20 +140,19 @@ mixedFieldsSuccess: {
 	a: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 
 	b: #Def: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 	b: x: b.#Def
-	b: x: X: _
+	b: x: X:   _
 	b: x: foo: _
-
 
 	c: #Def: {
 		X:   int
@@ -164,7 +162,7 @@ mixedFieldsSuccess: {
 	c: x: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 	@test(eq, {
@@ -212,7 +210,6 @@ noStackOverflowStructCycle: {
 	}
 	@test(err, code=structural_cycle, at="#list.tail", contains="structural cycle", pos=[])
 }
-
 
 // #a is incomplete, but the missing values are provided by x.
 provideIncompleteSuccess: {
@@ -299,7 +296,7 @@ cyclicError: {
 		@test(err, code=incomplete)
 		x: bool
 		y: bool
-		if a.x  {
+		if a.x {
 			y: true
 		}
 		if a.y {
@@ -367,7 +364,7 @@ closedCheck: success2: {
 	#D: {
 		d: string
 		if d != "c" {
-			("foo"+"bar"): string
+			("foo" + "bar"): string
 		}
 	}
 
@@ -411,8 +408,7 @@ emptyComprehensionIncomplete: {
 	a: {}
 	b: {
 		// b should be an incomplete error
-		if a.b {
-		}
+		if a.b {}
 	} @test(err, code=incomplete, contains="undefined field: %s", args=[b], pos=[2:8])
 	@test(eq, {
 		a: {}
@@ -630,7 +626,7 @@ voidLookup: {
 	a: [string]: {
 		c: {
 			for k, v in z {
-				(k): null  // don't add this arc anywhere
+				(k): null // don't add this arc anywhere
 			}
 		}
 		z: {
@@ -654,14 +650,13 @@ voidLookup: {
 		path=voidLookup.a.x.z, contains="undefined field: %s", args=[void], pos=[1:17])
 }
 
-
 // Eliminate the top value even if there is an error (especially incomplete
 // errors).
 topElimination: {
 	a: int
 	_
 	if true {
-		x: a+1
+		x: a + 1
 	}
 	@test(eq, {
 		a: int
@@ -692,8 +687,7 @@ voidEliminationSuccess: drop1: {
 explicitDefaultError: {
 	a: string | *_|_
 
-	if a != "" {
-	}
+	if a != "" {}
 	@test(err, code=incomplete, contains="non-concrete value string", pos=[3:5, 1:5])
 }
 
@@ -740,7 +734,7 @@ structShare: ok1: {
 
 structShare: err1: {
 	x: [string]: x.#E
-	x: #E: {}
+	x: #E:       {}
 	if true {
 		x: d: e: true
 	}
@@ -749,7 +743,8 @@ structShare: err1: {
 
 // An optional field referencing a value only a pushed-down comprehension
 // materializes must stay optional, not be upgraded to a regular member.
-optionalRefStaysOptional: s={
+optionalRefStaysOptional: {
+	let s = self
 	optionalRef?: string
 	optionalRef?: s.field
 	if true {
@@ -901,8 +896,7 @@ nestedWithEmbeddingOK: {
 	a: {
 		for k, v in c {
 			{x: 1}
-			if a.x != _|_ {
-			}
+			if a.x != _|_ {}
 		}
 	}
 	@test(eq, {c: [1], a: {x: 1}})
@@ -913,9 +907,8 @@ nestedWithDynamicFieldOK: {
 
 	a: {
 		for k, v in _c {
-			if x != _|_ {
-			}
-			x="\(k)": 1
+			if x != _|_ {}
+			"\(k)"~(x): 1
 		}
 	}
 	@test(eq, {_c: {y: 1}, a: {y: 1}})
@@ -925,11 +918,11 @@ nestedWithDynamicFieldOK: {
 errorPropagation: {
 	deployment: _
 	for k, v in deployment {
-		for k1, v2 in v.env2 { // Report this error.
+		for k1, v2 in v.env2 {
 			deployment: (k): x1: 1
-		}
+		} // Report this error.
 	}
-	for id in ["elem"] { deployment: (id): x2: 2 }
+	for id in ["elem"] {deployment: (id): x2: 2}
 	@test(err, code=incomplete, contains="undefined field: env2", pos=[3:19])
 }
 
@@ -1081,7 +1074,7 @@ issue3621: reduced: t2: {
 }
 issue3621: full: {
 	hello: "world"
-	outer: [Name=string]: name: Name
+	outer: [string]~(Name,_): name: Name
 	if true {
 		inner: inner2: {
 			name:           "Employees"
@@ -1345,7 +1338,7 @@ regression1: {
 		}
 	}
 	#Rollout: {
-		_X: _
+		_X:  _
 		out: #Primary & {_Y: _X} & _X.patch
 	}
 	x: {
@@ -1365,7 +1358,7 @@ regression2: {
 		}
 	}
 	#Rollout: {
-		_X: _
+		_X:  _
 		out: #Primary & {_Y: _X} & _X.patch
 	}
 	x: {
@@ -1378,7 +1371,8 @@ regression2: {
 	})
 }
 letCycleSelf: {
-	#X: X={
+	#X: {
+		let X = self
 		let this = X
 		hosts: [string]: _
 		for h, _ in this.hosts {out: (h): 1}
@@ -1386,7 +1380,7 @@ letCycleSelf: {
 	}
 
 	x: [string]: #X
-	x: a: {}
+	x: a:        {}
 
 	@test(eq, {#X: {hosts: {}}, x: {a: {hosts: {}}}})
 }
@@ -1469,73 +1463,73 @@ issue4422: {
 [eval] embed.fail1.p: field not allowed:
     ./in.cue:64:9
 [eval] embed.fail4.p: field not allowed:
-    ./in.cue:102:4
+    ./in.cue:101:4
 [incomplete] embed.incomplete5: incomplete bool: bool:
-    ./in.cue:107:6
+    ./in.cue:106:6
 [incomplete] embed.incomplete6.p: non-concrete value int in operand to +:
+    ./in.cue:116:6
     ./in.cue:117:6
-    ./in.cue:118:6
 [incomplete] embed.incomplete7.p: non-concrete value int in operand to +:
+    ./in.cue:123:6
     ./in.cue:124:6
-    ./in.cue:125:6
 [eval] fieldMismatch.a: conflicting values 2 and {x:3} (mismatched types int and struct):
-    ./in.cue:183:5
-    ./in.cue:184:3
-    ./in.cue:185:3
-    ./in.cue:185:11
+    ./in.cue:181:5
+    ./in.cue:182:3
+    ./in.cue:183:3
+    ./in.cue:183:11
 [structural_cycle] noStackOverflowStructCycle.#list.tail: structural cycle
 [structural_cycle] noStackOverflowStructCycle.list.tail: structural cycle
 [incomplete] provideIncompleteSuccess.t1.#a: incomplete bool: bool:
-    ./in.cue:221:7
+    ./in.cue:218:7
 [eval] provideIncompleteSuccess.t2.a.c.d: field not allowed:
-    ./in.cue:244:8
+    ./in.cue:241:8
 [incomplete] cyclicError.a: incomplete bool: bool:
-    ./in.cue:297:6
+    ./in.cue:294:6
 cyclicError.a: incomplete bool: bool:
-    ./in.cue:298:6
+    ./in.cue:295:6
 [incomplete] cyclicError.a: incomplete bool: bool:
-    ./in.cue:297:6
+    ./in.cue:294:6
 cyclicError.a: incomplete bool: bool:
-    ./in.cue:298:6
+    ./in.cue:295:6
 [incomplete] closedCheck.success1.#D: non-concrete value string in operand to !=:
-    ./in.cue:346:6
-    ./in.cue:345:6
+    ./in.cue:343:6
+    ./in.cue:342:6
 [incomplete] closedCheck.success2.#D: non-concrete value string in operand to !=:
-    ./in.cue:366:6
-    ./in.cue:365:6
+    ./in.cue:363:6
+    ./in.cue:362:6
 [incomplete] closedCheck.success3.#D.e: non-concrete value string in operand to !=:
-    ./in.cue:387:7
-    ./in.cue:385:6
+    ./in.cue:384:7
+    ./in.cue:382:6
 [incomplete] emptyComprehensionIncomplete.b: undefined field: b:
-    ./in.cue:411:8
+    ./in.cue:408:8
 [incomplete] voidEliminationSuccess.derefRef1.E.f: operand e of '!' not concrete (was bool):
-    ./in.cue:481:7
+    ./in.cue:477:7
 [incomplete] voidEliminationSuccess.derefRef2.#F.f: operand e of '!' not concrete (was bool):
-    ./in.cue:504:7
+    ./in.cue:500:7
 [incomplete] voidEliminationSuccess.derefDisj1.E: 2 errors in empty disjunction:
 voidEliminationSuccess.derefDisj1.E.f: operand e of '!' not concrete (was bool):
-    ./in.cue:530:7
+    ./in.cue:526:7
 voidEliminationSuccess.derefDisj1.E.h: operand g of '!' not concrete (was bool):
-    ./in.cue:533:7
+    ./in.cue:529:7
 [incomplete] voidEliminationSuccess.derefDisj2.E: 2 errors in empty disjunction:
 voidEliminationSuccess.derefDisj2.E.f: operand e of '!' not concrete (was bool):
-    ./in.cue:552:7
+    ./in.cue:548:7
 voidEliminationSuccess.derefDisj2.E.h: operand g of '!' not concrete (was bool):
-    ./in.cue:555:7
+    ./in.cue:551:7
 [incomplete] voidLookup.a.x.z: undefined field: void:
-    ./in.cue:620:17
+    ./in.cue:616:17
 [incomplete] voidLookup.a.x.z: undefined field: void:
-    ./in.cue:620:17
+    ./in.cue:616:17
 [incomplete] topElimination.x: non-concrete value int in operand to +:
-    ./in.cue:661:6
-    ./in.cue:658:5
+    ./in.cue:656:6
+    ./in.cue:653:5
 [incomplete] explicitDefaultError: non-concrete value string in operand to !=:
-    ./in.cue:692:5
-    ./in.cue:690:5
+    ./in.cue:687:5
+    ./in.cue:685:5
 [eval] structShare.err1.x.d.e: field not allowed:
-    ./in.cue:742:9
+    ./in.cue:736:9
 [incomplete] errorPropagation: undefined field: env2:
-    ./issue2113.cue:35:19
+    ./issue2113.cue:33:19
 [eval] issue3535.regular.foo.regular: field not allowed:
     ./issue3535.cue:29:4
 [eval] issue3729.withoutDisjunction.root: conflicting values null and {#sub1?:{#sub2:true}} (mismatched types null and struct):
@@ -1575,14 +1569,14 @@ issue3729.withoutDisjunction: error in v3 has fewer position annotations than v2
 issue3729.withoutDisjunctionWithEmbed, withEmbed.incomplete: v3 leaks the embedded _ from the comprehension body into the null optional constraint, causing null to appear as an embedded value in root.
 embed.fail1/fail4: errors have different position annotations in v3 vs v2.
 -- out/eval/stats --
-Leaks:  96
-Freed:  692
-Reused: 641
-Allocs: 147
+Leaks:  104
+Freed:  698
+Reused: 647
+Allocs: 155
 Retain: 0
 
-Unifications: 682
-Conjuncts:    1065
+Unifications: 693
+Conjuncts:    1081
 Disjuncts:    44
 
-NumCloseIDs: 306
+NumCloseIDs: 314

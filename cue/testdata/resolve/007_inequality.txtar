@@ -8,10 +8,10 @@ f: 0 == 0.0     @test(eq, true) // types are unified first TODO: make this consi
 -- out/eval/stats --
 Leaks:  0
 Freed:  9
-Reused: 6
-Allocs: 3
-Retain: 2
+Reused: 1
+Allocs: 8
+Retain: 0
 
 Unifications: 9
 Conjuncts:    9
-Disjuncts:    11
+Disjuncts:    0

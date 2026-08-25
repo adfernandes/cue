@@ -75,7 +75,7 @@ b4: {
 // Ensure that the cycle error is not blindly copied to a referring field,
 // as the cycle may not persist.
 b4: cond1: {
-	b: x.y & { _z: false, [1] }
+	b: x.y & {_z: false, [1]}
 	x: y: {
 		_z: *true | bool
 		if _z {
@@ -99,7 +99,7 @@ b4: cond2: {
 			[y]
 		}
 	}
-	b: x.y & { _z: false, [1] }
+	b: x.y & {_z: false, [1]}
 	@test(err, code=structural_cycle, path=x.y.0, contains="structural cycle", pos=[])
 }
 
@@ -184,8 +184,7 @@ b10: {
 b11: {
 	#list: {
 		tail: #list | *null
-		if tail != null {
-		}
+		if tail != null {}
 	}
 	@test(eq, {#list: {tail: null}})
 }
@@ -193,8 +192,8 @@ b11: {
 // Issue #509 -- with comprehension
 b12: {
 	#list: {
-		V=value: int
-		T=tail:  #list | *null
+		value~(V): int
+		tail~(T):  #list | *null
 		if T != null {
 			sum: V + T.sum
 		}
@@ -248,11 +247,10 @@ b12b: {
 		}
 	} @test(err, code=structural_cycle, path=tail, contains="structural cycle", pos=[])
 
-	list1: #list  @test(err, code=structural_cycle, path=b12b.#list.tail, contains="structural cycle", pos=[])
+	list1: #list @test(err, code=structural_cycle, path=b12b.#list.tail, contains="structural cycle", pos=[])
 	list1: {
 		tail: {
-			tail: {
-			}
+			tail: {}
 		}
 	}
 }
@@ -442,12 +440,12 @@ shortPathFail: elipsis: {
 	// Avoid this: the elipsis causes `_` to be mixed in with the #Foo
 	// reference, causing the first cycle to be discounted.
 	t1: {
-		#Foo: ref:  null | #Foo
-		#Foo: { ... }
+		#Foo: ref: null | #Foo
+		#Foo: {...}
 		@test(eq, {#Foo: {ref: null}})
 	}
 	t2: {
-		Foo: ref:  Foo
+		Foo: ref: Foo
 		Foo: {...}
 		@test(err, code=structural_cycle, at=Foo.ref, contains="structural cycle", pos=[])
 	}
@@ -458,22 +456,21 @@ shortPathFail: elipsis: {
 // but the evaluator instead emitted output with a renamed alias.
 // https://cuelang.org/issue/2374
 patternFail: issue2374: {
-	r=[string]: {b: r}
-	a: {r: 0}
+	[string]~(r): {b: r}
+	a:            {r: 0}
 	@test(err, code=structural_cycle, at=a.b, contains="structural cycle", pos=[])
 }
 
 shortPathFail: comprehension: {
 	#list: {
 		tail: #list | *null
-		if tail != null {
-		}
+		if tail != null {}
 	}
 	@test(eq, {#list: {tail: null}})
 }
 
 withLetFail: {
-	schema: next:  _schema_1
+	schema: next: _schema_1
 	let _schema_1 = schema
 	@test(err, code=structural_cycle, at=schema.next, contains="structural cycle", pos=[])
 }
@@ -494,7 +491,7 @@ fieldsSumInfinite: issue3310: {
 
 listOptOK: {
 	list: {
-		head: int
+		head:  int
 		tail?: list
 	}
 	a: list & {head: 3, tail: head: 2}
@@ -556,7 +553,7 @@ e2: {
 }
 
 e3: {
-	a: [a]  @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[[a], {c:a}, list, struct], pos=[0:5, 1:5])
+	a: [a] @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[[a], {c:a}, list, struct], pos=[0:5, 1:5])
 	a: c: a @test(err, code=structural_cycle, contains="structural cycle", pos=[])
 
 	b: [b] @test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)", args=[[b], {c:b}, list, struct], pos=[0:5, 1:5])
@@ -716,7 +713,7 @@ crossRefNoCycle: t1: {
 		x: _
 		y: x
 	}
-	C: { x: T } & T
+	C: {x: T} & T
 	@test(eq, {
 		T: {x: _, y: _}
 		C: {x: {x: _, y: _}, y: {x: _, y: _}}
@@ -728,7 +725,7 @@ crossRefNoCycle: t2: {
 		x: _
 		y: x
 	}
-	C: T & { x: T }
+	C: T & {x: T}
 	@test(eq, {
 		T: {x: _, y: _}
 		C: {x: {x: _, y: _}, y: {x: _, y: _}}
@@ -741,7 +738,7 @@ crossRefNoCycle: t3: {
 		y: x
 		z: y
 	}
-	C: T & { x: T }
+	C: T & {x: T}
 	@test(eq, {
 		T: {x: _, y: _, z: _}
 		C: {
@@ -758,7 +755,7 @@ crossRefNoCycle: t4: {
 		y: x
 		z: y
 	}
-	C: T & { x: T & { x: T } }
+	C: T & {x: T & {x: T}}
 	@test(eq, {
 		T: {x: _, y: _, z: _}
 		C: {
@@ -782,20 +779,21 @@ crossRefNoCycle: t4: {
 }
 
 crossRefNoCycle: t5: {
-	T: X={
+	T: {
+		let X = self
 		y: X.x
 	}
-	C: T & { x: T  }
+	C: T & {x: T}
 	@test(eq, {
 		T: {
-			y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[2:8])
+			y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[3:8])
 		}
 		C: {
 			x: {
-				y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[2:8])
+				y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[3:8])
 			}
 			y: {
-				y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[2:8])
+				y: _|_ @test(err, code=incomplete, contains="crossRefNoCycle.t5.T.y: undefined field: x", pos=[3:8])
 			}
 		}
 	})
@@ -889,7 +887,7 @@ resolveToAncestor: {
 [structural_cycle] patternFail.issue2374.a.b: structural cycle
 [structural_cycle] withLetFail.schema.next: structural cycle
 [structural_cycle] fieldsSumInfinite.issue3310.total: error in call to list.Sum: error in call to list.Sum: structural cycle:
-    ./in.cue:490:9
+    ./in.cue:487:9
 [structural_cycle] listOptOK.list.tail: structural cycle
 [structural_cycle] issue2545.#B.A: structural cycle
 [structural_cycle] e1.a.c: structural cycle
@@ -897,57 +895,57 @@ resolveToAncestor: {
 [structural_cycle] e2.a.c: structural cycle
 [structural_cycle] e2.b.c: structural cycle
 [eval] e3.a: conflicting values [a] and {c:a} (mismatched types list and struct):
+    ./in.cue:555:5
+    ./in.cue:556:5
+[eval] e3.b: conflicting values [b] and {c:b} (mismatched types list and struct):
     ./in.cue:558:5
     ./in.cue:559:5
-[eval] e3.b: conflicting values [b] and {c:b} (mismatched types list and struct):
-    ./in.cue:561:5
-    ./in.cue:562:5
 [eval] e4.a.0: 2 errors in empty disjunction:
 e4.a.0: conflicting values [{c:1}] and {} (mismatched types list and struct):
-    ./in.cue:566:10
-    ./in.cue:567:6
+    ./in.cue:563:10
+    ./in.cue:564:6
 e4.a.0.0: conflicting values {c:1} and [{c:1}] (mismatched types struct and list):
-    ./in.cue:566:6
-    ./in.cue:567:6
-    ./in.cue:567:7
+    ./in.cue:563:6
+    ./in.cue:564:6
+    ./in.cue:564:7
 [eval] e4.b.0: 2 errors in empty disjunction:
 e4.b.0: conflicting values [{c:1}] and {} (mismatched types list and struct):
-    ./in.cue:569:6
-    ./in.cue:570:10
+    ./in.cue:566:6
+    ./in.cue:567:10
 e4.b.0.0: conflicting values {c:1} and [{c:1}] (mismatched types struct and list):
-    ./in.cue:569:6
-    ./in.cue:569:7
-    ./in.cue:570:6
+    ./in.cue:566:6
+    ./in.cue:566:7
+    ./in.cue:567:6
 [eval] nestedList.v1e.y.0: 4 errors in empty disjunction:
 nestedList.v1e.y.0: conflicting values [[2],1] and int (mismatched types list and int):
-    ./in.cue:588:11
-    ./in.cue:589:6
-    ./in.cue:589:11
+    ./in.cue:585:11
+    ./in.cue:586:6
+    ./in.cue:586:11
 nestedList.v1e.y.0.0: 2 errors in empty disjunction:
 nestedList.v1e.y.0.0: conflicting values [2] and int (mismatched types list and int):
-    ./in.cue:588:7
-    ./in.cue:588:11
-    ./in.cue:589:6
-    ./in.cue:589:12
+    ./in.cue:585:7
+    ./in.cue:585:11
+    ./in.cue:586:6
+    ./in.cue:586:12
 nestedList.v1e.y.0.0: incompatible list lengths (1 and 2):
-    ./in.cue:588:6
+    ./in.cue:585:6
 [eval] nestedList.v2e.y.0: 4 errors in empty disjunction:
 nestedList.v2e.y.0: conflicting values [[2],1] and int (mismatched types list and int):
-    ./in.cue:598:6
-    ./in.cue:598:11
-    ./in.cue:599:11
+    ./in.cue:595:6
+    ./in.cue:595:11
+    ./in.cue:596:11
 nestedList.v2e.y.0.0: 2 errors in empty disjunction:
 nestedList.v2e.y.0.0: conflicting values [2] and int (mismatched types list and int):
-    ./in.cue:598:6
-    ./in.cue:598:12
-    ./in.cue:599:7
-    ./in.cue:599:11
+    ./in.cue:595:6
+    ./in.cue:595:12
+    ./in.cue:596:7
+    ./in.cue:596:11
 nestedList.v2e.y.0.0: incompatible list lengths (1 and 2):
-    ./in.cue:599:6
+    ./in.cue:596:6
 [structural_cycle] z1.z.g: structural cycle
 [structural_cycle] z1.z.g: structural cycle
 [incomplete] crossRefNoCycle.t5.T.y: undefined field: x:
-    ./in.cue:785:8
+    ./in.cue:783:8
 -- out/todo.txt --
 Structural cycles are reported in all chains compared to old implementation.
 
@@ -994,13 +992,13 @@ b12: evalv3 shows a tail disjunction in the innermost list1 node; evalv2 shows n
 n4: field ordering differs between evalv2 and evalv3.
 -- out/eval/stats --
 Leaks:  96
-Freed:  712
-Reused: 642
+Freed:  714
+Reused: 644
 Allocs: 166
 Retain: 0
 
-Unifications: 541
-Conjuncts:    990
+Unifications: 543
+Conjuncts:    992
 Disjuncts:    149
 
 NumCloseIDs: 177

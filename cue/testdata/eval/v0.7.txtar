@@ -24,8 +24,8 @@ comprehensions: t1: ok: {
 
 -- dynamic.cue --
 dynamic: t1: ok: {
-	[X=string]: {name: X}
-	(x.y): {}
+	[string]~(X,_): {name: X}
+	(x.y):          {}
 	x: y: "foo"
 	@test(eq, {
 		x: {y: "foo", name: "x"}

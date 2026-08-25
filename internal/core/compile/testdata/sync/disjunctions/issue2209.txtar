@@ -7,7 +7,8 @@ full: {
 	Foo: #Abstract & {spec: foo: {}}
 	Bar: #Abstract & {spec: bar: {}}
 
-	#Abstract: X={
+	#Abstract: {
+		let X = self
 		spec: _#Spec
 
 		resource: _Thing & {_X: spec: X.spec}
@@ -82,7 +83,8 @@ reduced: {
 	Foo: #Obj & {spec: foo: {}}
 	Bar: #Obj & {spec: bar: {}}
 
-	#Obj: X={
+	#Obj: {
+		let X = self
 		spec: *#SpecFoo | #SpecBar
 
 		out: #Out & {
@@ -120,10 +122,11 @@ reduced: {
       }
     })
     #Abstract: {
+      let X#1 = 〈1〉
       spec: 〈1;_#Spec〉
       resource: (〈1;_Thing〉 & {
         _X: {
-          spec: 〈3〉.spec
+          spec: 〈2;let X#1〉.spec
         }
       })
     }
@@ -194,9 +197,10 @@ reduced: {
       }
     })
     #Obj: {
+      let X#2 = 〈1〉
       spec: (*〈1;#SpecFoo〉|〈1;#SpecBar〉)
       out: (〈1;#Out〉 & {
-        _Xspec: 〈2〉.spec
+        _Xspec: 〈1;let X#2〉.spec
         if (〈0;_Xspec〉.foo != _|_(explicit error (_|_ literal) in source)) {
           minFoo: 〈1;_Xspec〉.foo.min
         }

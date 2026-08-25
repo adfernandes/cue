@@ -3,12 +3,12 @@ a: null         @test(eq, null)
 b: a.x | "b"    @test(eq, "b")
 c: a["x"] | "c" @test(eq, "c")
 -- out/eval/stats --
-Leaks:  0
-Freed:  8
-Reused: 5
-Allocs: 3
+Leaks:  2
+Freed:  6
+Reused: 2
+Allocs: 6
 Retain: 0
 
 Unifications: 4
 Conjuncts:    8
-Disjuncts:    8
+Disjuncts:    4

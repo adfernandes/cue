@@ -2,6 +2,12 @@
 # unreachable. Field labels of the form B=bb (identifier alias) or A="foo=bar"
 # (string alias) are *ast.Alias nodes; labelSelector must unwrap them to find
 # the underlying label before dispatching, or the @test attr is silently lost.
+# The old prefix alias syntax (X=) - the *ast.Alias label form this test is
+# about - is only accepted below v0.18.0, where @experiment(aliasv2) is
+# stable; pin the language version accordingly.
+-- in/cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
 -- in/test.cue --
 // Identifier alias: B=bb — alias B is used in 'doubled' to keep the CUE
 // compilation valid. The @test(eq) must apply to field bb, not be flagged.

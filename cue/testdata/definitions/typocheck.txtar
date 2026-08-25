@@ -759,7 +759,7 @@ issue3934: {
 full: {
 	#Resource: {
 		someMsg: string
-		obs: {} | *{missing: true}
+		obs:     {} | *{missing: true}
 
 		let pickMsg = [
 			if obs.missing {msg: "\(someMsg)"},
@@ -775,8 +775,8 @@ full: {
 	#Patches: [string]: _
 	#JSONPatch: {
 		namespace?: string
-		patch: [...#JSONOp]
-		output: #Patches & {(namespace): patch}
+		patch:      [...#JSONOp]
+		output:     #Patches & {(namespace): patch}
 	}
 	#JSONOp: {
 		op:    "add"
@@ -788,7 +788,7 @@ full: {
 	}
 
 	#Main: {
-		NS=namespace: string
+		namespace~(NS): string
 
 		output: jsonPatch.output
 
@@ -1063,11 +1063,11 @@ embed.openValidator.t2.a.b: invalid value 1 (does not satisfy matchN): 0 matched
     ./large.cue:7:25
     ./large.cue:3:12
 [incomplete] full.#JSONPatch.output: cannot reference optional field: namespace:
-    ./large.cue:21:24
+    ./large.cue:21:28
 full.#JSONPatch.output: key value of dynamic field must be concrete, found _|_(full.#JSONPatch.output: cannot reference optional field: namespace):
-    ./large.cue:21:24
+    ./large.cue:21:28
 [incomplete] full.#Main.jsonPatch.output: key value of dynamic field must be concrete, found string:
-    ./large.cue:21:24
+    ./large.cue:21:28
     ./large.cue:19:15
 [incomplete] disjunction.withErr.t1.out.b1: 4 errors in empty disjunction:
 disjunction.withErr.t1.out.b1: conflicting values {b2:{b3:params.mayExistLater}} and null (mismatched types struct and null):

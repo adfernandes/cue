@@ -286,6 +286,17 @@ type Config struct {
 	Format        []format.Option
 	ParserConfig  parser.Config
 	ParseFile     func(name string, src interface{}, cfg parser.Config) (*ast.File, error)
+
+	// TargetLanguageVersion holds the language version that any CUE syntax
+	// generated from a non-CUE encoding must be valid at, as the result is
+	// destined for a module declaring that version. The empty string means
+	// the current one.
+	//
+	// This is deliberately not [Config.ParserConfig]'s version, which says
+	// how to read CUE input: a caller may write into an older module without
+	// reading any CUE at that version, and NewDecoder defaults the parser
+	// version where this one is left empty on purpose.
+	TargetLanguageVersion string
 }
 
 // NewDecoder returns a stream of non-rooted data expressions. The encoding
@@ -526,6 +537,8 @@ func jsonSchemaFunc(cfg *Config, f *build.File) interpretFunc {
 			StrictKeywords:       tags["strictKeywords"],
 			StrictFeatures:       tags["strictFeatures"],
 			OpenOnlyWhenExplicit: tags["openOnlyWhenExplicit"],
+
+			TargetLanguageVersion: cfg.TargetLanguageVersion,
 		}
 		file, err = jsonschema.Extract(v, cfg)
 		// TODO: simplify currently erases file line info. Reintroduce after fix.

@@ -15,10 +15,12 @@ d: [for x, _ in a {x}] @test(eq, [0, 1])
 -- out/eval/stats --
 Leaks:  0
 Freed:  19
-Reused: 12
-Allocs: 7
-Retain: 10
+Reused: 8
+Allocs: 11
+Retain: 0
 
 Unifications: 19
-Conjuncts:    36
-Disjuncts:    23
+Conjuncts:    40
+Disjuncts:    0
+
+NumCloseIDs: 26

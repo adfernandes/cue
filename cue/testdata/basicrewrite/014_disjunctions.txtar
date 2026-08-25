@@ -30,12 +30,12 @@ m5: (*2 | 3) & (2 | 3)           @test(eq, *2 | 3)
 // All errors are treated the same as per the unification model.
 i1: [1, 2][3] | "c"  @test(eq, "c")
 -- out/eval/stats --
-Leaks:  1
-Freed:  134
-Reused: 126
-Allocs: 9
-Retain: 1
+Leaks:  6
+Freed:  131
+Reused: 110
+Allocs: 27
+Retain: 0
 
 Unifications: 18
 Conjuncts:    150
-Disjuncts:    135
+Disjuncts:    117

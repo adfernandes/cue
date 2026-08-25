@@ -16,15 +16,14 @@ if bar.missing == "x" {
 [eval] undefined field: missing:
     ./in.cue:4:8
 -- out/eval/stats --
-Leaks:  1
-Freed:  4
-Reused: 1
-Allocs: 4
-Retain: 2
+Leaks:  0
+Freed:  5
+Reused: 0
+Allocs: 5
+Retain: 0
 
 Unifications: 5
-Conjuncts:    5
-Disjuncts:    6
+Conjuncts:    6
+Disjuncts:    0
 
-NumCloseIDs: 1
-
+NumCloseIDs: 2

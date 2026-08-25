@@ -14,3 +14,15 @@ a
 [structural_cycle] b.b.b.b.b.b: structural cycle
 [structural_cycle] a.b.b: structural cycle
 -- out/eval/stats --
+Leaks:  1
+Freed:  10
+Reused: 2
+Allocs: 9
+Retain: 0
+
+Unifications: 10
+Conjuncts:    23
+Disjuncts:    0
+Notifications: 1
+
+NumCloseIDs: 7

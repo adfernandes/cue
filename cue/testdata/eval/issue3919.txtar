@@ -116,14 +116,14 @@ issue3946: reduced:{
 	})
 }
 -- out/eval/stats --
-Leaks:  2
+Leaks:  4
 Freed:  58
 Reused: 38
-Allocs: 22
+Allocs: 24
 Retain: 0
 
-Unifications: 54
-Conjuncts:    100
+Unifications: 56
+Conjuncts:    97
 Disjuncts:    4
 
 NumCloseIDs: 27

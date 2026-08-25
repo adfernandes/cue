@@ -130,9 +130,9 @@ noCycle: t1: {
 	_s
 	_s: {
 		#x: matchN(1, [_s])
-        #x: {} // insert concrete value to trigger application of validator.
+		#x: {} // insert concrete value to trigger application of validator.
 	}
-	@test(err, pos=[3:7, 3:14, 4:13])
+	@test(err, pos=[3:7, 3:14, 4:7])
 }
 issue3649: noCycle: t1: {
 	data: #c
@@ -142,6 +142,7 @@ issue3649: noCycle: t1: {
 		b?: string
 		a?: matchN(1, [#c])
 	}
+
 	// Cannot use @test(eq) with self-referential #c in expected value.
 	@test(eq, "foo", at=data.a.b)
 	@test(debug, """
@@ -208,11 +209,14 @@ issue3649: cycle: t1: {
 	@test(err, pos=[5:6, 2:11, 5:13])
 }
 
-// This used to cause a stack overflow.
+// This used to cause a stack overflow. The original reproducer bound a value
+// alias to the validator call; "let x = self" needs a struct to live in, so
+// the value being validated is now that struct, and the failure is reported
+// as a plain type conflict rather than from inside strconv.Atoi.
 issue4037: cycle: {
-	_intlike: x=matchN(1, [strconv.Atoi(x)])
-	f: "1233" & _intlike
-	@test(err, pos=[1:14, 1:21, 2:5])
+	_intlike: {let x = self, matchN(1, [strconv.Atoi(x)])}
+	f:        "1233" & _intlike
+	@test(err, pos=[1:27, 1:34, 2:12])
 }
 -- yamlcycle.cue --
 import "encoding/yaml"
@@ -380,27 +384,31 @@ issue3743: {
 [eval] noCycle.t1._s.#x: invalid value {} (does not satisfy matchN): 0 matched, expected 1:
     ./cycle.cue:6:7
     ./cycle.cue:6:14
-    ./cycle.cue:7:13
+    ./cycle.cue:7:7
 noCycle.t1._s.#x: structural cycle:
     ./cycle.cue:6:7
 [eval] noCycle.t1.#x: invalid value {} (does not satisfy matchN): 0 matched, expected 1:
     ./cycle.cue:6:7
     ./cycle.cue:6:14
-    ./cycle.cue:7:13
+    ./cycle.cue:7:7
 noCycle.t1.#x.#x: structural cycle:
     ./cycle.cue:6:7
 [eval] issue3649.cycle.t1.data.a: invalid value {b:"foo"} (does not satisfy matchN): 0 matched, expected 1:
-    ./cycle.cue:80:6
-    ./cycle.cue:77:11
-    ./cycle.cue:80:13
+    ./cycle.cue:81:6
+    ./cycle.cue:78:11
+    ./cycle.cue:81:13
 issue3649.cycle.t1.data.a.a: structural cycle:
-    ./cycle.cue:80:6
-[eval] 0: cannot use [_|_(0: cannot use value at path '_' (type list) as string in argument 1 to strconv.Atoi)] (type list) as string in argument 1 to strconv.Atoi:
-    ./cycle.cue:87:24
+    ./cycle.cue:81:6
+[eval] issue4037.cycle.f: conflicting values "1233" and 1233 (mismatched types string and int):
+    ./cycle.cue:91:12
+    ./cycle.cue:91:27
+    ./cycle.cue:91:38
+    ./cycle.cue:92:12
+    ./cycle.cue:92:21
 issue4037.cycle.f: invalid value "1233" (does not satisfy matchN): 0 matched, expected 1:
-    ./cycle.cue:87:14
-    ./cycle.cue:87:21
-    ./cycle.cue:88:5
+    ./cycle.cue:91:27
+    ./cycle.cue:91:34
+    ./cycle.cue:92:12
 [structural_cycle] issue3634.reduced.#D.a: structural cycle
 [structural_cycle] jsonCycle.t1.x.y: invalid value "{}" (does not satisfy encoding/json.Validate): structural cycle:
     ./jsoncycle.cue:4:8
@@ -493,16 +501,16 @@ selfCycle.t1.c.d.d: invalid value {d:{}} (does not satisfy matchN): structural c
     ./yamlcycle.cue:61:8
 -- out/eval/stats --
 Leaks:  60
-Freed:  467
-Reused: 439
+Freed:  469
+Reused: 441
 Allocs: 88
 Retain: 0
 
-Unifications: 428
-Conjuncts:    797
+Unifications: 430
+Conjuncts:    801
 Disjuncts:    30
 Notifications: 2
 
 GenerationMismatch: 8
 
-NumCloseIDs: 253
+NumCloseIDs: 257

@@ -28,13 +28,13 @@ package imported
 {either: #Foo | #Bar}
 -- out/eval/stats --
 Leaks:  3
-Freed:  11
+Freed:  27
 Reused: 2
-Allocs: 12
+Allocs: 28
 Retain: 0
 
-Unifications: 9
-Conjuncts:    18
+Unifications: 25
+Conjuncts:    34
 Disjuncts:    2
 
 NumCloseIDs: 4

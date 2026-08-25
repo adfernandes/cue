@@ -27,13 +27,13 @@ package baz
 x: 1
 -- out/eval/stats --
 Leaks:  2
-Freed:  7
+Freed:  23
 Reused: 0
-Allocs: 9
+Allocs: 25
 Retain: 0
 
-Unifications: 7
-Conjuncts:    15
+Unifications: 23
+Conjuncts:    31
 Disjuncts:    0
 Notifications: 1
 

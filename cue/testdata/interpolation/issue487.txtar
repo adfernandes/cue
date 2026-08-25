@@ -29,10 +29,12 @@ t2: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  15
-Reused: 11
-Allocs: 4
+Reused: 8
+Allocs: 7
 Retain: 0
 
 Unifications: 15
-Conjuncts:    29
-Disjuncts:    15
+Conjuncts:    21
+Disjuncts:    0
+
+NumCloseIDs: 2

@@ -21,11 +21,11 @@ mixedComparison: {
 }
 -- out/eval/stats --
 Leaks:  0
-Freed:  5
-Reused: 3
-Allocs: 2
+Freed:  40
+Reused: 16
+Allocs: 24
 Retain: 0
 
-Unifications: 5
-Conjuncts:    5
-Disjuncts:    5
+Unifications: 40
+Conjuncts:    40
+Disjuncts:    0

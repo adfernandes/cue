@@ -103,13 +103,13 @@ package example
     ./in.cue:46:22
 -- out/eval/stats --
 Leaks:  10
-Freed:  75
+Freed:  91
 Reused: 63
-Allocs: 22
+Allocs: 38
 Retain: 0
 
-Unifications: 72
-Conjuncts:    108
+Unifications: 88
+Conjuncts:    124
 Disjuncts:    0
 
 NumCloseIDs: 19

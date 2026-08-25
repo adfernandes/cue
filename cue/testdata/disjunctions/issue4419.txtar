@@ -9,10 +9,10 @@ a: struct.MaxFields(8) & {[string]: string}
 b: "test": "test"
 a: b @test(eq, {test: "test"})
 -- out/eval/stats --
-Leaks:  3
-Freed:  10
-Reused: 4
-Allocs: 9
+Leaks:  4
+Freed:  9
+Reused: 3
+Allocs: 10
 Retain: 0
 
 Unifications: 5

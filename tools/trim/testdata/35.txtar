@@ -5,7 +5,7 @@ issue 3140
 	...
 }
 
-foo: [ID=_]: #Foo & {
+foo: [_]~(ID,_): #Foo & {
 	id: ID
 }
 
@@ -20,7 +20,7 @@ foo: X1: {
 	...
 }
 
-foo: [ID=_]: #Foo & {
+foo: [_]~(ID,_): #Foo & {
 	id: ID
 }
 
@@ -31,7 +31,12 @@ foo: X1: {
 diff old new
 --- old
 +++ new
-@@ -8,4 +8,6 @@
+@@ -4,8 +4,10 @@
+ 	...
+ }
+ 
+-foo: [ID=_]: #Foo & {
++foo: [_]~(ID,_): #Foo & {
  	id: ID
  }
  
@@ -46,7 +51,7 @@ diff old new
 	...
 }
 
-foo: [ID=_]: #Foo & {
+foo: [_]~(ID,_): #Foo & {
 	id: ID
 }
 
@@ -57,7 +62,12 @@ foo: X1: {
 diff old new
 --- old
 +++ new
-@@ -8,4 +8,6 @@
+@@ -4,8 +4,10 @@
+ 	...
+ }
+ 
+-foo: [ID=_]: #Foo & {
++foo: [_]~(ID,_): #Foo & {
  	id: ID
  }
  

@@ -22,7 +22,7 @@ joinSingle: "a/b"
 Join: unix:    _
 Join: windows: _
 
-Join: [OS=string]: [...{
+Join: [string]~(OS,_): [...{
 	arg: [...string]
 
 	out: path.Join(arg, OS)

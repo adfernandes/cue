@@ -7,12 +7,12 @@ package deps
 
 a: {
 	#A: {
-		n: string
+		n:          string
 		depends_on: [...#AnyA]
 	}
 
 	#AnyA: {
-		n: string
+		n:          string
 		depends_on: [...#AnyA]
 		...
 	}
@@ -28,7 +28,7 @@ a: {
 		i: string
 	}
 
-	s: [Name=string]: #AnyA & {n: Name}
+	s: [string]~(Name,_): #AnyA & {n: Name}
 
 	s: foo: #A1 & {
 		x: 10
@@ -36,7 +36,7 @@ a: {
 	}
 
 	s: bar: #A2 & {
-		i: "hello bar"
+		i:          "hello bar"
 		depends_on: [s.foo]
 	}
 	@test(eq, {

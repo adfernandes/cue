@@ -22,6 +22,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 // Object constraints
@@ -191,12 +192,21 @@ func constraintDependencies(key string, n cue.Value, s *state) {
 
 	obj := s.object(n)
 	count := 0
+	// aliasv2 is what enables the postfix alias form, whether because the
+	// target language version has it stable or because it names it outright.
+	targetExp, err := cueexperiment.NewFile(s.cfg.TargetLanguageVersion)
+	if err != nil {
+		s.errf(n, "invalid target language version: %v", err)
+		return
+	}
+	postfixAliases := targetExp.AliasV2
 	s.processMap(n, func(key string, n cue.Value) {
 		var ident *ast.Ident
 		// TODO we could potentially avoid declaring the field
 		// by checking whether there's a field already in
 		// scope with the correct name.
 		var label ast.Label
+		var alias *ast.PostfixAlias
 		if ast.IsValidIdent(key) {
 			// TODO if the inner schema contains a reference to some
 			// outer-level entity that has the same identifier then this
@@ -215,9 +225,14 @@ func constraintDependencies(key string, n cue.Value, s *state) {
 		} else {
 			ident = ast.NewIdent(fmt.Sprintf("_t%d", count))
 			count++
-			label = &ast.Alias{
-				Ident: ident,
-				Expr:  ast.NewString(key),
+			// A non-identifier label needs an alias to be referenced from
+			// the guard below, in whichever spelling the target language
+			// version parses.
+			if postfixAliases {
+				label = ast.NewString(key)
+				alias = &ast.PostfixAlias{Field: ident}
+			} else {
+				label = &ast.Alias{Ident: ident, Expr: ast.NewString(key)}
 			}
 		}
 		// TODO this is not quite right, because by adding this optional
@@ -231,6 +246,7 @@ func constraintDependencies(key string, n cue.Value, s *state) {
 		// to the current struct value.
 		obj.Elts = append(obj.Elts, &ast.Field{
 			Label:      label,
+			Alias:      alias,
 			Constraint: token.OPTION,
 			Value:      ast.NewIdent("_"),
 		})

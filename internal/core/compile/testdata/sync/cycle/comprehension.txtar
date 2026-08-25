@@ -8,11 +8,11 @@ import (
 // concrete.
 A: {
 	a: {
-		parent: ""
+		parent:   ""
 		children: [for k, v in A if v.parent == k {k}]
 	}
 	b: {
-		parent: "a"
+		parent:   "a"
 		children: [for k, v in A if v.parent == k {k}]
 	}
 }
@@ -21,7 +21,7 @@ A: {
 // as incomplete).
 B: {
 	a: {
-		parent: ""
+		parent:   ""
 		children: [for k, v in B for _, w in v.children {k}]
 	}
 }
@@ -32,20 +32,20 @@ B: {
 Issue486: {
 	A: {
 		a: {
-			parent: ""
+			parent:   ""
 			children: [...string]
 		}
 		b: {
-			parent: "a"
+			parent:   "a"
 			children: [...string]
 		}
 		c: {
-			parent: "b"
+			parent:   "b"
 			children: [...string]
 		}
 	}
 
-	A: [Name=string]: {
+	A: [string]~(Name,_): {
 		children: [
 			for k, v in A
 			if v.parent == Name {
@@ -90,9 +90,9 @@ issue779: {
 			}
 		}
 	}
-	Y: STATE & { message: X }
-	X: "test"
-	STATE: { code: 101 }
+	Y:     STATE & {message: X}
+	X:     "test"
+	STATE: {code: 101}
 }
 
 // Issue #1934: regression in v0.4.1 where nested comprehensions referencing
@@ -136,12 +136,12 @@ selfReferential: insertionError: {
 // A comprehension should not recursively evaluated arcs, so that a
 // structural cycle can be avoided when unnecessary.
 selfReferential: acrossOr: t1: p1: {
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 
 	#Output: or([for name, config in #AllOutputs {
@@ -154,12 +154,12 @@ selfReferential: acrossOr: t1: p2: {
 		(name): config
 	}])
 
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 }
 
@@ -171,15 +171,15 @@ selfReferential: acrossOr: t1: p3: {
 	#AllOutputs: {
 		reject:   string
 		resource: string
-		retry: #Output
+		retry:    #Output
 	}
 
-	o: #Output & { retry: reject: "ok" }
+	o: #Output & {retry: reject: "ok"}
 }
 
 selfReferential: acrossOr: t2: p1: {
-	d: or([for x, y in #A { y }])
-	o: d & { b: 2 }
+	d: or([for x, y in #A {y}])
+	o: d & {b: 2}
 	#A: {
 		d1: int
 		d2: string
@@ -188,8 +188,8 @@ selfReferential: acrossOr: t2: p1: {
 }
 
 selfReferential: acrossOr: t2: p2: {
-	o: d & { b: 2 }
-	d: or([for x, y in #A { y }])
+	o: d & {b: 2}
+	d: or([for x, y in #A {y}])
 	#A: {
 		d1: int
 		d2: string
@@ -198,20 +198,20 @@ selfReferential: acrossOr: t2: p2: {
 }
 
 selfReferential: acrossOr: t2: p3: {
-	o: d & { b: 2 }
+	o: d & {b: 2}
 	#A: {
 		d1: int
 		d2: string
 		d3: b: d
 	}
-	d: or([for x, y in #A { y }])
+	d: or([for x, y in #A {y}])
 }
 
 // Issue #1881: evaluator required the source of a for comprehension to be
 // fully evaluated before iterating, causing false structural cycle errors.
 // https://cuelang.org/issue/1881
 issue1881: p1: {
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 
 	#AllOutputs: {
 		reject:   string
@@ -231,7 +231,7 @@ issue1881: p2: {
 		retry: output: #Output
 	}
 
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 
 	#Output: or([for name, config in #AllOutputs {
 		(name): config
@@ -249,7 +249,7 @@ issue1881: p3: {
 		(name): config
 	}])
 
-	o: #Output & { retry: output: reject: "ok" }
+	o: #Output & {retry: output: reject: "ok"}
 }
 
 siblingInsertion: t1: p1: {
@@ -317,8 +317,7 @@ siblingInsertion: t2: p2: {
 selfReferential: fail: {
 	a: {}
 	b: a.x != ""
-	if b {
-	}
+	if b {}
 }
 
 // Issue #2367: stack overflow triggered by a comprehension that inserts into
@@ -364,7 +363,7 @@ issue2310: reduced: {
 		#X: ["X", for i, _ in #subs {#s, #str: #X[i]}]
 	}
 
-	#s: {#str: string, #str + "a"}
+	#s:    {#str: string, #str + "a"}
 	#subs: [0, 1, 2]
 }
 
@@ -464,15 +463,17 @@ issue3941: full: {
 // A list comprehension whose result was unified back into the same list caused
 // an endless recursion and panic rather than being caught as a structural cycle.
 // https://cuelang.org/issue/2229
-issue2229: full_ok: X={
+issue2229: full_ok: {
+	let X = self
 	build: bool | *true
 	test:  bool | *true
 
-	make: [ for k, v in X if (v & true) != _|_ { k } ]
+	make: [for k, v in X if (v & true) != _|_ {k}]
 }
-issue2229: reduced_fail: X={
+issue2229: reduced_fail: {
+	let X = self
 	x: true
-	y: [ for _, v in X if v & true { _ } ]
+	y: [for _, v in X if v & true {_}]
 }
 -- issue4100.cue --
 // Segmentation fault in `adt.(*OpContext).freeNodeContext` in v0.14.1,
@@ -1050,10 +1051,11 @@ issue4100: {
 {
   issue2229: {
     full_ok: {
+      let X#1 = 〈1〉
       build: (bool|*true)
       test: (bool|*true)
       make: [
-        for k, v in 〈2〉 if ((〈0;v〉 & true) != _|_(explicit error (_|_ literal) in source)) {
+        for k, v in 〈1;let X#1〉 if ((〈0;v〉 & true) != _|_(explicit error (_|_ literal) in source)) {
           〈1;k〉
         },
       ]
@@ -1061,9 +1063,10 @@ issue4100: {
   }
   issue2229: {
     reduced_fail: {
+      let X#2 = 〈1〉
       x: true
       y: [
-        for _, v in 〈2〉 if (〈0;v〉 & true) {
+        for _, v in 〈1;let X#2〉 if (〈0;v〉 & true) {
           _
         },
       ]
@@ -1206,11 +1209,11 @@ issue4100: {
 {
   issue4100: {
     a: {
-      let l#1 = [
+      let l#3 = [
         0,
       ]
-      if (〈0;let l#1〉 != _|_(explicit error (_|_ literal) in source)) {
-        〈1;let l#1〉[:]
+      if (〈0;let l#3〉 != _|_(explicit error (_|_ literal) in source)) {
+        〈1;let l#3〉[:]
       }
     }
     for _, _ in 〈0;a〉 {}

@@ -79,7 +79,7 @@ issue3590: {
 			p: "A" | "B"
 		}
 
-		_input: [Parm=_]: #Input & {
+		_input: [_]~(Parm,_): #Input & {
 			p: Parm
 		}
 
@@ -113,7 +113,7 @@ issue3591: missing: {
 		p: "A" | "B"
 	}
 
-	_input: [Parm=_]: #Input & {
+	_input: [_]~(Parm,_): #Input & {
 		p: Parm
 	}
 

@@ -1,13 +1,13 @@
 -- in.cue --
 t0: {
-	a=_a: _
+	_a~(a): _
 	let _b = a
 	_out: _b
 }
 t1: {
 	_a: b
 	let b = c
-	c=d: 3
+	d~(c): 3
 }
 -- out/compile --
 --- in.cue

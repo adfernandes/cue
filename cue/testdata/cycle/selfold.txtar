@@ -1,0 +1,218 @@
+# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
+# @experiment(aliasv2) is stable, so pin the language version. The
+# postfix counterparts of these cases live in self.txtar, which runs at
+# the current version.
+-- cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
+-- old.cue --
+name: "foo"
+dynamicSelf: ok1: {
+	X=(name): string | X
+	x: X
+	@test(eq, {x: string | _, foo: string | _})
+}
+
+dynamicSelf: ok2: {
+	x: X
+	X=(name): string | X
+	@test(eq, {x: string | _, foo: string | _})
+}
+
+dynamicSelf: ok3: {
+	X=(name): X | string
+	x: X
+	@test(eq, {x: _ | string, foo: _ | string})
+}
+
+dynamicSelf: ok4: {
+	x: X
+	X=(name): X | string
+	@test(eq, {x: _ | string, foo: _ | string})
+}
+
+dynamicEmbed: ok1: {
+	X=(name): string | {X}
+	x: X
+	@test(eq, {x: string | {}, foo: string | {}})
+}
+
+dynamicEmbed: ok2: {
+	x: X
+	X=(name): string | {X}
+	@test(eq, {x: string | {}, foo: string | {}})
+}
+
+dynamicEmbed: ok3: {
+	X=(name): {X} | string
+	x: X
+	@test(eq, {x: {} | string, foo: {} | string})
+}
+
+dynamicEmbed: ok4: {
+	x: X
+	X=(name): {X} | string
+	@test(eq, {x: {} | string, foo: {} | string})
+}
+
+dynamicList: _
+dynamicList: ok1: {
+	X=(name): string | [X]
+	x: X
+
+	y: x
+	y: [[[[string]]]]
+	@test(eq, {
+		x: string
+		y: [[[[string]]]]
+		foo: string
+	})
+}
+
+dynamicList: ok2: {
+	x: X
+	X=(name): string | [X]
+	@test(eq, {x: string, foo: string})
+}
+
+dynamicList: ok3: {
+	X=(name): [X] | string
+	x: X
+	@test(eq, {x: string, foo: string})
+}
+
+dynamicList: ok4: {
+	x: X
+	X=(name): [X] | string
+	@test(eq, {x: string, foo: string})
+}
+
+dynamicPatternSelf: ok1: {
+	X=[string]: string | X
+	@test(eq, {})
+}
+dynamicPatternSelf: ok2: {
+	X=[string]: X | string
+	@test(eq, {})
+}
+dynamicPatternEmbed: ok1: {
+	X=[string]: string | {X}
+	@test(eq, {})
+}
+dynamicPatternEmbed: ok2: {
+	X=[string]: {X} | string
+	@test(eq, {})
+}
+dynamicPatternList: ok1: {
+	X=[string]: string | [X]
+	@test(eq, {})
+}
+dynamicPatternList: ok2: {
+	X=[string]: [X] | string
+	@test(eq, {})
+}
+
+valueSelf: ok1: {
+	y: X={string | X}
+	x: y
+	@test(eq, {y: string | {}, x: string | {}})
+}
+
+valueSelf: ok2: {
+	x: y
+	y: X={string | X}
+	@test(eq, {x: string | {}, y: string | {}})
+}
+
+valueSelf: ok3: {
+	y: X={X | string}
+	x: y
+	@test(eq, {y: {} | string, x: {} | string})
+}
+
+valueSelf: ok4: {
+	x: y
+	y: X={X | string}
+	@test(eq, {x: {} | string, y: {} | string})
+}
+
+valueEmbed: ok1: {
+	y: X={string | {X}}
+	x: y
+	@test(eq, {y: string | {}, x: string | {}})
+}
+
+valueEmbed: ok2: {
+	x: y
+	y: X={string | {X}}
+	@test(eq, {x: string | {}, y: string | {}})
+}
+
+valueEmbed: ok3: {
+	y: X={{X} | string}
+	x: y
+	@test(eq, {y: {} | string, x: {} | string})
+}
+
+valueEmbed: ok4: {
+	x: y
+	y: X={{X} | string}
+	@test(eq, {x: {} | string, y: {} | string})
+}
+
+valueList: ok1: {
+	y: X={string | [X]}
+	x: y
+	@test(eq, {y: string, x: string})
+}
+
+valueList: ok2: {
+	x: y
+	y: X={string | [X]}
+	@test(eq, {x: string, y: string})
+}
+
+valueList: ok3: {
+	y: X={[X] | string}
+	x: y
+	@test(eq, {y: string, x: string})
+}
+
+valueList: ok4: {
+	x: y
+	y: X={[X] | string}
+	@test(eq, {x: string, y: string})
+}
+
+// Issue #1729
+issue1729: t1: {
+	#x: { #x | {} }
+	x: #x & {}
+	@test(eq, {#x: {}, x: {}})
+}
+
+issue1729: t2: {
+	x: #x & {}
+	#x: { #x | {} }
+	@test(eq, {x: {}, #x: {}})
+}
+
+-- selfold.cue --
+issue4125: t2_alias: X={
+	let Y = X
+	b: Y.b
+	@test(eq, {b: _})
+}
+
+-- out/eval/stats --
+Leaks:  21
+Freed:  175
+Reused: 149
+Allocs: 47
+Retain: 0
+
+Unifications: 121
+Conjuncts:    249
+Disjuncts:    66
+
+NumCloseIDs: 51

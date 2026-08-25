@@ -12,10 +12,21 @@ t1: p: {
 	P.x
 	@test(eq, {x: _})
 }
-t2: S=p: {
+t2: p~(S): {
 	let P = {S}
 	x: _
 	P.x
 	@test(eq, {x: _})
 }
 -- out/eval/stats --
+Leaks:  10
+Freed:  13
+Reused: 5
+Allocs: 18
+Retain: 0
+
+Unifications: 21
+Conjuncts:    45
+Disjuncts:    0
+
+NumCloseIDs: 26

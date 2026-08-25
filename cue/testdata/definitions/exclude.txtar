@@ -105,13 +105,13 @@ Reordering.
 Missing error positions: v3 reports fewer positions than v2.
 -- out/eval/stats --
 Leaks:  1
-Freed:  78
-Reused: 64
+Freed:  71
+Reused: 57
 Allocs: 15
 Retain: 0
 
-Unifications: 77
-Conjuncts:    115
+Unifications: 71
+Conjuncts:    104
 Disjuncts:    0
 
-NumCloseIDs: 18
+NumCloseIDs: 17

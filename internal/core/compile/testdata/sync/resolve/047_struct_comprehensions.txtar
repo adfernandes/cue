@@ -2,7 +2,7 @@
 #evalPartial
 -- in.cue --
 obj: foo: a: "bar"
-obj: [Name=string]: {
+obj: [string]~(Name,_): {
 	a: *"dummy" | string
 	if true {
 		sub: as: a

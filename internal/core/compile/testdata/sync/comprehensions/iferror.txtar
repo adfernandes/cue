@@ -44,8 +44,8 @@ useDefault: {
 			b: *a | string
 		}
 
-		s: [Name=string]: #A & {a: Name}
-		s: bar:           _
+		s: [string]~(Name,_): #A & {a: Name}
+		s: bar:               _
 
 		foo: [
 			for _, a in s if a.b != _|_ {a},
@@ -63,12 +63,11 @@ issue1972: {
 		#patchs
 
 		#someCondition: _
-		if #someCondition {
-		}
+		if #someCondition {}
 	}
 	err1: {
 		someCondition: _
-		patchs: [...{}]
+		patchs:        [...{}]
 		patchs
 		if someCondition {
 			patchs: _
@@ -79,12 +78,11 @@ issue1972: {
 		#patchs
 
 		#someCondition: _
-		if #someCondition {
-		}
+		if #someCondition {}
 	}
 	err3: {
 		someCondition: _
-		patchs: [...{}]
+		patchs:        [...{}]
 		patchs
 		if someCondition {
 			patchs: _

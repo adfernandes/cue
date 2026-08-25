@@ -1,6 +1,6 @@
 -- in.cue --
 res: [t]
-t: [X=string]: {
+t: [string]~(X,_): {
 	a: c + b.str
 	b: str: string
 	c: "X"

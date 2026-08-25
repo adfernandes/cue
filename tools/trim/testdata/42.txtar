@@ -13,7 +13,7 @@ this is the best we can do.
 	metadata: namespace: X_Platform
 }
 
-Resources: [Platform=string]: {
+Resources: [string]~(Platform,_): {
 	#NamespacedResource
 	X_Platform: Platform
 }
@@ -28,7 +28,7 @@ Resources: myplatform: {}
 	metadata: namespace: X_Platform
 }
 
-Resources: [Platform=string]: {
+Resources: [string]~(Platform,_): {
 	#NamespacedResource
 	X_Platform: Platform
 }
@@ -43,7 +43,7 @@ Resources: myplatform: {}
 	metadata: namespace: X_Platform
 }
 
-Resources: [Platform=string]: {
+Resources: [string]~(Platform,_): {
 	#NamespacedResource
 	X_Platform: Platform
 }

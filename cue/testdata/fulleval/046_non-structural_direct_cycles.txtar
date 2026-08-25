@@ -19,10 +19,13 @@ v3 also reports an extra position (in.cue:2:21) not present in v2.
 -- out/eval/stats --
 Leaks:  0
 Freed:  7
-Reused: 3
-Allocs: 4
-Retain: 2
+Reused: 1
+Allocs: 6
+Retain: 0
 
-Unifications: 7
+Unifications: 6
 Conjuncts:    10
-Disjuncts:    8
+Disjuncts:    0
+Notifications: 2
+
+NumCloseIDs: 2

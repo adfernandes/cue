@@ -25,12 +25,12 @@ package example
 blah: Settings.anyKey
 Settings: {}
 -- out/eval/stats --
-Leaks:  1
-Freed:  4
-Reused: 1
-Allocs: 4
-Retain: 2
+Leaks:  3
+Freed:  19
+Reused: 0
+Allocs: 22
+Retain: 0
 
-Unifications: 5
-Conjuncts:    6
-Disjuncts:    6
+Unifications: 21
+Conjuncts:    21
+Disjuncts:    0

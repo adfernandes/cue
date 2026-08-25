@@ -30,13 +30,13 @@ t3: {
 // itself via a self-referential disjunction path.
 // https://cuelang.org/issue/3437
 issue3437: {
-	r: L=L.a
-	d: a: a: a: {b: 4}|d
-	out: r&d
+	r: {let L = self, L.a}
+	d: a: a: a: {b: 4} | d
+	out: r & d
 	// TODO(perf): either use structure sharing or stronger pruning. This seems
 	// disproportional.
 	@test(eq, {
-		r: _|_ @test(err, code=incomplete, contains="issue3437.r: undefined field: a", pos=[1:9])
+		r: _|_ @test(err, code=incomplete, contains="issue3437.r: undefined field: a", pos=[1:22])
 		d: {a: {a: {a: {b: 4}}}}
 		out: {a: {a: {a: {b: 4} | {a: {a: {a: {b: 4} | {a: {a: {a: {b: 4}}}}}}}, b: 4} | {a: {a: {
 		a: {b: 4} | {a: {a: {a: {b: 4} | {a: {a: {a: {b: 4}}}}}}}
@@ -85,19 +85,24 @@ t2.d: conflicting values {a:{a:(2|1)}} and 2 (mismatched types struct and int):
     ./in.cue:14:5
     ./in.cue:14:11
 [incomplete] issue3437.r: undefined field: a:
-    ./issue3437.cue:5:9
+    ./issue3437.cue:5:22
 -- out/eval/stats --
-Leaks:  472
-Freed:  1566
-Reused: 432
-Allocs: 1606
+Leaks:  706
+Freed:  2328
+Reused: 631
+Allocs: 2403
 Retain: 0
 
-Unifications: 754
-Conjuncts:    1970
-Disjuncts:    722
+Unifications: 1120
+Conjuncts:    2923
+Disjuncts:    1072
 Notifications: 3
 
-NumCloseIDs: 236
+NumCloseIDs: 360
+
+ConjunctInfos:       1830
+MaxConjunctInfos:    4
+MaxReqSets:          2
+MaxRedirect:         3
 -- out/todo.txt --
 v3 reports error messages with different operand ordering ("conflicting values {a,...} and 1" vs v2's "conflicting values 1 and {a:(2|1)}").

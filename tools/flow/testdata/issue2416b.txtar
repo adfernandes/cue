@@ -6,15 +6,16 @@ import (
 	"tool/cli"
 )
 
-#Input: INPUT={
-	kind: string
+#Input: {
+	let INPUT = self
+	kind:   string
 	outKey: string | *"default"
 	if kind != "foo" {
 		outKey: INPUT.kind
 	}
 }
-inputs: f: #Input & { kind: "foo" }
-inputs: b: #Input & { kind: "bar" }
+inputs: f: #Input & {kind: "foo"}
+inputs: b: #Input & {kind: "bar"}
 
 outputs: [string]: string
 for _, input in inputs {
@@ -22,7 +23,7 @@ for _, input in inputs {
 }
 
 root: print: cli.Print & {
-	text: strings.Join([for key, val in outputs { "key=\(key) val=\(val)" }], "\n")
+	text: strings.Join([for key, val in outputs {"key=\(key) val=\(val)"}], "\n")
 }
 -- out/run/errors --
 -- out/run/t0 --
@@ -44,13 +45,13 @@ graph TD
 }
 -- out/run-v3/t1/stats --
 Leaks:  1
-Freed:  30
-Reused: 17
+Freed:  33
+Reused: 20
 Allocs: 14
 Retain: 0
 
-Unifications: 23
-Conjuncts:    60
+Unifications: 26
+Conjuncts:    63
 Disjuncts:    8
 ResolveDep:   20
 
@@ -61,24 +62,25 @@ diff old new
 +++ new
 @@ -1,13 +1,12 @@
 -Leaks:  0
--Freed:  33
++Leaks:  1
+ Freed:  33
 -Reused: 26
 -Allocs: 7
 -Retain: 1
-+Leaks:  1
-+Freed:  30
-+Reused: 17
-+Allocs: 14
-+Retain: 0
- 
- Unifications: 23
+-
+-Unifications: 23
 -Conjuncts:    61
 -Disjuncts:    34
 -
 -MisalignedConjunct: 7
 -
 -NumCloseIDs: 4
-+Conjuncts:    60
++Reused: 20
++Allocs: 14
++Retain: 0
++
++Unifications: 26
++Conjuncts:    63
 +Disjuncts:    8
 +ResolveDep:   20
 +
@@ -99,13 +101,13 @@ MisalignedConjunct: 7
 NumCloseIDs: 4
 -- out/run-v3/stats/totals --
 Leaks:  1
-Freed:  30
-Reused: 17
+Freed:  33
+Reused: 20
 Allocs: 14
 Retain: 0
 
-Unifications: 23
-Conjuncts:    60
+Unifications: 26
+Conjuncts:    63
 Disjuncts:    8
 ResolveDep:   20
 
@@ -116,24 +118,25 @@ diff old new
 +++ new
 @@ -1,13 +1,12 @@
 -Leaks:  0
--Freed:  33
++Leaks:  1
+ Freed:  33
 -Reused: 26
 -Allocs: 7
 -Retain: 1
-+Leaks:  1
-+Freed:  30
-+Reused: 17
-+Allocs: 14
-+Retain: 0
- 
- Unifications: 23
+-
+-Unifications: 23
 -Conjuncts:    61
 -Disjuncts:    34
 -
 -MisalignedConjunct: 7
 -
 -NumCloseIDs: 4
-+Conjuncts:    60
++Reused: 20
++Allocs: 14
++Retain: 0
++
++Unifications: 26
++Conjuncts:    63
 +Disjuncts:    8
 +ResolveDep:   20
 +

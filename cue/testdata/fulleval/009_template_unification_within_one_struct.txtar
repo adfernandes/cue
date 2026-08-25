@@ -1,12 +1,12 @@
 -- in.cue --
 a: {
-	{[A=string]: {name: A}}
+	{[string]~(A,_): {name: A}}
 
 	// TODO: allow duplicate alias here
-	{[X=string]: {kind: X}}
+	{[string]~(X,_): {kind: X}}
 }
-a: "A": _  @test(eq, {name: "A", kind: "A"})
-a: "C": _  @test(eq, {name: "C", kind: "C"})
+a: "A": _          @test(eq, {name: "A", kind: "A"})
+a: "C": _          @test(eq, {name: "C", kind: "C"})
 a: "E": {c: "bar"} @test(eq, {
 	c: "bar"
 	name: "E"
@@ -15,10 +15,12 @@ a: "E": {c: "bar"} @test(eq, {
 -- out/eval/stats --
 Leaks:  0
 Freed:  12
-Reused: 8
-Allocs: 4
+Reused: 4
+Allocs: 8
 Retain: 0
 
 Unifications: 12
 Conjuncts:    23
-Disjuncts:    12
+Disjuncts:    0
+
+NumCloseIDs: 3

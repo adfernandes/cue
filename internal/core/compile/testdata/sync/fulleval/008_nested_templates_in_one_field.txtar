@@ -1,10 +1,10 @@
 -- in.cue --
-a: [A=string]: b: [B=string]: {
+a: [string]~(A,_): b: [string]~(B,_): {
 	name: A
 	kind: B
 }
-a: "A": b: "B": _
-a: "C": b: "D": _
+a: "A": b: "B":   _
+a: "C": b: "D":   _
 a: "EE": b: "FF": {c: "bar"}
 -- out/compile --
 --- in.cue

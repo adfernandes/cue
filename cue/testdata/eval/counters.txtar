@@ -170,13 +170,13 @@ issue3824: panic: {
     ./issue3780.cue:9:5
 -- out/eval/stats --
 Leaks:  67
-Freed:  154
-Reused: 135
+Freed:  151
+Reused: 132
 Allocs: 86
 Retain: 0
 
-Unifications: 164
-Conjuncts:    267
+Unifications: 160
+Conjuncts:    252
 Disjuncts:    36
 
 NumCloseIDs: 60

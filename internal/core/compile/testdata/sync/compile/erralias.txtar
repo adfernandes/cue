@@ -1,20 +1,19 @@
 // Caused a stack overflow on evalv2.
 #inlinetest:exclude skip: compile errors.
 -- in.cue --
- let X = {}
+let X = {}
 
-[Y="foo"]: 3
-a:         Y
+["foo"]~(Y,_): 3
+a:             Y
 
 c: {}
 for x in c {a: E}
-
-Z1=[Z2=string]: Z1 + Z2
+[string]~(Z2,Z1): Z1 + Z2
 -- out/compile --
 unreferenced alias or let clause X:
-    ./in.cue:1:2
+    ./in.cue:1:1
 a: reference "Y" not found:
-    ./in.cue:4:12
+    ./in.cue:4:16
 for[].a: reference "E" not found:
     ./in.cue:7:16
 --- in.cue

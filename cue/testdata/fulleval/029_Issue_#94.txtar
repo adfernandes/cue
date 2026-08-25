@@ -37,14 +37,12 @@ index: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  22
-Reused: 19
-Allocs: 3
+Reused: 12
+Allocs: 10
 Retain: 0
 
 Unifications: 22
-Conjuncts:    32
-Disjuncts:    22
+Conjuncts:    24
+Disjuncts:    0
 
-MisalignedConjunct: 1
-
-NumCloseIDs: 1
+NumCloseIDs: 2

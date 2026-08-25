@@ -23,14 +23,12 @@ for _, manifest in manifests {
 -- out/eval/stats --
 Leaks:  0
 Freed:  22
-Reused: 15
-Allocs: 7
+Reused: 9
+Allocs: 13
 Retain: 0
 
 Unifications: 22
-Conjuncts:    38
-Disjuncts:    22
+Conjuncts:    40
+Disjuncts:    0
 
-MisalignedConjunct: 9
-
-NumCloseIDs: 1
+NumCloseIDs: 3

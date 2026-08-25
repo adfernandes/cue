@@ -1,6 +1,9 @@
 # Regression: in https://cue.gerrithub.io/c/cue-lang/cue/+/1236923 (cue-mpvl)
 # the following module emits a spurious cycle error, whereas master accepts it.
 #
+# TestLatest: skip - the kit package uses the old prefix alias syntax,
+# which the pinned v0.8.0 language version still accepts.
+#
 # Minimal trigger:
 #   1) a definition #A in one package, self-aliased (`X=`), with a field
 #      typed as another *named definition* (#S) and an `if X.field != null`

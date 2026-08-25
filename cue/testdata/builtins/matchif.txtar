@@ -37,8 +37,8 @@ regularFields: {
 -- out/eval/stats --
 Leaks:  32
 Freed:  106
-Reused: 92
-Allocs: 46
+Reused: 88
+Allocs: 50
 Retain: 0
 
 Unifications: 98

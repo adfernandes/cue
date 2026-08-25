@@ -17,16 +17,14 @@ comprehensionBinds: {
 [eval] k: cannot range over e (found int, want list or struct):
     ./in.cue:7:14
 -- out/eval/stats --
-Leaks:  2
-Freed:  16
-Reused: 12
-Allocs: 6
-Retain: 7
+Leaks:  0
+Freed:  20
+Reused: 7
+Allocs: 13
+Retain: 0
 
-Unifications: 18
-Conjuncts:    18
-Disjuncts:    21
+Unifications: 20
+Conjuncts:    24
+Disjuncts:    0
 
-MisalignedConjunct: 1
-
-NumCloseIDs: 5
+NumCloseIDs: 10

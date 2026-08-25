@@ -14,11 +14,11 @@ on: __test_experiment("on") @test(eq, "on")
     ./off.cue:1:6
 -- out/eval/stats --
 Leaks:  0
-Freed:  3
+Freed:  11
 Reused: 0
-Allocs: 3
+Allocs: 11
 Retain: 0
 
-Unifications: 3
-Conjuncts:    4
+Unifications: 11
+Conjuncts:    12
 Disjuncts:    0

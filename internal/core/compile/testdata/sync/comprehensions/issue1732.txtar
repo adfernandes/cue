@@ -18,7 +18,7 @@ networkingv1: {
 
 	#NetworkPolicySpec: {
 		ingress: [...#NetworkPolicyIngressRule]
-		egress: [...#NetworkPolicyEgressRule]
+		egress:  [...#NetworkPolicyEgressRule]
 	}
 
 	#NetworkPolicyIngressRule: {
@@ -56,7 +56,8 @@ foo: {
 	}
 }
 
-#Config: R={
+#Config: {
+	let R = self
 	tenant: id: string
 
 	auth0: common.#SomeConfig & {
@@ -79,7 +80,8 @@ foo: {
 
 #NetworkPolicy: networkingv1.#NetworkPolicy
 
-#Flux: R={
+#Flux: {
+	let R = self
 	#Config
 
 	charts: _
@@ -182,6 +184,7 @@ foo: {
     }
   }
   #Config: {
+    let R#1 = 〈1〉
     tenant: {
       id: string
     }
@@ -193,17 +196,18 @@ foo: {
     })
     charts: {
       foo: (〈2;foo〉.#Values & {
-        global: 〈3〉.global
+        global: 〈2;let R#1〉.global
       })
     }
     global: (〈1;global_config〉.#GlobalConfig & {
       auth0: {
-        enabled: 〈3〉.auth0.enabled
+        enabled: 〈2;let R#1〉.auth0.enabled
       }
     })
   }
   #NetworkPolicy: 〈0;networkingv1〉.#NetworkPolicy
   #Flux: {
+    let R#2 = 〈1〉
     〈1;#Config〉
     charts: _
     formatOutput: {
@@ -229,7 +233,7 @@ foo: {
                   {
                     namespaceSelector: {
                       matchLabels: {
-                        tenant: 〈12〉.tenant.id
+                        tenant: 〈11;let R#2〉.tenant.id
                       }
                     }
                   },
@@ -242,7 +246,7 @@ foo: {
                   {
                     namespaceSelector: {
                       matchLabels: {
-                        tenant: 〈12〉.tenant.id
+                        tenant: 〈11;let R#2〉.tenant.id
                       }
                     }
                   },

@@ -29,13 +29,13 @@ d: {
     ./in.cue:19:5
 -- out/eval/stats --
 Leaks:  0
-Freed:  7
-Reused: 4
-Allocs: 3
-Retain: 1
+Freed:  8
+Reused: 2
+Allocs: 6
+Retain: 0
 
-Unifications: 7
-Conjuncts:    7
-Disjuncts:    7
+Unifications: 8
+Conjuncts:    11
+Disjuncts:    0
 
-NumCloseIDs: 3
+NumCloseIDs: 6

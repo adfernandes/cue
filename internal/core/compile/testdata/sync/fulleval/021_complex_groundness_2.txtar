@@ -5,8 +5,8 @@ r1: f1 & {y: "c"}
 
 f1: {y: string, res: a.b.c & {d: y}}
 
-a: b: c: {d: string, s: "a" + d}
-a: b: [C=string]: {d: string, s: "a" + d}
+a: b: c:              {d: string, s: "a" + d}
+a: b: [string]~(C,_): {d: string, s: "a" + d}
 a: b: c: d: string
 -- out/compile --
 --- in.cue

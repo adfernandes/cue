@@ -2,7 +2,7 @@
 // res is a list containing t; res[0] shares t's vertex.
 res: [t] @test(eq, [{x: {a: "XDDDD", b: str: "DDDD", c: "X"}}]) @test(shareID=T, at=0)
 t: {
-	[X=string]: {
+	[string]~(X,_): {
 		a: c + b.str
 		b: str: string
 		c: "X"
@@ -11,11 +11,11 @@ t: {
 } @test(shareID=T)
 -- out/eval/stats --
 Leaks:  0
-Freed:  14
-Reused: 7
-Allocs: 7
-Retain: 3
+Freed:  9
+Reused: 0
+Allocs: 9
+Retain: 0
 
-Unifications: 14
-Conjuncts:    21
-Disjuncts:    15
+Unifications: 9
+Conjuncts:    12
+Disjuncts:    0

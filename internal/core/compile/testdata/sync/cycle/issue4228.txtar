@@ -5,28 +5,32 @@
 -- in.cue --
 package main
 
-_objectBase: self={
+_objectBase: {
+	let this = self
 	name: string
-	k8s: metadata: name: self.name
+	k8s: metadata: name: this.name
 }
 
-_namespacedResource: self={
+_namespacedResource: {
+	let this = self
 	_objectBase
 	namespace: string
-	k8s: metadata: namespace: self.namespace
+	k8s: metadata: namespace: this.namespace
 }
 
 // Key validation pattern with error() and self
-_allValuesAreValidStructs: [_]: self={
-	*{} | error("<- invalid \(self)")
+_allValuesAreValidStructs: [_]: {
+	let this = self
+	*{} | error("<- invalid \(this)")
 }
 
-_setTypeMeta: self={
+_setTypeMeta: {
+	let this = self
 	#apiVersion!: string
-	#kind!: string
+	#kind!:       string
 	#template: k8s: {
-		apiVersion: self.#apiVersion
-		kind: self.#kind
+		apiVersion: this.#apiVersion
+		kind:       this.#kind
 	}
 }
 
@@ -53,14 +57,15 @@ _namespacedResourceKinds: {
 
 	app: {
 		#apiVersion: "argoproj.io/v1alpha1"
-		#kind: "Application"
+		#kind:       "Application"
 		#resourceSchema: {
 			spec?: revisionHistoryLimit?: int
 		}
 
-		#template: self={
+		#template: {
+			let this = self
 			revisionHistoryLimit: *3 | int
-			k8s: spec: revisionHistoryLimit: self.revisionHistoryLimit
+			k8s: spec: revisionHistoryLimit: this.revisionHistoryLimit
 		}
 	}
 }
@@ -118,34 +123,38 @@ let _globalScope = self
 --- in.cue
 {
   _objectBase(:main): {
+    let this#2 = 〈1〉
     name: string
     k8s: {
       metadata: {
-        name: 〈3〉.name
+        name: 〈2;let this#2〉.name
       }
     }
   }
   _namespacedResource(:main): {
+    let this#3 = 〈1〉
     〈1;_objectBase(:main)〉
     namespace: string
     k8s: {
       metadata: {
-        namespace: 〈3〉.namespace
+        namespace: 〈2;let this#3〉.namespace
       }
     }
   }
   _allValuesAreValidStructs(:main): {
     [_]: {
-      (*{}|error("<- invalid \(〈1〉)"))
+      let this#4 = 〈1〉
+      (*{}|error("<- invalid \(〈0;let this#4〉)"))
     }
   }
   _setTypeMeta(:main): {
+    let this#5 = 〈1〉
     #apiVersion!: string
     #kind!: string
     #template: {
       k8s: {
-        apiVersion: 〈3〉.#apiVersion
-        kind: 〈3〉.#kind
+        apiVersion: 〈2;let this#5〉.#apiVersion
+        kind: 〈2;let this#5〉.#kind
       }
     }
   }
@@ -179,10 +188,11 @@ let _globalScope = self
         }
       }
       #template: {
+        let this#6 = 〈1〉
         revisionHistoryLimit: (*3|int)
         k8s: {
           spec: {
-            revisionHistoryLimit: 〈3〉.revisionHistoryLimit
+            revisionHistoryLimit: 〈2;let this#6〉.revisionHistoryLimit
           }
         }
       }

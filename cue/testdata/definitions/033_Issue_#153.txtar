@@ -40,10 +40,12 @@ Freed:  15
 Reused: 5
 Allocs: 10
 Retain: 0
+
 Unifications: 11
 Conjuncts:    22
 Disjuncts:    4
 Notifications: 1
+
 NumCloseIDs: 5
 -- out/diff-v2-v3.txt --
 missing error positions: v3 reports fewer positions than v2.

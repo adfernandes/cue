@@ -155,16 +155,16 @@ doNotEscalateError: {
     ./issue3918.cue:49:11
 -- out/eval/stats --
 Leaks:  0
-Freed:  93
-Reused: 75
-Allocs: 18
+Freed:  70
+Reused: 53
+Allocs: 17
 Retain: 0
 
-Unifications: 91
-Conjuncts:    131
+Unifications: 68
+Conjuncts:    96
 Disjuncts:    0
 
-NumCloseIDs: 15
+NumCloseIDs: 12
 -- out/todo.txt --
 v3 reports incomplete errors for reference.toWithinDefinition, toFieldFromDefinition, toNonDefinition, toConcrete sub-fields (required field missing), whereas v2 resolved those fields to concrete values. v3 also shows structure sharing (~) for reference.toFieldFromDefinition.p1.b and p2.b.
 issue3918.noFunction.x: v3 evaluates x as a structure-shared reference to _foo.in (formatted as a bare identifier "in" that cannot be compiled standalone); the expected struct only asserts on #disjuncts and _foo.

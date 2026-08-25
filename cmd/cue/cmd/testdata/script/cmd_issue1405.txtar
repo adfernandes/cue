@@ -12,7 +12,7 @@ command: alias: {
 		enabled: true
 	})
 
-    echo: exec.Run & {
+	echo: exec.Run & {
 		cmd: ["echo", rendered]
 	}
 }
@@ -27,10 +27,13 @@ t: """
 	value?:  int
 }
 
-#combined: X=#base & {
-	name: "OK"
-	if X.enabled {
-		value: 123456
+#combined: {
+	let X = self
+	#base & {
+		name: "OK"
+		if X.enabled {
+			value: 123456
+		}
 	}
 }
 

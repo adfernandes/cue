@@ -27,10 +27,10 @@ ex: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  10
-Reused: 7
-Allocs: 3
+Reused: 0
+Allocs: 10
 Retain: 0
 
 Unifications: 10
 Conjuncts:    10
-Disjuncts:    10
+Disjuncts:    0

@@ -1,9 +1,8 @@
 -- in.cue --
 dynamic: {
-
-	X=(a): 1
-	x: X
-	a: "name"
+	(a)~(X): 1
+	x:       X
+	a:       "name"
 }
 -- out/compile --
 --- in.cue

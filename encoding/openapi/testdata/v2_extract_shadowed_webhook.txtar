@@ -29,7 +29,7 @@ info: {
 	version: "1"
 }
 
-paths_9=paths: "/x": get: {
+paths~(paths_9): "/x": get: {
 	parameters: [{
 		name: "id"
 		in:   "query"
@@ -48,7 +48,7 @@ info: {
 	version: "1"
 }
 
-paths_9=paths: "/x": get: {
+paths~(paths_9): "/x": get: {
 	parameters: [{
 		name: "id"
 		in:   "query"

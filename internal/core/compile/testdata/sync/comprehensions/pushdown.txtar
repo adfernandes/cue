@@ -51,7 +51,6 @@ embed: {
 	}
 	fail1: p: "foo" // this should fail, as p is not present.
 
-
 	success2: #C2
 	#C2: {
 		if true {
@@ -61,7 +60,7 @@ embed: {
 	success2: p: "foo" // this succeeds as p is present.
 
 	success3: #C3
-	#C3: {}
+	#C3:      {}
 	success3: {
 		if false {
 			// p does not exist in success3, but it is okay, as it is not added.
@@ -71,7 +70,7 @@ embed: {
 
 	success4: {
 		#X: y: string
-		x: y: string
+		x: y:  string
 		x: {
 			for _ in ["iter-once"] {
 				#X
@@ -83,7 +82,7 @@ embed: {
 	}
 
 	fail4: #C4
-	#C4: {}
+	#C4:   {}
 	fail4: {
 		if true {
 			// error as p is not allowed in fail4
@@ -119,20 +118,19 @@ mixedFieldsSuccess: {
 	a: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 
 	b: #Def: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 	b: x: b.#Def
-	b: x: X: _
+	b: x: X:   _
 	b: x: foo: _
-
 
 	c: #Def: {
 		X:   int
@@ -142,7 +140,7 @@ mixedFieldsSuccess: {
 	c: x: {
 		for _, s in ["foo"] {
 			"\(s)": 1
-			X: 1
+			X:      1
 		}
 	}
 }
@@ -177,7 +175,6 @@ noStackOverflowStructCycle: {
 		}
 	}
 }
-
 
 // #a is incomplete, but the missing values are provided by x.
 provideIncompleteSuccess: {
@@ -251,7 +248,7 @@ cyclicError: {
 		// value, so the comprehension bodies simply do not fire.
 		x: bool
 		y: bool
-		if a.x  {
+		if a.x {
 			y: true
 		}
 		if a.y {
@@ -301,7 +298,7 @@ closedCheck: success2: {
 	#D: {
 		d: string
 		if d != "c" {
-			("foo"+"bar"): string
+			("foo" + "bar"): string
 		}
 	}
 
@@ -333,8 +330,7 @@ emptyComprehensionIncomplete: {
 	a: {}
 	b: {
 		// b should be an incomplete error
-		if a.b {
-		}
+		if a.b {}
 	}
 }
 
@@ -509,7 +505,7 @@ voidLookup: {
 	a: [string]: {
 		c: {
 			for k, v in z {
-				(k): null  // don't add this arc anywhere
+				(k): null // don't add this arc anywhere
 			}
 		}
 		z: {
@@ -520,14 +516,13 @@ voidLookup: {
 	}
 }
 
-
 // Eliminate the top value even if there is an error (especially incomplete
 // errors).
 topElimination: {
 	a: int
 	_
 	if true {
-		x: a+1
+		x: a + 1
 	}
 }
 
@@ -549,8 +544,7 @@ voidEliminationSuccess: drop1: {
 explicitDefaultError: {
 	a: string | *_|_
 
-	if a != "" {
-	}
+	if a != "" {}
 }
 
 // Remove arcs for with no for comprehension results.
@@ -593,7 +587,7 @@ structShare: ok1: {
 
 structShare: err1: {
 	x: [string]: x.#E
-	x: #E: {}
+	x: #E:       {}
 	if true {
 		x: d: e: true
 	}
@@ -601,7 +595,8 @@ structShare: err1: {
 
 // An optional field referencing a value only a pushed-down comprehension
 // materializes must stay optional, not be upgraded to a regular member.
-optionalRefStaysOptional: s={
+optionalRefStaysOptional: {
+	let s = self
 	optionalRef?: string
 	optionalRef?: s.field
 	if true {
@@ -734,8 +729,7 @@ nestedWithEmbeddingOK: {
 	a: {
 		for k, v in c {
 			{x: 1}
-			if a.x != _|_ {
-			}
+			if a.x != _|_ {}
 		}
 	}
 }
@@ -745,9 +739,8 @@ nestedWithDynamicFieldOK: {
 
 	a: {
 		for k, v in _c {
-			if x != _|_ {
-			}
-			x="\(k)": 1
+			if x != _|_ {}
+			"\(k)"~(x): 1
 		}
 	}
 }
@@ -756,11 +749,11 @@ nestedWithDynamicFieldOK: {
 errorPropagation: {
 	deployment: _
 	for k, v in deployment {
-		for k1, v2 in v.env2 { // Report this error.
+		for k1, v2 in v.env2 {
 			deployment: (k): x1: 1
-		}
+		} // Report this error.
 	}
-	for id in ["elem"] { deployment: (id): x2: 2 }
+	for id in ["elem"] {deployment: (id): x2: 2}
 }
 
 -- issue2131.cue --
@@ -877,7 +870,7 @@ issue3621: reduced: t2: {
 }
 issue3621: full: {
 	hello: "world"
-	outer: [Name=string]: name: Name
+	outer: [string]~(Name,_): name: Name
 	if true {
 		inner: inner2: {
 			name:           "Employees"
@@ -1050,7 +1043,7 @@ regression1: {
 		}
 	}
 	#Rollout: {
-		_X: _
+		_X:  _
 		out: #Primary & {_Y: _X} & _X.patch
 	}
 	x: {
@@ -1067,7 +1060,7 @@ regression2: {
 		}
 	}
 	#Rollout: {
-		_X: _
+		_X:  _
 		out: #Primary & {_Y: _X} & _X.patch
 	}
 	x: {
@@ -1077,7 +1070,8 @@ regression2: {
 	out: #Rollout & {_X: x}
 }
 letCycleSelf: {
-	#X: X={
+	#X: {
+		let X = self
 		let this = X
 		hosts: [string]: _
 		for h, _ in this.hosts {out: (h): 1}
@@ -1085,7 +1079,7 @@ letCycleSelf: {
 	}
 
 	x: [string]: #X
-	x: a: {}
+	x: a:        {}
 
 }
 -- rework2.cue --
@@ -1871,8 +1865,9 @@ issue4422: {
     }
   }
   optionalRefStaysOptional: {
+    let s#1 = 〈1〉
     optionalRef?: string
-    optionalRef?: 〈1〉.field
+    optionalRef?: 〈0;let s#1〉.field
     if true {
       field: "value"
     }
@@ -1951,8 +1946,8 @@ issue4422: {
     }
     a: {
       for k, v in 〈1;_c〉 {
-        let x#1multi = 〈1;v〉
-        if (〈0;let x#1〉 != _|_(explicit error (_|_ literal) in source)) {}
+        let x#2multi = 〈1;v〉
+        if (〈0;let x#2〉 != _|_(explicit error (_|_ literal) in source)) {}
       }
     }
   }
@@ -2383,8 +2378,8 @@ issue4422: {
   issue4422: {
     settings: {
       domain: {
-        let _zero#2 = 0
-        x: 〈0;let _zero#2〉
+        let _zero#3 = 0
+        x: 〈0;let _zero#3〉
       }
     }
     components: {
@@ -2515,9 +2510,9 @@ issue4422: {
   regression1: {
     #Primary: {
       _Y: _
-      let _X#3 = 〈0;_Y〉
-      if (len(〈0;let _X#3〉.spec.command) > 0) {
-        command: 〈1;let _X#3〉.spec.command
+      let _X#4 = 〈0;_Y〉
+      if (len(〈0;let _X#4〉.spec.command) > 0) {
+        command: 〈1;let _X#4〉.spec.command
       }
     }
     #Rollout: {
@@ -2565,16 +2560,17 @@ issue4422: {
   }
   letCycleSelf: {
     #X: {
-      let this#4 = 〈1〉
+      let X#5 = 〈1〉
+      let this#6 = 〈0;let X#5〉
       hosts: {
         [string]: _
       }
-      for h, _ in 〈0;let this#4〉.hosts {
+      for h, _ in 〈0;let this#6〉.hosts {
         out: {
           〈2;h〉: 1
         }
       }
-      for h, _ in 〈0;let this#4〉.hosts {
+      for h, _ in 〈0;let this#6〉.hosts {
         out: {
           〈2;h〉: 2
         }
@@ -2592,9 +2588,9 @@ issue4422: {
 {
   letCycleSelfKeyword: {
     #E: {
-      let s#5 = 〈1〉
+      let s#7 = 〈1〉
       hosts: _
-      for _, hv in 〈0;let s#5〉.hosts {
+      for _, hv in 〈0;let s#7〉.hosts {
         out: {
           〈2;hv〉.x: "a"
         }
@@ -2610,11 +2606,11 @@ issue4422: {
   }
   letCycleSelfKeyword2: {
     #E: {
-      let s#6 = 〈1〉
+      let s#8 = 〈1〉
       ...
-      for _, hv in 〈0;let s#6〉.hosts {
-        let n#7 = 〈2;let s#6〉.networks
-        a: 〈0;let n#7〉
+      for _, hv in 〈0;let s#8〉.hosts {
+        let n#9 = 〈2;let s#8〉.networks
+        a: 〈0;let n#9〉
       }
     }
     env: (〈0;#E〉 & {

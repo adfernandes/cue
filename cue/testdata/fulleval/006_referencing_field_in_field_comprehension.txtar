@@ -10,14 +10,12 @@ a: {
 -- out/eval/stats --
 Leaks:  0
 Freed:  7
-Reused: 3
-Allocs: 4
-Retain: 1
+Reused: 0
+Allocs: 7
+Retain: 0
 
 Unifications: 7
-Conjuncts:    13
-Disjuncts:    8
+Conjuncts:    11
+Disjuncts:    0
 
-MisalignedConjunct: 2
-
-NumCloseIDs: 1
+NumCloseIDs: 2

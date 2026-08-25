@@ -11,7 +11,7 @@ t1: p: {
 	x: _
 	P.x
 }
-t2: S=p: {
+t2: p~(S): {
 	let P = {S}
 	x: _
 	P.x

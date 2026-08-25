@@ -31,14 +31,14 @@ object: #Leaf & {} @test(eq, {extra?: {}, more?: int}) @test(closed)
 	@test(closed)
 }
 -- out/eval/stats --
-Leaks:  0
+Leaks:  2
 Freed:  11
-Reused: 5
-Allocs: 6
-Retain: 7
+Reused: 4
+Allocs: 9
+Retain: 0
 
-Unifications: 11
+Unifications: 13
 Conjuncts:    25
-Disjuncts:    18
+Disjuncts:    0
 
-NumCloseIDs: 2
+NumCloseIDs: 16

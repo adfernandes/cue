@@ -14,7 +14,7 @@ import "list"
 
     c: b: a:  4
     c?: bb?: aaa?: 5
-    c: b: [Name=string]: a: int
+    c: b: [string]~(Name,_): a: int
     let alias = 3.14
     "g\("en")"?: 4
 
@@ -312,7 +312,7 @@ import "list"
 
 	c: b: a:       4
 	c?: bb?: aaa?: 5
-	c: b: [Name=string]: a: int
+	c: b: [string]~(Name,_): a: int
 	let alias = 3.14
 	"g\("en")"?: 4
 

@@ -241,11 +241,18 @@ func (inst *Instance) Context() *Context {
 	return inst.ctxt
 }
 
+// LanguageVersion reports the language version declared by the module that
+// inst belongs to, or the empty string when there is none to be had.
+func (inst *Instance) LanguageVersion() string {
+	if inst == nil || inst.ModuleFile == nil || inst.ModuleFile.Language == nil {
+		return ""
+	}
+	return inst.ModuleFile.Language.Version
+}
+
 func (inst *Instance) parse(name string, src interface{}) (*ast.File, error) {
 	cfg := parser.NewConfig(parser.ParseComments)
-	if inst.ModuleFile != nil && inst.ModuleFile.Language != nil {
-		cfg = cfg.Apply(parser.Version(inst.ModuleFile.Language.Version))
-	}
+	cfg = cfg.Apply(parser.Version(inst.LanguageVersion()))
 	if inst.ctxt != nil && inst.ctxt.parseFunc != nil {
 		return inst.ctxt.parseFunc(name, src, cfg)
 	}

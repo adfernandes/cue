@@ -48,8 +48,8 @@ useDefault: {
 			b: *a | string
 		}
 
-		s: [Name=string]: #A & {a: Name}
-		s: bar:           _
+		s: [string]~(Name,_): #A & {a: Name}
+		s: bar:               _
 
 		foo: [
 			for _, a in s if a.b != _|_ {a},
@@ -81,31 +81,29 @@ issue1972: {
 		#patchs
 
 		#someCondition: _
-		if #someCondition {
-		}
+		if #someCondition {}
 	}
 	err1: {
 		someCondition: _
-		patchs: [...{}]
+		patchs:        [...{}]
 		patchs
 		if someCondition {
 			patchs: _
 		}
 	} @test(err, code=eval,
 		contains="conflicting values %s and %s (mismatched types %s and %s)",
-		pos=[0:8, 2:11, 3:3]
+		pos=[0:8, 2:18, 3:3]
 	)
 	err2: {
 		#patchs: []
 		#patchs
 
 		#someCondition: _
-		if #someCondition {
-		}
+		if #someCondition {}
 	} @test(err, code=incomplete, contains="incomplete %s: %s", args=[bool, _], pos=[])
 	err3: {
 		someCondition: _
-		patchs: [...{}]
+		patchs:        [...{}]
 		patchs
 		if someCondition {
 			patchs: _
@@ -113,7 +111,7 @@ issue1972: {
 
 		// TODO(inline): support commas in arguments
 		@test(err, code=eval, contains="conflicting values %s and %s (mismatched types %s and %s)",
-			pos=[0:8, 2:11, 3:3]
+			pos=[0:8, 2:18, 3:3]
 		)
 	}
 }
@@ -129,27 +127,27 @@ issue1972: {
 [incomplete] incomplete.err2: undefined field: d:
     ./in.cue:25:21
 [eval] issue1972.err1: conflicting values {someCondition:_,patchs:[...{}],patchs,if someCondition {patchs:_}} and [...{}] (mismatched types struct and list):
-    ./in.cue:86:8
-    ./in.cue:88:11
-    ./in.cue:89:3
+    ./in.cue:85:8
+    ./in.cue:87:18
+    ./in.cue:88:3
 [incomplete] issue1972.err2: incomplete bool: _
 [eval] issue1972.err3: conflicting values {someCondition:_,patchs:[...{}],patchs,if someCondition {patchs:_}} and [...{}] (mismatched types struct and list):
-    ./in.cue:105:8
-    ./in.cue:107:11
-    ./in.cue:108:3
+    ./in.cue:103:8
+    ./in.cue:105:18
+    ./in.cue:106:3
 -- out/eval/stats --
-Leaks:  1
-Freed:  40
-Reused: 23
-Allocs: 18
+Leaks:  3
+Freed:  46
+Reused: 29
+Allocs: 20
 Retain: 0
 
-Unifications: 31
-Conjuncts:    63
+Unifications: 38
+Conjuncts:    73
 Disjuncts:    8
-Notifications: 2
+Notifications: 4
 
-NumCloseIDs: 26
+NumCloseIDs: 34
 -- out/diff-v2-v3.txt --
 issue1972: "field not allowed" are somewhat correct (it is also a list), but
 are already covered by the other error message and should be elided.

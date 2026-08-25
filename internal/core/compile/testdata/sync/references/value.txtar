@@ -1,49 +1,62 @@
 -- in.cue --
-structShorthand: X={b: 3, c: X.b}
+structShorthand: {let X = self, b: 3, c: X.b}
 
 // Note that X and Y are subtly different, as they have different bindings:
 // one binds to the field, the other to the value. In this case, that does not
 // make a difference.
-fieldAndValue: X=foo: Y={3, #sum: X + Y}
+fieldAndValue: foo~(X): {let Y = self, 3, #sum: X + Y}
 
-valueCycle: b: X=3 + X
+// A value alias on a scalar has no postfix form: the "let X = self" that
+// replaces it needs a struct to live in, so the operand is a struct rather
+// than the scalar, and the cycle surfaces as a type error instead.
+valueCycle: b: {let X = self, 3 + X}
 
 // Issue #1003
-listValueAlias: X = [1, 2, X[0]]
+listValueAlias: {let X = self, [1, 2, X[0]]}
 
 -- err.cue --
 @experiment(structcmp)
 
-cycleErr: X={
-	err3: == (X + 1)
+cycleErr: {
+	let X = self
+	err3: ==(X + 1)
 	err3: 4
 }
 -- out/compile --
 --- err.cue
 {
   cycleErr: {
-    err3: ==(〈1〉 + 1)
+    let X#1 = 〈1〉
+    err3: ==(〈0;let X#1〉 + 1)
     err3: 4
   }
 }
 --- in.cue
 {
   structShorthand: {
+    let X#2 = 〈1〉
     b: 3
-    c: 〈1〉.b
+    c: 〈0;let X#2〉.b
   }
   fieldAndValue: {
     foo: {
+      let Y#3 = 〈1〉
       3
-      #sum: (〈1;foo〉 + 〈1〉)
+      #sum: (〈1;foo〉 + 〈0;let Y#3〉)
     }
   }
   valueCycle: {
-    b: (3 + 〈0〉)
+    b: {
+      let X#4 = 〈1〉
+      (3 + 〈0;let X#4〉)
+    }
   }
-  listValueAlias: [
-    1,
-    2,
-    〈1〉[0],
-  ]
+  listValueAlias: {
+    let X#5 = 〈1〉
+    [
+      1,
+      2,
+      〈1;let X#5〉[0],
+    ]
+  }
 }

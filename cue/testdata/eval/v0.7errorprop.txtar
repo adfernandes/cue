@@ -12,13 +12,15 @@ a: c: 1 @test(err, code=eval,
 -- out/eval/stats --
 Leaks:  0
 Freed:  4
-Reused: 1
-Allocs: 3
-Retain: 1
+Reused: 0
+Allocs: 4
+Retain: 0
 
 Unifications: 4
 Conjuncts:    6
-Disjuncts:    5
+Disjuncts:    0
+
+NumCloseIDs: 1
 -- out/todo.txt --
 v2 reports additional error positions (in.cue:1:4 and in.cue:3:5) for the "field
 not allowed" error on a.c. v3 only reports the direct field definition position

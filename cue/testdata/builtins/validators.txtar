@@ -355,13 +355,13 @@ issue3474.topValidator.failType.A: invalid value {C:1} (does not satisfy matchN)
 issue3474.topValidator.failType.A: v2 reports "conflicting values >10 and {C:1}" (number and struct order), v3 reports "{C:1} and >10" (struct and number order).
 -- out/eval/stats --
 Leaks:  13
-Freed:  193
-Reused: 161
+Freed:  175
+Reused: 143
 Allocs: 45
 Retain: 0
 
-Unifications: 188
-Conjuncts:    327
+Unifications: 180
+Conjuncts:    319
 Disjuncts:    0
 Notifications: 1
 

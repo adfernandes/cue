@@ -50,12 +50,12 @@ e10: def["b"] @test(err, code=incomplete, contains="undefined field: b", pos=[0:
     ./in.cue:21:10
 -- out/eval/stats --
 Leaks:  0
-Freed:  55
-Reused: 33
-Allocs: 22
+Freed:  56
+Reused: 35
+Allocs: 21
 Retain: 0
 
-Unifications: 32
+Unifications: 33
 Conjuncts:    44
 Disjuncts:    8
 

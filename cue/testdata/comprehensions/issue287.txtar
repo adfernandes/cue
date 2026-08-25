@@ -12,14 +12,12 @@ z: _ @test(eq, true)
 -- out/eval/stats --
 Leaks:  0
 Freed:  5
-Reused: 1
-Allocs: 4
-Retain: 2
+Reused: 0
+Allocs: 5
+Retain: 0
 
 Unifications: 5
-Conjuncts:    7
-Disjuncts:    5
-
-MisalignedConjunct: 1
+Conjuncts:    13
+Disjuncts:    0
 
 NumCloseIDs: 2

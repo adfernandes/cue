@@ -14,8 +14,8 @@ for obj in (#JobBranch & {_in: image: "foo"}).out {
 out: [for obj in _byKind {obj}]
 
 #JobBranch: {
-	IN=_in: _
-	out: [(#JobLeaf & {_in: IN}).out]
+	_in~(IN): _
+	out:      [(#JobLeaf & {_in: IN}).out]
 }
 #JobLeaf: {
 	_in: _

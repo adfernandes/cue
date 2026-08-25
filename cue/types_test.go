@@ -1317,7 +1317,7 @@ func TestFillPath(t *testing.T) {
 		`,
 		}, {
 			in: `
-		X="#foo": int
+		"#foo"~(X): int
 		bar: X
 		`,
 			x:    3,
@@ -1328,7 +1328,7 @@ func TestFillPath(t *testing.T) {
 		`,
 		}, {
 			in: `
-		X="#foo": foo: int
+		"#foo"~(X): foo: int
 		bar: X.foo
 		`,
 			x:    3,
@@ -2061,32 +2061,32 @@ func TestTemplate(t *testing.T) {
 		want  string
 	}{{
 		value: `
-		a: [Name=string]: Name
+		a: [string]~(Name,_): Name
 		`,
 		path: []string{"a", ""},
 		want: `"label"`,
 	}, {
 		value: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: []string{"", "a"},
 		want: `"label"`,
 	}, {
 		value: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: []string{""},
 		want: `{"a":"label"}`,
 	}, {
 		value: `
-		a: [Foo=string]: [Bar=string]: { b: Foo+Bar }
+		a: [string]~(Foo,_): [string]~(Bar,_): { b: Foo+Bar }
 		`,
 		path: []string{"a", "", ""},
 		want: `{"b":"labellabel"}`,
 	}, {
 		value: `
-		a: [Foo=string]: b: [Bar=string]: { c: Foo+Bar }
-		a: foo: b: [Bar=string]: { d: Bar }
+		a: [string]~(Foo,_): b: [string]~(Bar,_): { c: Foo+Bar }
+		a: foo: b: [string]~(Bar,_): { d: Bar }
 		`,
 		path: []string{"a", "foo", "b", ""},
 		want: `{"c":"foolabel","d":"label"}`,
@@ -2125,26 +2125,26 @@ func TestElem(t *testing.T) {
 		want: `int`,
 	}, {
 		value: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: []string{"", "a"},
 		want: `string`,
 	}, {
 		value: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: []string{""},
 		want: "{a: string}",
 	}, {
 		value: `
-		a: [Foo=string]: [Bar=string]: { b: Foo+Bar }
+		a: [string]~(Foo,_): [string]~(Bar,_): { b: Foo+Bar }
 		`,
 		path: []string{"a", "", ""},
 		want: "{b: string + string}",
 	}, {
 		value: `
-		a: [Foo=string]: b: [Bar=string]: { c: Foo+Bar }
-		a: foo: b: [Bar=string]: d: Bar
+		a: [string]~(Foo,_): b: [string]~(Bar,_): { c: Foo+Bar }
+		a: foo: b: [string]~(Bar,_): d: Bar
 		`,
 		path: []string{"a", "foo", "b", ""},
 		want: "{\n\tc: \"foo\" + string\n\td: string\n}",
@@ -3686,7 +3686,7 @@ func TestReferencePath(t *testing.T) {
 		want: "v.w.a.b.c",
 	}, {
 		input: `
-		X="\(y)": 1
+		("\(y)")~(X): 1
 		v: w: x: X // TODO: Move up for crash
 		y: "foo"`,
 		path: "v.w.x",
@@ -3694,7 +3694,7 @@ func TestReferencePath(t *testing.T) {
 	}, {
 		input: `
 		v: w: _
-		v: [X=string]: x: a[X]
+		v: [string]~(X,_): x: a[X]
 		a: w: 1`,
 		path: "v.w.x",
 		want: "a.w",

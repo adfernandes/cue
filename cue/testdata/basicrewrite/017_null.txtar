@@ -14,10 +14,10 @@ call: null()      @test(err, code=eval, pos=[0:7], contains="cannot call non-fun
 -- out/eval/stats --
 Leaks:  0
 Freed:  8
-Reused: 6
-Allocs: 2
+Reused: 0
+Allocs: 8
 Retain: 0
 
 Unifications: 8
 Conjuncts:    9
-Disjuncts:    8
+Disjuncts:    0

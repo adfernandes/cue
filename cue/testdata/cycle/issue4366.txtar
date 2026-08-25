@@ -12,7 +12,8 @@ schema: {
 	$val: prefix: string | *""
 	$val: prefix: "redis-"
 
-	#Name: this={
+	#Name: {
+		let this = self
 		name: $val.prefix + (#shortHash & {in: json.Marshal(this)}).out
 	}
 	#shortHash: {in: string, out: ""}
@@ -31,13 +32,13 @@ result: ({} & schema).export @test(eq, [
 ])
 -- out/eval/stats --
 Leaks:  2
-Freed:  44
-Reused: 27
+Freed:  49
+Reused: 32
 Allocs: 19
 Retain: 0
 
-Unifications: 35
-Conjuncts:    65
+Unifications: 40
+Conjuncts:    70
 Disjuncts:    4
 
 NumCloseIDs: 17

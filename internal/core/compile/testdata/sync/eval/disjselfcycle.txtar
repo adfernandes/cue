@@ -19,14 +19,17 @@ issue4119: reduced: {
 issue4119: reducedNested: {
 	x: {y: [...]}
 	x: {y: _} | *{y: [{f: 123}]}
-	x: {y: [
-		for i in x {
-			f: i.f
-		}
-	]}
+	x: {
+		y: [
+			for i in x {
+				f: i.f
+			}
+		]
+	}
 }
 issue4119: full: {
-	_img: img={
+	_img: {
+		let img = self
 		val: string
 		accounts: {
 			groups: img.accounts.groups | *[{gid: 65532}]
@@ -108,9 +111,10 @@ issue4119: full: {
   issue4119: {
     full: {
       _img: {
+        let img#1 = 〈1〉
         val: string
         accounts: {
-          groups: (〈2〉.accounts.groups|*[
+          groups: (〈1;let img#1〉.accounts.groups|*[
             {
               gid: 65532
             },

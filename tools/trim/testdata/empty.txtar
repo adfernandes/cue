@@ -1,19 +1,17 @@
 Don't remove empty structs.
-
 -- in.cue --
-deployment: [ID=string]: {
-}
+deployment: [string]~(ID,_): {}
 
 deployment: alertmanager: {
 	empty: {}
 	volumes: [{
-		name: "alertmanager"
+		name:     "alertmanager"
 		emptyDir: {}
 	}]
 }
 -- out/trim --
 == in.cue
-deployment: [ID=string]: {}
+deployment: [string]~(ID,_): {}
 
 deployment: alertmanager: {
 	empty: {}

@@ -1,7 +1,7 @@
 -- in.cue --
 result: [for _, v in service {v}]
 
-service: [Name=string]: {
+service: [string]~(Name,_): {
 	name: *Name | string
 	type: "service"
 	port: *7080 | int

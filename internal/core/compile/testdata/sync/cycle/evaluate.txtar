@@ -118,9 +118,9 @@ printCycle: {
 }
 -- self.cue --
 issue3978: {
-	a: self={
-		if self.missing != _|_ {
-		}
+	a: {
+		let this = self
+		if this.missing != _|_ {}
 	}
 }
 -- out/compile --
@@ -264,7 +264,8 @@ issue3978: {
 {
   issue3978: {
     a: {
-      if (〈1〉.missing != _|_(explicit error (_|_ literal) in source)) {}
+      let this#5 = 〈1〉
+      if (〈0;let this#5〉.missing != _|_(explicit error (_|_ literal) in source)) {}
     }
   }
 }

@@ -27,10 +27,10 @@ precise functions.
 -- out/eval/stats --
 Leaks:  0
 Freed:  21
-Reused: 16
-Allocs: 5
-Retain: 4
+Reused: 7
+Allocs: 14
+Retain: 0
 
 Unifications: 21
-Conjuncts:    28
-Disjuncts:    21
+Conjuncts:    30
+Disjuncts:    0

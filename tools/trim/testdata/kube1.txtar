@@ -1,5 +1,5 @@
 -- in.cue --
-service: [ID=string]: {
+service: [string]~(ID,_): {
 	ports: [...{
 		protocol: *"TCP" | "UDP"
 		extra:    3
@@ -28,7 +28,7 @@ service: a: {
 }
 -- out/trim-v3 --
 == in.cue
-service: [ID=string]: {
+service: [string]~(ID,_): {
 	ports: [...{
 		protocol: *"TCP" | "UDP"
 		extra:    3
@@ -53,6 +53,13 @@ service: a: {
 diff old new
 --- old
 +++ new
+@@ -1,5 +1,5 @@
+ == in.cue
+-service: [ID=string]: {
++service: [string]~(ID,_): {
+ 	ports: [...{
+ 		protocol: *"TCP" | "UDP"
+ 		extra:    3
 @@ -14,9 +14,7 @@
  }
  
@@ -66,7 +73,7 @@ diff old new
  service: a: {
 -- out/trim-v3-noshare --
 == in.cue
-service: [ID=string]: {
+service: [string]~(ID,_): {
 	ports: [...{
 		protocol: *"TCP" | "UDP"
 		extra:    3
@@ -91,6 +98,13 @@ service: a: {
 diff old new
 --- old
 +++ new
+@@ -1,5 +1,5 @@
+ == in.cue
+-service: [ID=string]: {
++service: [string]~(ID,_): {
+ 	ports: [...{
+ 		protocol: *"TCP" | "UDP"
+ 		extra:    3
 @@ -14,9 +14,7 @@
  }
  

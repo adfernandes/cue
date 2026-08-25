@@ -5,7 +5,7 @@
 # rather than explicitly re-stated.
 # https://cuelang.org/issue/285
 -- in.cue --
-#TopLevel: [name=string]: {
+#TopLevel: [string]~(name,_): {
 	path:    string
 	content: string
 }
@@ -22,10 +22,12 @@ val: #Mid & {} & {myoutput: {content: "foo"}} @test(closed) @test(eq, {
 -- out/eval/stats --
 Leaks:  0
 Freed:  10
-Reused: 6
-Allocs: 4
+Reused: 3
+Allocs: 7
 Retain: 0
 
 Unifications: 10
 Conjuncts:    23
-Disjuncts:    10
+Disjuncts:    0
+
+NumCloseIDs: 3

@@ -15,14 +15,14 @@ y: x                         @test(eq, {b: true, c: 4}) @test(shareID=xy)
 [incomplete] #a: incomplete bool: bool:
     ./in.cue:5:5
 -- out/eval/stats --
-Leaks:  0
-Freed:  10
-Reused: 6
-Allocs: 4
-Retain: 4
+Leaks:  1
+Freed:  7
+Reused: 1
+Allocs: 7
+Retain: 0
 
-Unifications: 10
-Conjuncts:    18
-Disjuncts:    12
+Unifications: 8
+Conjuncts:    13
+Disjuncts:    0
 
-NumCloseIDs: 3
+NumCloseIDs: 5

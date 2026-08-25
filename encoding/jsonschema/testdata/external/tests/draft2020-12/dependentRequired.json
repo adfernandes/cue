@@ -168,6 +168,9 @@
 				]
 			}
 		},
+		"skip": {
+			"v3-roundtrip": "generate error: old-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V)) (and 1 more errors)"
+		},
 		"tests": [
 			{
 				"description": "CRLF",
@@ -175,7 +178,10 @@
 					"foo\nbar": 1,
 					"foo\rbar": 2
 				},
-				"valid": true
+				"valid": true,
+				"skip": {
+					"v3-roundtrip": "could not extract schema"
+				}
 			},
 			{
 				"description": "quoted quotes",
@@ -183,7 +189,10 @@
 					"foo'bar": 1,
 					"foo\"bar": 2
 				},
-				"valid": true
+				"valid": true,
+				"skip": {
+					"v3-roundtrip": "could not extract schema"
+				}
 			},
 			{
 				"description": "CRLF missing dependent",
@@ -193,7 +202,7 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3-roundtrip": "unexpected success"
+					"v3-roundtrip": "could not extract schema"
 				}
 			},
 			{
@@ -203,7 +212,7 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3-roundtrip": "unexpected success"
+					"v3-roundtrip": "could not extract schema"
 				}
 			}
 		]

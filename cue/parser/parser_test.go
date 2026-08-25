@@ -24,6 +24,11 @@ import (
 	"cuelang.org/go/internal/cueversion"
 )
 
+// oldAliasVersion is the last language version accepting the prefix alias
+// syntax, which is rejected from v0.18.0 on where @experiment(aliasv2) is
+// stable.
+const oldAliasVersion = "v0.17.0"
+
 func TestParse(t *testing.T) {
 	type testCase struct {
 		desc    string
@@ -113,7 +118,8 @@ func TestParse(t *testing.T) {
 			out: `if!: 0, for!: 1, in!: 2, where!: 3, div!: 4, quo!: 5, func!: 6, try!: 7, else!: 8, fallback!: 9, otherwise!: 10, for!: {if!: {func!: {let!: {try!: {else!: 3}}}}}`,
 		},
 		{
-			desc: "keywords as alias",
+			desc:    "keywords as alias",
+			version: oldAliasVersion,
 			in: `if=foo: 0
 		for=bar: 2
 		let=bar: 3
@@ -398,7 +404,8 @@ cannot import package as definition identifier`,
 			out: `package k8s, import a "foo", import "bar/baz"`,
 		},
 		{
-			desc: "collapsed fields",
+			desc:    "collapsed fields",
+			version: oldAliasVersion,
 			in: `a: #b: c?: [Name=_]: d: 1
 		"g\("en")"?: 4
 		 // job foo { bar: 1 } // TODO error after foo
@@ -407,7 +414,8 @@ cannot import package as definition identifier`,
 			out: `a: {#b: {c?: {[Name=_]: {d: 1}}}}, "g\("en")"?: 4, job: {"foo": {[_]: {bar: 1}}}`,
 		},
 		{
-			desc: "identifiers",
+			desc:    "identifiers",
+			version: oldAliasVersion,
 			in: `// 	$_: 1,
 			a: {b: {c: d}}
 			c: a
@@ -457,9 +465,10 @@ cannot import package as definition identifier`,
 			out:  "a: {__myvar}",
 		},
 		{
-			desc: "reserved identifiers in field alias",
-			in:   `foo: __b=bar: {p: __b.baz}`,
-			out:  "foo: {__b=bar: {p: __b.baz}}\nidentifiers starting with '__' are reserved",
+			desc:    "reserved identifiers in field alias",
+			version: oldAliasVersion,
+			in:      `foo: __b=bar: {p: __b.baz}`,
+			out:     "foo: {__b=bar: {p: __b.baz}}\nidentifiers starting with '__' are reserved",
 		},
 		{
 			desc: "empty fields",
@@ -531,7 +540,7 @@ missing ',' in struct literal (and 1 more errors)`,
 		},
 		{
 			desc:    "lists with optional commas",
-			version: "v0.17.0",
+			version: oldAliasVersion,
 			in: `{
 			a: [
 				1
@@ -549,7 +558,7 @@ missing ',' in struct literal (and 1 more errors)`,
 		},
 		{
 			desc:    "list element followed by comprehension on next line",
-			version: "v0.17.0",
+			version: oldAliasVersion,
 			in: `{
 			a: [1, 2, 3]
 			b: [
@@ -923,7 +932,8 @@ use 'else' with single 'if' or 'try' clause`,
 			out: "{a: {b: 3}, a: {b: 3}}",
 		},
 		{
-			desc: "templates",
+			desc:    "templates",
+			version: oldAliasVersion,
 			in: `{
 			[foo=_]: { a: int }
 			a:     { a: 1 }
@@ -931,7 +941,8 @@ use 'else' with single 'if' or 'try' clause`,
 			out: "{[foo=_]: {a: int}, a: {a: 1}}",
 		},
 		{
-			desc: "value alias",
+			desc:    "value alias",
+			version: oldAliasVersion,
 			in: `
 		{
 			a: X=foo
@@ -1210,7 +1221,8 @@ bar: 2
 			out: `{<[0// foo] [d0// fooo] foo: 1>, bar: 2}, [<[l4// each element has a long] {"name": "value"}>, <[l4// optional next element] {"name": "next"}>]`,
 		},
 		{
-			desc: "field aliasing",
+			desc:    "field aliasing",
+			version: oldAliasVersion,
 			in: `
 		I="\(k)": v
 		S="foo-bar": w
@@ -1258,7 +1270,8 @@ bar: 2
 			out: "package name, @t1(v1), {@t2(v2)}, a: {a: 1, @t3(v3), @t4(v4), c: 2}",
 		},
 		{
-			desc: "Issue #276",
+			desc:    "Issue #276",
+			version: oldAliasVersion,
 			in: `
 		a: int=>2
 		`,
@@ -1359,14 +1372,16 @@ bar: 2
 			out: "\nparsing experiments for version \"v0.14.0\": cannot set experiment \"explicitopen\" before version v0.15.0",
 		},
 		{
-			desc: "pre-v0.2 alias at top level",
-			in:   `X=3`,
-			out:  "<*ast.BadDecl>\nexpected label or ':', found 'EOF'",
+			desc:    "pre-v0.2 alias at top level",
+			version: oldAliasVersion,
+			in:      `X=3`,
+			out:     "<*ast.BadDecl>\nexpected label or ':', found 'EOF'",
 		},
 		{
-			desc: "pre-v0.2 alias in struct",
-			in:   `a: { X={} }`,
-			out:  "a: {<*ast.BadDecl>}\nexpected label or ':', found '}'",
+			desc:    "pre-v0.2 alias in struct",
+			version: oldAliasVersion,
+			in:      `a: { X={} }`,
+			out:     "a: {<*ast.BadDecl>}\nexpected label or ':', found '}'",
 		},
 		{
 			desc: "postfix alias with experiment",
@@ -1382,16 +1397,30 @@ bar: 2
 			out: "@experiment(aliasv2), X: {foo: 1}\nold-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V))",
 		},
 		{
-			desc: "old alias syntax without experiment",
+			desc:    "old alias syntax before aliasv2 is stable",
+			version: oldAliasVersion,
 			in: `X=a: {foo: 1}
 	b: X`,
 			out: "X=a: {foo: 1}, b: X",
 		},
 		{
-			desc: "postfix alias without experiment",
+			desc: "old alias syntax once aliasv2 is stable",
+			in: `X=a: {foo: 1}
+	b: X`,
+			out: "X: {foo: 1}, b: X\nold-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V))",
+		},
+		{
+			desc:    "postfix alias without experiment",
+			version: oldAliasVersion,
 			in: `a~X: {foo: 1}
 	b: X.foo`,
 			out: "a~X: {foo: 1}, b: X.foo\npostfix alias syntax requires @experiment(aliasv2)",
+		},
+		{
+			desc: "postfix alias once aliasv2 is stable",
+			in: `a~X: {foo: 1}
+	b: X.foo`,
+			out: "a~X: {foo: 1}, b: X.foo",
 		}}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -1477,10 +1506,15 @@ func TestParseExpr(t *testing.T) {
 	}
 
 	// an alias at the top level of an expression must not crash;
-	// see https://cuelang.org/issue/4442
+	// see https://cuelang.org/issue/4442. The old prefix alias syntax is
+	// only accepted below v0.18.0, where aliasv2 is stable;
+	// from v0.18.0 on it must report an error rather than crash.
 	src = "[A=0]"
-	if _, err := parseExprString(src); err != nil {
+	if _, err := ParseExpr("", []byte(src), Version(oldAliasVersion)); err != nil {
 		t.Errorf("ParseExpr(%q): %v", src, err)
+	}
+	if _, err := parseExprString(src); err == nil {
+		t.Errorf("ParseExpr(%q): got no error", src)
 	}
 
 	// a comma is not permitted unless automatically inserted

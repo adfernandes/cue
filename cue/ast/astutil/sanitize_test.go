@@ -253,7 +253,7 @@ let c_9 = c
 				},
 			}}
 		}(),
-		want: `a_9=a: "b"
+		want: `a~(a_9): "b"
 c: {
 	a: {}
 	b: a_9
@@ -390,7 +390,7 @@ c: {
 				},
 			}}
 		}(),
-		want: `a_9=a: "b"
+		want: `a~(a_9): "b"
 c: {
 	a: {}
 	b: a_9
@@ -481,7 +481,7 @@ c: {
 			}}
 		}(),
 		want: `b: {
-	a_9=a: "b"
+	a~(a_9): "b"
 	b: {
 		a: "bar"
 		b: a_9
@@ -807,8 +807,8 @@ c: {
 		outAt:   "v0.17.0",
 		want:    "a~(a_9)",
 	}, {
-		desc: "the current version decides when nothing is pinned",
-		want: "a_9=a",
+		desc: "postfix form at the current version",
+		want: "a~(a_9)",
 	}, {
 		// A file that was built rather than parsed carries whatever version
 		// it was told it is written for.
@@ -820,7 +820,7 @@ c: {
 	}, {
 		desc:  "a built file with no version targets the current one",
 		built: true,
-		want:  "a_9=a",
+		want:  "a~(a_9)",
 	}}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {

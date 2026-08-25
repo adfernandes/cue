@@ -1,7 +1,7 @@
 #name: optional expanded before lookup
 #evalFull
 -- in.cue --
-test: [ID=_]: {
+test: [_]~(ID,_): {
 	name: ID
 }
 
@@ -18,10 +18,12 @@ B: test.A & {} @test(eq, {
 -- out/eval/stats --
 Leaks:  0
 Freed:  10
-Reused: 6
-Allocs: 4
+Reused: 3
+Allocs: 7
 Retain: 0
 
 Unifications: 10
 Conjuncts:    15
-Disjuncts:    10
+Disjuncts:    0
+
+NumCloseIDs: 1

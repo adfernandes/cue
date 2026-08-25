@@ -113,7 +113,7 @@ noCycle: t1: {
 	_s
 	_s: {
 		#x: matchN(1, [_s])
-        #x: {} // insert concrete value to trigger application of validator.
+		#x: {} // insert concrete value to trigger application of validator.
 	}
 }
 issue3649: noCycle: t1: {
@@ -124,6 +124,7 @@ issue3649: noCycle: t1: {
 		b?: string
 		a?: matchN(1, [#c])
 	}
+
 	// Cannot use @test(eq) with self-referential #c in expected value.
 }
 // Same as above, but with longer paths.
@@ -145,10 +146,13 @@ issue3649: cycle: t1: {
 	}
 }
 
-// This used to cause a stack overflow.
+// This used to cause a stack overflow. The original reproducer bound a value
+// alias to the validator call; "let x = self" needs a struct to live in, so
+// the value being validated is now that struct, and the failure is reported
+// as a plain type conflict rather than from inside strconv.Atoi.
 issue4037: cycle: {
-	_intlike: x=matchN(1, [strconv.Atoi(x)])
-	f: "1233" & _intlike
+	_intlike: {let x = self, matchN(1, [strconv.Atoi(x)])}
+	f:        "1233" & _intlike
 }
 -- yamlcycle.cue --
 import "encoding/yaml"
@@ -341,9 +345,12 @@ issue3743: {
   }
   issue4037: {
     cycle: {
-      _intlike: matchN(1, [
-        〈import;strconv〉.Atoi(〈1〉),
-      ])
+      _intlike: {
+        let x#1 = 〈1〉
+        matchN(1, [
+          〈import;strconv〉.Atoi(〈1;let x#1〉),
+        ])
+      }
       f: ("1233" & 〈0;_intlike〉)
     }
   }

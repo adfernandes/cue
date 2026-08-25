@@ -18,7 +18,7 @@ networkingv1: {
 
 	#NetworkPolicySpec: {
 		ingress: [...#NetworkPolicyIngressRule]
-		egress: [...#NetworkPolicyEgressRule]
+		egress:  [...#NetworkPolicyEgressRule]
 	}
 
 	#NetworkPolicyIngressRule: {
@@ -57,7 +57,8 @@ foo: {
 	}
 }
 
-#Config: R={
+#Config: {
+	let R = self
 	tenant: id: string
 
 	auth0: common.#SomeConfig & {
@@ -80,7 +81,8 @@ foo: {
 
 #NetworkPolicy: networkingv1.#NetworkPolicy
 
-#Flux: R={
+#Flux: {
+	let R = self
 	#Config
 
 	charts: _
@@ -151,14 +153,14 @@ foo: {
 			foo: {
 				global: {
 					auth0: {
-						enabled: _|_ @test(err, code=incomplete, contains="#Config.auth0: incomplete bool: bool (and 1 more errors)", pos=[-65:12])
+						enabled: _|_ @test(err, code=incomplete, contains="#Config.auth0: incomplete bool: bool (and 1 more errors)", pos=[-66:12])
 					}
 				}
 			}
 		}
 		global: {
 			auth0: {
-				enabled: _|_ @test(err, code=incomplete, contains="#Config.auth0: incomplete bool: bool (and 1 more errors)", pos=[-65:12])
+				enabled: _|_ @test(err, code=incomplete, contains="#Config.auth0: incomplete bool: bool (and 1 more errors)", pos=[-66:12])
 			}
 		}
 	}
@@ -205,7 +207,7 @@ foo: {
 		auth0: {_|_, enabled: bool}
 		global: {
 			auth0: {
-				enabled: _|_ @test(err, code=incomplete, contains="#Flux.auth0: incomplete bool: bool (and 1 more errors)", pos=[-65:12])
+				enabled: _|_ @test(err, code=incomplete, contains="#Flux.auth0: incomplete bool: bool (and 1 more errors)", pos=[-66:12])
 			}
 		}
 	}
@@ -214,15 +216,15 @@ foo: {
 [incomplete] common.#SomeConfig: incomplete bool: bool:
     ./in.cue:41:12
 [incomplete] #Config.auth0: incomplete bool: bool:
-    ./in.cue:59:12
+    ./in.cue:60:12
 [incomplete] #Config.auth0: incomplete bool: bool:
-    ./in.cue:59:12
+    ./in.cue:60:12
 [incomplete] #Config.auth0: incomplete bool: bool:
-    ./in.cue:59:12
+    ./in.cue:60:12
 [incomplete] #Flux.auth0: incomplete bool: bool:
-    ./in.cue:59:12
+    ./in.cue:60:12
 [incomplete] #Flux.auth0: incomplete bool: bool:
-    ./in.cue:59:12
+    ./in.cue:60:12
 -- out/todo.txt --
 #Flux.charts.foo.global.auth0.enabled: missing error in v3.
 The error messages should say which expression was incomplete!!!
@@ -230,14 +232,13 @@ v3 shows structure sharing (~(...)) for several definition references
 where v2 expanded them out.
 -- out/eval/stats --
 Leaks:  9
-Freed:  86
-Reused: 54
-Allocs: 41
+Freed:  90
+Reused: 55
+Allocs: 44
 Retain: 0
 
-Unifications: 81
-Conjuncts:    153
+Unifications: 85
+Conjuncts:    159
 Disjuncts:    6
-Notifications: 1
 
 NumCloseIDs: 38

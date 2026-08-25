@@ -2,6 +2,10 @@
 # must still work in the self-contained result.
 # We also include cases where joining the file values without
 # lexical scopes can introduce duplicate names, such as aliases and lets.
+# TestLatest: skip
+# The files use the old prefix alias syntax, which is only accepted below
+# v0.18.0, where @experiment(aliasv2) is stable; the exporter
+# does not yet emit the postfix form, so pin the language version.
 
 exec cue export .
 cmp stdout export.stdout
@@ -13,6 +17,9 @@ stdin stdout
 ! exec cue export -
 cmp stderr stderr-bug.golden
 
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- def.stdout --
 package p
 

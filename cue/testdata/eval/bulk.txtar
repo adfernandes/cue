@@ -6,7 +6,7 @@
 -- in.cue --
 a: {
 	foo: a: 1
-	[X = =~"foo"]: {
+	[=~"foo"]~(X,_): {
 		b:    1
 		name: X
 	}
@@ -18,6 +18,7 @@ a: {
 	@test(allows, foo)
 	@test(allows, foobar)
 	@test(allows, string)
+
 	// TODO(eval): struct isn't closed, so this should be true.
 	@test(allows:todo=false, bar)
 }
@@ -34,6 +35,7 @@ t1: {
 	#a: {
 		[>"e" & <"z"]: int
 	}
+
 	// TODO(inline): support allow on fields.
 	b: #a & {f: 4} @test(eq, {f: 4}) @test(allows, f) @test(allows=false, a) @test(allows=false, string)
 	c: #a & {z: 4} @test(err, code=eval, at=z, contains="field not allowed", pos=[0:11])
@@ -43,6 +45,7 @@ t2: {
 	#a: {
 		["x" | "y"]: int
 	}
+
 	// TODO(inline): support allow on fields.
 	b: #a & {x: 4} @test(eq, {x: 4}) @test(allows, x) @test(allows=false, z) @test(allows=false, string)
 	c: #a & {z: 4} @test(err, code=eval, at=z, contains="field not allowed", pos=[0:11])
@@ -228,26 +231,26 @@ issue3638: compare: {
 }
 -- out/errors.txt --
 [eval] t1.c.z: field not allowed:
-    ./in.cue:33:11
+    ./in.cue:35:11
 [eval] t2.c.z: field not allowed:
-    ./in.cue:42:11
+    ./in.cue:45:11
 [eval] issue3670.a.not_int: field not allowed:
     ./intpattern.cue:7:5
 [incomplete] issue3638.full.#Fields.output: cannot range over input (incomplete type _):
     ./multi.cue:14:21
 -- out/eval/stats --
-Leaks:  20
-Freed:  183
-Reused: 160
-Allocs: 43
+Leaks:  16
+Freed:  173
+Reused: 150
+Allocs: 39
 Retain: 0
 
-Unifications: 148
-Conjuncts:    329
-Disjuncts:    35
+Unifications: 140
+Conjuncts:    302
+Disjuncts:    33
 Notifications: 6
 
-NumCloseIDs: 80
+NumCloseIDs: 74
 -- out/todo.txt --
 patternCycle.t1.{p1,p2,p3}: v2 had cyclic pattern constraint errors; v3 resolves correctly.
 issue3638.full.entrypoint and issue3638.full.#Kubernetes.input.res1: v3 uses structure sharing (~), v2 expands.

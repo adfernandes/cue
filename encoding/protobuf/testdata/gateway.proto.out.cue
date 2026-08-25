@@ -213,7 +213,7 @@ package v1alpha3
 	// the resource is present. In other words, the Gateway resource must
 	// reside in the same namespace as the gateway workload instance.
 	selector?: {[string]: string} @protobuf(2,map[string]string)
-	selector?: [name=_]: name
+	selector?: [_]~(name,_): name
 }
 
 // `Server` describes the properties of the proxy on a given load balancer

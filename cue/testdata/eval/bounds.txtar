@@ -546,14 +546,14 @@ boolBound: ordered: {
     ./issue4251-panic.cue:15:5
     ./issue4251-panic.cue:15:21
 -- out/eval/stats --
-Leaks:  9
-Freed:  394
-Reused: 302
-Allocs: 101
+Leaks:  0
+Freed:  252
+Reused: 184
+Allocs: 68
 Retain: 0
 
-Unifications: 352
-Conjuncts:    707
-Disjuncts:    42
+Unifications: 248
+Conjuncts:    401
+Disjuncts:    0
 
-NumCloseIDs: 58
+NumCloseIDs: 8

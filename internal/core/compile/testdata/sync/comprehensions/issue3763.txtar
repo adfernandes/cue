@@ -25,10 +25,10 @@ full: {
 	}
 
 	let nc = {
-		_ports: [ID=_]: _core_v1.#cp
+		_ports: [_]~(ID,_): _core_v1.#cp
 	}
 
-	_cl: [ID=_]: nc & {
+	_cl: [_]~(ID,_): nc & {
 		_ports: {
 			"1": {}
 			"2": {}
@@ -36,7 +36,7 @@ full: {
 		}
 	}
 
-	k: n: [ID=_]: {
+	k: n: [_]~(ID,_): {
 		_CL: string
 		_cs: (_CL): _cl[(_CL)]
 	}

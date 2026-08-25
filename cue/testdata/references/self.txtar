@@ -464,14 +464,14 @@ a: {
     ./validator.cue:18:12
     ./validator.cue:19:19
 -- out/eval/stats --
-Leaks:  82
-Freed:  174
-Reused: 144
-Allocs: 112
+Leaks:  3
+Freed:  172
+Reused: 134
+Allocs: 41
 Retain: 0
 
-Unifications: 208
-Conjuncts:    333
+Unifications: 166
+Conjuncts:    262
 Disjuncts:    0
 
-NumCloseIDs: 110
+NumCloseIDs: 82

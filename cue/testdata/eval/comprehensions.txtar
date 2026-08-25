@@ -153,9 +153,9 @@ issue3691: structuralCycle: {
     ./issue3691.cue:21:3
     ./issue3691.cue:22:10
 -- out/eval/stats --
-Leaks:  6
+Leaks:  7
 Freed:  74
-Reused: 56
+Reused: 57
 Allocs: 24
 Retain: 0
 

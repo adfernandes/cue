@@ -19,12 +19,14 @@ h:      [3].b                     @test(err, code=eval, pos=[0:13])
 Some error messages could use improvement. Address after query
 extension is implemented.
 -- out/eval/stats --
-Leaks:  9
-Freed:  10
-Reused: 8
-Allocs: 11
-Retain: 9
+Leaks:  0
+Freed:  26
+Reused: 13
+Allocs: 13
+Retain: 0
 
-Unifications: 19
+Unifications: 17
 Conjuncts:    19
-Disjuncts:    17
+Disjuncts:    0
+
+NumCloseIDs: 2

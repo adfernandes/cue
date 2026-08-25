@@ -155,12 +155,12 @@ issue3486: {
 -- out/eval/stats --
 Leaks:  4
 Freed:  77
-Reused: 61
-Allocs: 20
+Reused: 60
+Allocs: 21
 Retain: 0
 
 Unifications: 67
-Conjuncts:    125
+Conjuncts:    119
 Disjuncts:    14
 
 NumCloseIDs: 46

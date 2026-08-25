@@ -57,13 +57,13 @@ shorewallParams: close({
 	shorewallPrefix: "KUBERNETES_\(strings.ToUpper(clusterName))"
 }
 
-clusters: [CLUSTER=string]: #Cluster & {
+clusters: [string]~(CLUSTER,_): #Cluster & {
 	clusterName: CLUSTER
 }
 
 #Cluster: {
 	globalIngressControllers: [string]: #GlobalIngressController
-	globalIngressControllers: admin:    #GlobalIngressController & {
+	globalIngressControllers: admin: #GlobalIngressController & {
 		class: "admin"
 	}
 	for _, c in globalIngressControllers {

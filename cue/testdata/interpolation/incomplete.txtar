@@ -21,10 +21,10 @@ out: """
 -- out/eval/stats --
 Leaks:  0
 Freed:  7
-Reused: 3
-Allocs: 4
+Reused: 0
+Allocs: 7
 Retain: 0
 
 Unifications: 7
-Conjuncts:    11
-Disjuncts:    7
+Conjuncts:    7
+Disjuncts:    0

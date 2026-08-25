@@ -1,16 +1,16 @@
 -- in.cue --
 a: {
-	{[name=_]: int}
+	{[_]~(name,_): int}
 	k: 1
 }
 b: {
-	{[X=_]: {x: 0, y: *1 | int}}
+	{[_]~(X,_): {x: 0, y: *1 | int}}
 	v: {}
 	w: {y: 0}
 }
-b: {[y=_]: {}} // TODO: allow different name
+b: {[_]~(y,_): {}} // TODO: allow different name
 c: {
-	{[Name=_]: {name: Name, y: 1}}
+	{[_]~(Name,_): {name: Name, y: 1}}
 	foo: {}
 	bar: _
 }

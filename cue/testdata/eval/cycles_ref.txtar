@@ -9,11 +9,13 @@ e: {a: 1}     @test(eq, {a: 1, b: 2})
 e: c
 -- out/eval/stats --
 Leaks:  0
-Freed:  12
-Reused: 7
-Allocs: 5
-Retain: 3
+Freed:  10
+Reused: 2
+Allocs: 8
+Retain: 0
 
-Unifications: 12
-Conjuncts:    24
-Disjuncts:    15
+Unifications: 10
+Conjuncts:    18
+Disjuncts:    0
+
+NumCloseIDs: 3

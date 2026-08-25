@@ -9,8 +9,8 @@
 import "strings"
 
 _libexport: {
-	_OBJECTS: {...}
-	_IMPORTS: [...]
+	_OBJECTS:    {...}
+	_IMPORTS:    [...]
 	_GENERATORS: [...]
 
 	_generated_objects: [
@@ -39,11 +39,11 @@ export: _libexport & {
 
 _imported: {
 	export: _libexport & {
-		_OBJECTS: objects
+		_OBJECTS:    objects
 		_GENERATORS: [_Service]
 	}
 
-	objects: [KIND=string]: {
+	objects: [string]~(KIND,_): {
 		_neverTrue: strings.HasPrefix(KIND, "NEVER")
 		if !_neverTrue {
 			alwaysSet: "foo"

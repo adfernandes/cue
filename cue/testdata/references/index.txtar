@@ -77,13 +77,13 @@ Error messages slightly different between v2 and v3:
 - indexOutOfBounds3: v2 says "invalid list index 4 (out of bounds)", v3 says "index out of range [4] with length 3"
 -- out/eval/stats --
 Leaks:  0
-Freed:  61
-Reused: 40
-Allocs: 21
+Freed:  71
+Reused: 47
+Allocs: 24
 Retain: 0
 
-Unifications: 37
-Conjuncts:    50
+Unifications: 45
+Conjuncts:    58
 Disjuncts:    8
 
 NumCloseIDs: 5

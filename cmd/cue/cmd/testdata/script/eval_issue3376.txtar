@@ -24,32 +24,31 @@ exec cue eval ./scenario4.cue
 
 -- scenario1.cue --
 #Item: {
-  id!: string
-  deps: [...or(known_ids)] | or(known_ids)
+	id!:  string
+	deps: [...or(known_ids)] | or(known_ids)
 }
 
-known_ids: [for k,v in items { v.id } ]
+known_ids: [for k, v in items {v.id}]
 
 items: [string]: #Item
 
-items: [Key=_]: { id: (Key) + "-id" }
+items: [_]~(Key,_): {id: (Key) + "-id"}
 
 items: a: deps: items.b.id
 items: b: deps: []
 items: c: deps: [items.a.id, items.b.id]
 
 -- scenario2.cue --
-known_ids: [for k,v in items { v.id } ]
+known_ids: [for k, v in items {v.id}]
 
 #Item: {
-  id!: string
-  deps: [...or(known_ids)] | or(known_ids)
+	id!:  string
+	deps: [...or(known_ids)] | or(known_ids)
 }
-
 
 items: [string]: #Item
 
-items: [Key=_]: { id: (Key) + "-id" }
+items: [_]~(Key,_): {id: (Key) + "-id"}
 
 items: a: deps: items.b.id
 items: b: deps: []
@@ -57,15 +56,15 @@ items: c: deps: [items.a.id, items.b.id]
 
 -- scenario3.cue --
 #Item: {
-  id!: string
-  deps?: [...or(known_ids)] | or(known_ids)
+	id!:   string
+	deps?: [...or(known_ids)] | or(known_ids)
 }
 
-known_ids: [for k,v in items { v.id } ]
+known_ids: [for k, v in items {v.id}]
 
 items: [string]: #Item
 
-items: [Key=_]: { id: (Key) + "-id" }
+items: [_]~(Key,_): {id: (Key) + "-id"}
 
 items: a: deps: items.b.id
 items: b: deps: []
@@ -73,16 +72,16 @@ items: c: deps: [items.a.id, items.b.id]
 items: d: _
 
 -- scenario4.cue --
-known_ids: [for k,v in items { v.id } ]
+known_ids: [for k, v in items {v.id}]
 
 #Item: {
-  id!: string
-  deps?: [...or(known_ids)] | or(known_ids)
+	id!:   string
+	deps?: [...or(known_ids)] | or(known_ids)
 }
 
 items: [string]: #Item
 
-items: [Key=_]: { id: (Key) + "-id" }
+items: [_]~(Key,_): {id: (Key) + "-id"}
 
 items: a: deps: items.b.id
 items: b: deps: []

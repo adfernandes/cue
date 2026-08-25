@@ -4,7 +4,7 @@ noOpt: true
 #inlinetest:exclude skip — tests export format, not evaluator semantics
 -- in.cue --
 {
-	job: [Name=_]: {
+	job: [_]~(Name,_): {
 		name:     Name
 		replicas: uint | *1 @protobuf(10)
 		command:  string

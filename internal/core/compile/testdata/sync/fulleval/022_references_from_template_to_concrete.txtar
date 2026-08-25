@@ -2,7 +2,7 @@
 // res is a list containing t; res[0] shares t's vertex.
 res: [t]
 t: {
-	[X=string]: {
+	[string]~(X,_): {
 		a: c + b.str
 		b: str: string
 		c: "X"

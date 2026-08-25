@@ -7,28 +7,28 @@
 -- in.cue --
 _Q: [{pos: 0}, {pos: 1}]
 
-a: [rn=string]: _Q[0:len(a[rn])]
-a: ben: [{}] @test(eq, [{pos: 0}])
+a: [string]~(rn,_): _Q[0:len(a[rn])]
+a: ben:             [{}] @test(eq, [{pos: 0}])
 
-b: [rn=string]: _Q[0:1]
-b: ben: [{}] @test(eq, [{pos: 0}])
+b: [string]~(rn,_): _Q[0:1]
+b: ben:             [{}] @test(eq, [{pos: 0}])
 
-c: [rn=string]: [...{l: len(a[rn])}]
-c: ben: [{}] @test(eq, [{l: 1}])
+c: [string]~(rn,_): [...{l: len(a[rn])}]
+c: ben:             [{}] @test(eq, [{l: 1}])
 
-#d: [rn=string]: [...{pos: uint}] & _Q[0:len(#d[rn])]
-#d: ben: [{}] @test(eq, [{pos: 0}])
+#d: [string]~(rn,_): [...{pos: uint}] & _Q[0:len(#d[rn])]
+#d: ben:             [{}] @test(eq, [{pos: 0}])
 
 d: #d @test(eq, {ben: [{pos: 0}]})
 
-e: [rn=string]: _Q[0 : len(a[rn])+1]
-e: ben: [{}, ...] @test(eq, [{pos: 0}, {pos: 1}])
+e: [string]~(rn,_): _Q[0 : len(a[rn])+1]
+e: ben:             [{}, ...] @test(eq, [{pos: 0}, {pos: 1}])
 
-f: [rn=string]: _Q[0 : len(a[rn])+1]
-f: ben: [{}] @test(err, code=eval, contains="incompatible list lengths", pos=[])
+f: [string]~(rn,_): _Q[0 : len(a[rn])+1]
+f: ben:             [{}] @test(err, code=eval, contains="incompatible list lengths", pos=[])
 
-g: [rn=string]: _Q[0:len(a[rn])]
-g: ben: [{}, {}] @test(err, code=eval, contains="incompatible list lengths", pos=[])
+g: [string]~(rn,_): _Q[0:len(a[rn])]
+g: ben:             [{}, {}] @test(err, code=eval, contains="incompatible list lengths", pos=[])
 -- out/errors.txt --
 [eval] f.ben: incompatible list lengths (1 and 2)
 [eval] g.ben: incompatible list lengths (1 and 2)

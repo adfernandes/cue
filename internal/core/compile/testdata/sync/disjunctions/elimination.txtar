@@ -273,7 +273,7 @@ issue2209: simplified: t1: {
 	#SpecFoo: foo: min: 1
 	#SpecBar: bar: min: 1
 	spec: bar: {}
-	spec:  #SpecFoo | #SpecBar
+	spec: #SpecFoo | #SpecBar
 	out: {
 		{nullFoo: null} | {nullBar: null}
 		{minFoo: int} | {minBar: int}
@@ -302,8 +302,8 @@ issue2209: simplified: t3: {
 	{f1: int} | {b2: int}
 	{f2: int} | {b2: int}
 	BAZ: S.y
-	S: *#A | #B
-	#B: {x: 1, y: 1}
+	S:   *#A | #B
+	#B:  {x: 1, y: 1}
 	S: x: 1
 }
 
@@ -312,7 +312,8 @@ issue2209: full: {
 
 	Bar: #Abstract & {spec: bar: {}}
 
-	#Abstract: X={
+	#Abstract: {
+		let X = self
 		spec: _#Spec
 
 		resource: _Thing & {_X: spec: X.spec}
@@ -470,7 +471,6 @@ issue2209: full: {
 	// 	}
 	// })
 }
-
 
 -- issue2246.cue --
 // Evaluator regression where repeated use of an embedded disjunction resulted
@@ -1636,10 +1636,11 @@ issue2685: {
         }
       })
       #Abstract: {
+        let X#1 = 〈1〉
         spec: 〈1;_#Spec〉
         resource: (〈1;_Thing〉 & {
           _X: {
-            spec: 〈3〉.spec
+            spec: 〈2;let X#1〉.spec
           }
         })
       }

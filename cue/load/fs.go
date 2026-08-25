@@ -544,6 +544,7 @@ func (fc *fileCache) getCUESyntax(bf *build.File, cfg parser.Config) (*ast.File,
 	}
 	encodingCfg := fc.config
 	encodingCfg.ParserConfig = cfg
+	encodingCfg.TargetLanguageVersion = cfg.Version
 	d := encoding.NewDecoder(fc.ctx, bf, &encodingCfg)
 	defer d.Close()
 	// Note: CUE files can never have multiple file parts.

@@ -11,16 +11,14 @@ t: {
 }
 s: t & {#ok: false} @test(eq, {#ok: false})
 -- out/eval/stats --
-Leaks:  0
-Freed:  11
-Reused: 6
-Allocs: 5
+Leaks:  4
+Freed:  7
+Reused: 3
+Allocs: 8
 Retain: 0
 
 Unifications: 7
-Conjuncts:    13
-Disjuncts:    11
+Conjuncts:    14
+Disjuncts:    4
 
-MisalignedConjunct: 1
-
-NumCloseIDs: 2
+NumCloseIDs: 5

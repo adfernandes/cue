@@ -7,7 +7,7 @@ import "strings"
 // TODO: this would be okay to normalize. Consider whether
 // this makes sense, though.
 a: {
-	service: [ID=_]: name: "a"
+	service: [_]~(ID,_): name: "a"
 
 	service: foo: shared
 	service: bar: shared
@@ -16,7 +16,7 @@ a: {
 }
 
 b: {
-	service: [ID=_]: {
+	service: [_]~(ID,_): {
 		name: ID
 	}
 	service: foo: _shared
@@ -26,7 +26,7 @@ b: {
 }
 
 c: {
-	service: [ID=_]: {
+	service: [_]~(ID,_): {
 		_service_name: *strings.TrimSuffix(ID, "-suffix") | string
 	}
 	service: "a-suffix": _shared
@@ -42,7 +42,7 @@ import "strings"
 // TODO: this would be okay to normalize. Consider whether
 // this makes sense, though.
 a: {
-	service: [ID=_]: name: "a"
+	service: [_]~(ID,_): name: "a"
 
 	service: foo: shared
 	service: bar: shared
@@ -51,7 +51,7 @@ a: {
 }
 
 b: {
-	service: [ID=_]: {
+	service: [_]~(ID,_): {
 		name: ID
 	}
 	service: foo: _shared
@@ -61,7 +61,7 @@ b: {
 }
 
 c: {
-	service: [ID=_]: {
+	service: [_]~(ID,_): {
 		_service_name: *strings.TrimSuffix(ID, "-suffix") | string
 	}
 	service: "a-suffix": _shared

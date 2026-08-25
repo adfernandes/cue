@@ -552,7 +552,7 @@ issue3934: {
 full: {
 	#Resource: {
 		someMsg: string
-		obs: {} | *{missing: true}
+		obs:     {} | *{missing: true}
 
 		let pickMsg = [
 			if obs.missing {msg: "\(someMsg)"},
@@ -568,8 +568,8 @@ full: {
 	#Patches: [string]: _
 	#JSONPatch: {
 		namespace?: string
-		patch: [...#JSONOp]
-		output: #Patches & {(namespace): patch}
+		patch:      [...#JSONOp]
+		output:     #Patches & {(namespace): patch}
 	}
 	#JSONOp: {
 		op:    "add"
@@ -581,7 +581,7 @@ full: {
 	}
 
 	#Main: {
-		NS=namespace: string
+		namespace~(NS): string
 
 		output: jsonPatch.output
 

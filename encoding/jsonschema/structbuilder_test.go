@@ -25,7 +25,7 @@ func TestStructBuilderShadowedRef(t *testing.T) {
 	qt.Assert(t, qt.IsTrue(ok))
 	assertStructBuilderSyntax(t, &b, `#bar: #foo: xxx: #foo_9.bar.baz
 
-#foo_9=#foo: bar: baz: "hello"
+#foo~(#foo_9): bar: baz: "hello"
 `)
 }
 
@@ -70,7 +70,7 @@ func TestStructBuilderNonIdentifierStringNode(t *testing.T) {
 	assertStructBuilderSyntax(t, &b, `
 #bar: #foo: xxx: #foo_9."a b".baz
 
-#foo_9=#foo: "a b": baz: "hello"
+#foo~(#foo_9): "a b": baz: "hello"
 `)
 }
 
@@ -214,6 +214,9 @@ func TestStructBuilderBaseErrors(t *testing.T) {
 		testName string
 		base     string
 		wantErr  string
+		// langVersion pins the language version used to parse base, for
+		// cases exercising syntax the latest version no longer accepts.
+		langVersion string
 	}{{
 		testName: "Embedding",
 		base:     `"just a value"`,
@@ -227,9 +230,17 @@ func TestStructBuilderBaseErrors(t *testing.T) {
 		base:     `#a: 5`,
 		wantErr:  `unsupported label "#a" in base data`,
 	}, {
+		testName: "PostfixAlias",
+		base:     `a~(X): 5`,
+		wantErr:  `unsupported field alias in base data`,
+	}, {
 		testName: "AliasLabel",
 		base:     `X=a: 5`,
 		wantErr:  `unsupported label type \*ast\.Alias in base data`,
+		// The old prefix alias syntax is rejected from v0.18.0 on, where
+		// @experiment(aliasv2) is stable, but *ast.Alias labels still
+		// reach addBase from modules pinning an earlier version.
+		langVersion: "v0.17.0",
 	}, {
 		testName: "DuplicateValue",
 		base: `
@@ -239,7 +250,11 @@ a: b: 6
 		wantErr: `duplicate value in base data at a\.b`,
 	}} {
 		t.Run(test.testName, func(t *testing.T) {
-			f, err := parser.ParseFile("base.cue", test.base)
+			var parseOpts []parser.Option
+			if test.langVersion != "" {
+				parseOpts = append(parseOpts, parser.Version(test.langVersion))
+			}
+			f, err := parser.ParseFile("base.cue", test.base, parseOpts...)
 			qt.Assert(t, qt.IsNil(err))
 			var b structBuilder
 			qt.Assert(t, qt.ErrorMatches(b.addBase(f), test.wantErr))

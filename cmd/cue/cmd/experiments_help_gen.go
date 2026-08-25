@@ -58,11 +58,12 @@ Available per-file experiments:
     Spec change:   https://cuelang.org/cl/1217013
     Spec change:   https://cuelang.org/cl/1217014
 
-  aliasv2 (preview: v0.15.0)
+  aliasv2 (preview: v0.15.0, stable: v0.18.0)
     aliasv2 enables the use of 'self' identifier to refer to the
     enclosing struct and enables the postfix alias syntax (~X and ~(K,V)).
     The file where this experiment is enabled disallows the use of old prefix
-    alias syntax (X=).
+    alias syntax (X=). It is stable as of v0.18.0, so a file at that
+    language version or later must use the postfix syntax.
     Proposal:      https://cuelang.org/issue/4014
     Spec change:   https://cuelang.org/cl/1222377
     Requires cue fix when upgrading

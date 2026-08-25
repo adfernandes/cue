@@ -4,16 +4,18 @@
 a: d: {
 	#base
 	#info: {...}
-	Y: #info.X
+	Y:     #info.X
 }
 
 #base: {
 	#info: {...}
 }
 
-a: [Name=string]: {#info: {
-	X: "foo"
-}}
+a: [string]~(Name,_): {
+	#info: {
+		X: "foo"
+	}
+}
 -- out/compile --
 --- in.cue
 {

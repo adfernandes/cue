@@ -59,10 +59,11 @@ import "tool/file"
 Cluster: {}
 
 m: x: Cluster
-m: x: X={
+m: x: {
+	let X = self
 	foobar: X.name
-	name: "x"
-	foo: string
+	name:   "x"
+	foo:    string
 }
 
 dnsRecords: _
@@ -72,7 +73,7 @@ for _, X in m {
 }
 
 command: build: file.Create & {
-	filename: "output/dns-records.zone"
+	filename:    "output/dns-records.zone"
 	permissions: int | *0o666
 	let lines = [
 		for name, addr in dnsRecords {
@@ -90,15 +91,16 @@ import (
 	"tool/cli"
 )
 
-#Input: INPUT={
-	kind: string
+#Input: {
+	let INPUT = self
+	kind:   string
 	outKey: string | *"default"
 	if kind != "foo" {
 		outKey: INPUT.kind
 	}
 }
-inputs: f: #Input & { kind: "foo" }
-inputs: b: #Input & { kind: "bar" }
+inputs: f: #Input & {kind: "foo"}
+inputs: b: #Input & {kind: "bar"}
 
 outputs: [string]: string
 for _, input in inputs {
@@ -106,7 +108,7 @@ for _, input in inputs {
 }
 
 command: print: cli.Print & {
-	text: strings.Join([for key, val in outputs { "key=\(key) val=\(val)" }], "\n")
+	text: strings.Join([for key, val in outputs {"key=\(key) val=\(val)"}], "\n")
 }
 
 -- stdout2397.golden --
@@ -117,9 +119,9 @@ limits:
 
 -- stderr2416.golden --
 command.build.contents: invalid bytes argument: index out of range [0] with length 0:
-    ./issue2416a_tool.cue:20:10
-    ./issue2416a_tool.cue:28:2
-    ./issue2416a_tool.cue:28:18
+    ./issue2416a_tool.cue:21:10
+    ./issue2416a_tool.cue:29:2
+    ./issue2416a_tool.cue:29:18
     tool/file:20:3
 -- stdout2416.golden --
 key=default val=foo

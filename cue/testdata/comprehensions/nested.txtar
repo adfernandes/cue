@@ -35,7 +35,7 @@ deployment: "node-exporter": {
 		_name$kube: string
 	})
 }
-service: [ID=string]: {
+service: [string]~(ID,_): {
 	spec: {
 		ports: [...{
 			port:     int
@@ -44,8 +44,8 @@ service: [ID=string]: {
 		}]
 	}
 }
-deployment: [ID=string]: {}
-deployment: [ID=_]: _spec & {}
+deployment: [string]~(ID,_): {}
+deployment: [_]~(ID,_):      _spec & {}
 _spec: {
 	_name: string
 	spec: template: {

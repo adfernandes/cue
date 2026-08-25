@@ -2,7 +2,7 @@
 #evalPartial
 -- in.cue --
 obj: foo: a: "bar"
-obj: [Name=string]: {
+obj: [string]~(Name,_): {
 	a: *"dummy" | string
 	if true {
 		sub: as: a
@@ -21,16 +21,14 @@ for k, v in {#def: 1, opt?: 2, _hid: 3, reg: 4} {
 })
 
 -- out/eval/stats --
-Leaks:  2
-Freed:  12
-Reused: 7
-Allocs: 7
-Retain: 2
+Leaks:  1
+Freed:  13
+Reused: 1
+Allocs: 13
+Retain: 0
 
 Unifications: 10
-Conjuncts:    19
-Disjuncts:    13
+Conjuncts:    18
+Disjuncts:    2
 
-MisalignedConjunct: 5
-
-NumCloseIDs: 2
+NumCloseIDs: 4

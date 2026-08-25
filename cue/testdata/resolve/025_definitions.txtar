@@ -26,7 +26,7 @@ foo1: {
 
 #Bar: {
 	field: int
-	{[A=_]: int}
+	{[_]~(A,_): int}
 
 	@test(eq, {field: int, [_]: int})
 	@test(closed)

@@ -33,6 +33,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/encoding/json"
 	"cuelang.org/go/encoding/jsonschema"
@@ -66,6 +67,10 @@ import (
 // The #version: <version> tag selects the default schema version URI to use.
 // As a special case, when this is "openapi", OpenAPI extraction
 // mode is enabled.
+//
+// The #targetLanguageVersion: <version> tag selects the CUE language version
+// that the extracted syntax must be valid at, which is also the version it is
+// verified at. Note that this is a CUE version, unlike #version.
 func TestDecode(t *testing.T) {
 	t.Parallel()
 	test := cuetxtar.TxTarTest{
@@ -145,6 +150,7 @@ func TestDecode(t *testing.T) {
 			cfg.SingleRoot = true
 		}
 		cfg.PkgName, _ = t.Value("pkgName")
+		cfg.TargetLanguageVersion, _ = t.Value("targetLanguageVersion")
 
 		w := t.Writer("extract")
 		expr, err := jsonschema.Extract(v, cfg)
@@ -166,8 +172,14 @@ func TestDecode(t *testing.T) {
 		if t.HasTag("noverify") {
 			return
 		}
-		// Verify that the generated CUE compiles.
-		schemav := ctx.CompileBytes(b, cue.Filename("generated.cue"))
+		// Verify that the generated CUE compiles, at the language version it
+		// was generated for; syntax the target cannot parse is of no use to it.
+		genFile, err := parser.ParseFile("generated.cue", b,
+			parser.Version(cfg.TargetLanguageVersion))
+		if err != nil {
+			t.Fatal(errors.Details(err, nil), qt.Commentf("generated code: %q", b))
+		}
+		schemav := ctx.BuildFile(genFile)
 		if err := schemav.Err(); err != nil {
 			t.Fatal(errors.Details(err, nil), qt.Commentf("generated code: %q", b))
 		}

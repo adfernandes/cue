@@ -13,7 +13,7 @@
 #KindsNames: "service" | "deployment"
 
 #KumoriKinds: deployment: #Deployment
-#KumoriKinds: [string]: {...}
+#KumoriKinds: [string]:   {...}
 
 #DoDeploy: {
 	_params: manifest: #DeploymentManifest
@@ -28,7 +28,7 @@
 }
 
 #Configure: {
-	$p=_params: {
+	_params~($p): {
 		hsize: [string]: #RoleSize
 	}
 	service: {
@@ -46,7 +46,7 @@
 }
 
 #RelabelService: {
-	$p=_params: {
+	_params~($p): {
 		hsize: #RoleSize
 	}
 

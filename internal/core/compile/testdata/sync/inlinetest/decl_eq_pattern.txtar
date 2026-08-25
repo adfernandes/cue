@@ -2,7 +2,7 @@
 // File-level @test(eq, VALUE) where a pattern constraint contributes
 // to the output — the eq check applies to the whole file.
 
-{[X=string]: baz: X}
+{[string]~(X,_): baz: X}
 bar: {}
 -- out/compile --
 --- in.cue

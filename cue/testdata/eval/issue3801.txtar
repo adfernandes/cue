@@ -4,7 +4,7 @@ issue3801: let: reduced: {
 	let F = {
 		base: {
 			in: string
-			let X = {a: "\(in)" }.a
+			let X = {a: "\(in)"}.a
 			out: X
 		}
 		filled: base & {in: "foo"} // failure is here
@@ -15,9 +15,9 @@ issue3801: let: reduced: {
 issue3801: nonRooted: reduced: {
 	#Output: output: {
 		#base: {
-			val0: string
+			val0:   string
 			msgObj: {a: val0}.a
-			value: msgObj
+			value:  msgObj
 		}
 		out: #base & {val0: "foo"}
 	}
@@ -54,7 +54,7 @@ issue3801: nonRooted: reduced: {
 issue3801: let: full: {
 	#Resource: {
 		someMsg: string
-		obs: {} | *{missing: true}
+		obs:     {} | *{missing: true}
 
 		let pickMsg = [
 			if obs.missing {msg: "\(someMsg)"},
@@ -70,8 +70,8 @@ issue3801: let: full: {
 	#Patches: [string]: _
 	#JSONPatch: {
 		namespace?: string
-		patch: [...#JSONOp]
-		output: #Patches & {(namespace): patch}
+		patch:      [...#JSONOp]
+		output:     #Patches & {(namespace): patch}
 	}
 	#JSONOp: {
 		op:    "add"
@@ -83,7 +83,7 @@ issue3801: let: full: {
 	}
 
 	#Main: {
-		NS=namespace: string
+		namespace~(NS): string
 
 		output: jsonPatch.output
 
@@ -107,7 +107,7 @@ issue3801: let: full: {
 		#JSONPatch: {
 			namespace?: string
 			patch: []
-			output: _|_ @test(err, code=incomplete, contains="key value of dynamic field must be concrete", pos=[20:24])
+			output: _|_ @test(err, code=incomplete, contains="key value of dynamic field must be concrete", pos=[20:28])
 		}
 		#JSONOp: {op: "add", path: string, value: _} | {op: "remove", path: string}
 		#Main: {
@@ -121,7 +121,7 @@ issue3801: let: full: {
 }
 issue3801: nonRooted: full: {
 	#Output: {
-		NS=namespace: string
+		namespace~(NS): string
 		output: (#SubOutput & {
 			namespace: NS
 			let base2 = {
@@ -170,11 +170,11 @@ issue3801: nonRooted: full: {
     ./nested.cue:58:25
     ./nested.cue:54:12
 [incomplete] issue3801.let.full.#JSONPatch.output: cannot reference optional field: namespace:
-    ./nested.cue:72:24
+    ./nested.cue:72:28
 issue3801.let.full.#JSONPatch.output: key value of dynamic field must be concrete, found _|_(issue3801.let.full.#JSONPatch.output: cannot reference optional field: namespace):
-    ./nested.cue:72:24
+    ./nested.cue:72:28
 [incomplete] issue3801.let.full.#Main.jsonPatch.output: key value of dynamic field must be concrete, found string:
-    ./nested.cue:72:24
+    ./nested.cue:72:28
     ./nested.cue:70:15
 [incomplete] issue3801.nonRooted.full.#Output.output: key value of dynamic field must be concrete, found string:
     ./nested.cue:138:12

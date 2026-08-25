@@ -68,7 +68,7 @@ expanded1: hasCycle: {
 		output: input.a
 	}
 	root: {
-		a: _a.output
+		a:  _a.output
 		_a: X & {input: root}
 	}
 }
@@ -84,7 +84,7 @@ issue3731: reduced: {
 	#lookup: {
 		input: {...}
 		output: [
-			for _, v in input if v.show != _|_ { v },
+			for _, v in input if v.show != _|_ {v},
 		]
 	}
 
@@ -97,13 +97,13 @@ issue3731: expanded: {
 	#lookup: {
 		input: {...}
 		output: [
-			for _, v in input if v.show != _|_ { v },
+			for _, v in input if v.show != _|_ {v},
 		]
 	}
 
 	root: {
 		self: show: true
-		others: _others.output
+		others:  _others.output
 		_others: #lookup & {input: root}
 	}
 }
@@ -115,36 +115,36 @@ issue3731: full: {
 
 	#AccountConfig: {
 		workspaces: #Workspace
-		siblings?: [...string]
+		siblings?:  [...string]
 	}
 
 	#AccountConfigSub1: {
 		#AccountConfig
 		workspaces: "workspaceA": {}
 	}
-	
+
 	#AccountConfigSub2: {
 		#AccountConfig
 		workspaces: "workspaceB": {}
 	}
-	
+
 	tree: env1: {
 		"region1": {
-			"env1-r1-account-sub1": #AccountConfigSub1
+			"env1-r1-account-sub1":   #AccountConfigSub1
 			"env1-r1-account-sub2-1": #AccountConfigSub2
 		}
 	}
-	
+
 	#lookupSiblings: {
 		envtree: {...}
 		out: [
 			for region, v in envtree
 			for account, config in v
-			if config.workspaces."workspaceB" != _|_ { account },
+			if config.workspaces."workspaceB" != _|_ {account},
 		]
 	}
-	
-	tree: ENVTREE=env1: [_]: [_]: #AccountConfig & {
+
+	tree: env1~(ENVTREE): [_]: [_]: #AccountConfig & {
 		siblings: (#lookupSiblings & {envtree: ENVTREE}).out
 	}
 }

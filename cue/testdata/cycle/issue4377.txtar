@@ -12,24 +12,27 @@ out: {
 	}
 }
 
-#fieldTransform: F={
-	#type!: "string" | "bool"
-	out: {}
-} | {
-	#type!: ["list", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["a", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["b", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["c", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["d", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
+#fieldTransform: {
+	let F = self
+	{
+		#type!: "string" | "bool"
+		out:    {}
+	} | {
+		#type!: ["list", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["a", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["b", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["c", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["d", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	}
 }
 
 fields: {
@@ -41,17 +44,17 @@ fields: {
 	l2: type: ["list", "string"]
 }
 -- out/eval/stats --
-Leaks:  49
-Freed:  2217
-Reused: 2164
-Allocs: 102
+Leaks:  60
+Freed:  542829
+Reused: 542746
+Allocs: 143
 Retain: 0
 
-Unifications: 1293
-Conjuncts:    2394
-Disjuncts:    392
+Unifications: 292257
+Conjuncts:    511607
+Disjuncts:    83512
 
-NumCloseIDs: 125
+NumCloseIDs: 31403
 -- out/evalalpha --
 (struct){
   out: (struct){
@@ -72,66 +75,14 @@ NumCloseIDs: 125
       }
     }
   }
-  #fieldTransform: (#struct){ |((#struct){
-      #type!: (string){ |((string){ "string" }, (string){ "bool" }) }
-      out: (#struct){
-      }
-    }, (#struct){
-      #type!: (#list){
-        0: (string){ "list" }
-        1: (_){ _ }
-      }
-      out: (#struct){
-        items: (_|_){
-          // [incomplete] #fieldTransform.out.items: undefined field: out:
-          //     ./in.cue:12:54
-        }
-      }
-    }, (#struct){
-      #type!: (#list){
-        0: (string){ "a" }
-        1: (_){ _ }
-      }
-      out: (#struct){
-        items: (_|_){
-          // [incomplete] #fieldTransform.out.items: undefined field: out:
-          //     ./in.cue:15:54
-        }
-      }
-    }, (#struct){
-      #type!: (#list){
-        0: (string){ "b" }
-        1: (_){ _ }
-      }
-      out: (#struct){
-        items: (_|_){
-          // [incomplete] #fieldTransform.out.items: undefined field: out:
-          //     ./in.cue:18:54
-        }
-      }
-    }, (#struct){
-      #type!: (#list){
-        0: (string){ "c" }
-        1: (_){ _ }
-      }
-      out: (#struct){
-        items: (_|_){
-          // [incomplete] #fieldTransform.out.items: undefined field: out:
-          //     ./in.cue:21:54
-        }
-      }
-    }, (#struct){
-      #type!: (#list){
-        0: (string){ "d" }
-        1: (_){ _ }
-      }
-      out: (#struct){
-        items: (_|_){
-          // [incomplete] #fieldTransform.out.items: undefined field: out:
-          //     ./in.cue:24:54
-        }
-      }
-    }) }
+  #fieldTransform: (#struct){
+    let F#1 = (_|_){
+      // [structural_cycle] #fieldTransform.F: structural cycle
+    }
+    #type!: (string){ |((string){ "string" }, (string){ "bool" }) }
+    out: (#struct){
+    }
+  }
   fields: (struct){
     s1: (struct){
       type: (string){ "string" }

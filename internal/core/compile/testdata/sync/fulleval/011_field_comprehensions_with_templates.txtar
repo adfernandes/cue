@@ -2,7 +2,7 @@
 num: 1
 a: {
 	if num < 5 {
-		[A=string]: [B=string]: {
+		[string]~(A,_): [string]~(B,_): {
 			name: A
 			kind: B
 		}

@@ -2,6 +2,12 @@ In this file we test cases where references are shadowed:
 - x: x: x
 - a newly created dynamic field which ends up shadowing an existing field.
 
+# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
+# @experiment(aliasv2) is stable; pin the language version so
+# that this test keeps exercising it.
+-- cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
 -- in.cue --
 shadowRef: t1: {
 	x: "x": x | null
@@ -145,6 +151,268 @@ shadowField: issue2378: {
 	}
 }
 
+-- out/definition-v3 --
+shadowRef: {
+	t1: x~(x_9): x: x_9 | null
+	t2: x~(x_B): x: x: x_B | null
+	t3: x: x: x~(x_6): x: x_6 | null
+	t4: X=x: {
+		x: X | null
+		y: x
+	}
+	t5: X=x: x:     X | null
+	e1: x~(x_0): x: x_0
+}
+shadowAlias: {
+	t1: {
+		y: "outer"
+		a: {
+			key:     "y"
+			X=(key): "inner"
+			refs: {
+				Z="y": 1
+				outer: y
+				mid:   X
+				inner: Z
+			}
+		}
+	}
+	t2: {
+		a: {
+			key:       "y"
+			X_1=(key): "inner"
+			refs: {
+				Z="y": 1
+				outer: y
+				mid:   X_1
+				inner: Z
+			}
+		}
+		y: "outer"
+	}
+}
+shadowField: {
+	t1: z: {
+		A=b: 0
+		d: {
+			b: 1
+			c: A
+		}
+	}
+	t2: z: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		d: A: 1
+	}
+	t4: merge: z: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		d: A: 1
+	}
+	t5: merge: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		b: 0
+		d: b: 1
+	}
+
+	// TODO: could be simplified to:
+	// 		A=b: 0
+	//  	c:   A
+	// or even
+	// 		b: 0
+	//  	c: b
+	t6: x: {
+		{
+			A=b: 0
+			c:   A
+		}
+		b: 0
+	}
+	issue2378: a: {
+		A=b: 0
+		d: {
+			b: 1
+			c: A & a.z
+		}
+	}
+}
+-- diff/-out/definition-v3<==>+out/definition --
+diff old new
+--- old
++++ new
+@@ -1,13 +1,13 @@
+ shadowRef: {
+-	t1: x_9=x: x: x_9 | null
+-	t2: x_B=x: x: x: x_B | null
+-	t3: x: x: x_6=x: x: x_6 | null
++	t1: x~(x_9): x: x_9 | null
++	t2: x~(x_B): x: x: x_B | null
++	t3: x: x: x~(x_6): x: x_6 | null
+ 	t4: X=x: {
+ 		x: X | null
+ 		y: x
+ 	}
+-	t5: X=x: x:   X | null
+-	e1: x_0=x: x: x_0
++	t5: X=x: x:     X | null
++	e1: x~(x_0): x: x_0
+ }
+ shadowAlias: {
+ 	t1: {
+-- out/definition-v3-noshare --
+shadowRef: {
+	t1: x~(x_9): x: x_9 | null
+	t2: x~(x_B): x: x: x_B | null
+	t3: x: x: x~(x_6): x: x_6 | null
+	t4: X=x: {
+		x: X | null
+		y: x
+	}
+	t5: X=x: x:     X | null
+	e1: x~(x_0): x: x_0
+}
+shadowAlias: {
+	t1: {
+		y: "outer"
+		a: {
+			key:     "y"
+			X=(key): "inner"
+			refs: {
+				Z="y": 1
+				outer: y
+				mid:   X
+				inner: Z
+			}
+		}
+	}
+	t2: {
+		a: {
+			key:       "y"
+			X_1=(key): "inner"
+			refs: {
+				Z="y": 1
+				outer: y
+				mid:   X_1
+				inner: Z
+			}
+		}
+		y: "outer"
+	}
+}
+shadowField: {
+	t1: z: {
+		A=b: 0
+		d: {
+			b: 1
+			c: A
+		}
+	}
+	t2: z: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		d: A: 1
+	}
+	t4: merge: z: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		d: A: 1
+	}
+	t5: merge: {
+		{
+			A=b: 0
+			d: {
+				b: 1
+				c: A
+			}
+		}
+		b: 0
+		d: b: 1
+	}
+
+	// TODO: could be simplified to:
+	// 		A=b: 0
+	//  	c:   A
+	// or even
+	// 		b: 0
+	//  	c: b
+	t6: x: {
+		{
+			A=b: 0
+			c:   A
+		}
+		b: 0
+	}
+	issue2378: a: {
+		A=b: 0
+		d: {
+			b: 1
+			c: A & a.z
+		}
+	}
+}
+-- diff/-out/definition-v3-noshare<==>+out/definition --
+diff old new
+--- old
++++ new
+@@ -1,13 +1,13 @@
+ shadowRef: {
+-	t1: x_9=x: x: x_9 | null
+-	t2: x_B=x: x: x: x_B | null
+-	t3: x: x: x_6=x: x: x_6 | null
++	t1: x~(x_9): x: x_9 | null
++	t2: x~(x_B): x: x: x_B | null
++	t3: x: x: x~(x_6): x: x_6 | null
+ 	t4: X=x: {
+ 		x: X | null
+ 		y: x
+ 	}
+-	t5: X=x: x:   X | null
+-	e1: x_0=x: x: x_0
++	t5: X=x: x:     X | null
++	e1: x~(x_0): x: x_0
+ }
+ shadowAlias: {
+ 	t1: {
 -- out/definition --
 shadowRef: {
 	t1: x_9=x: x: x_9 | null

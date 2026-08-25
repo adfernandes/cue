@@ -1,6 +1,7 @@
 # Exercises the postfixAlias converter for both forms: the simple
-# `label~X` and the dual `label~(K,V)`. Requires @experiment(aliasv2)
-# for the parser to recognise the syntax.
+# `label~X` and the dual `label~(K,V)`. The @experiment(aliasv2)
+# attribute is redundant as of language version v0.18.0, where the
+# experiment is stable, and doubles as a top-level attribute to print.
 -- in --
 @experiment(aliasv2)
 #Simple: {

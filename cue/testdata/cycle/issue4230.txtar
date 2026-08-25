@@ -14,7 +14,8 @@
 	]
 }
 
-x: X={
+x: {
+	let X = self
 	regions: (#transform & {_input: X})._output
 	app: region: or(["west", "east"]) & "west"
 } @test(eq, {
@@ -23,13 +24,13 @@ x: X={
 })
 -- out/eval/stats --
 Leaks:  3
-Freed:  27
-Reused: 13
-Allocs: 17
+Freed:  29
+Reused: 14
+Allocs: 18
 Retain: 0
 
-Unifications: 16
-Conjuncts:    38
+Unifications: 17
+Conjuncts:    39
 Disjuncts:    6
 
 NumCloseIDs: 12

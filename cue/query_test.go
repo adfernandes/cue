@@ -69,38 +69,38 @@ func TestLookupPath(t *testing.T) {
 		out:  `int`,
 	}, {
 		in: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: cue.MakePath(cue.AnyString, cue.Str("a")),
 		out:  `string`,
 	}, {
 		in: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: cue.MakePath(cue.Str("b").Optional(), cue.Str("a")),
 		out:  `"b"`,
 	}, {
 		in: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: cue.MakePath(cue.AnyString),
 		out:  `{a: string}`,
 	}, {
 		in: `
-		a: [Foo=string]: [Bar=string]: { b: Foo+Bar }
+		a: [string]~(Foo,_): [string]~(Bar,_): { b: Foo+Bar }
 		`,
 		path: cue.MakePath(cue.Str("a"), cue.Str("b"), cue.Str("c")).Optional(),
 		out:  `{b: "bc"}`,
 	}, {
 		in: `
-		a: [Foo=string]: b: [Bar=string]: { c: Foo }
-		a: foo: b: [Bar=string]: { d: Bar }
+		a: [string]~(Foo,_): b: [string]~(Bar,_): { c: Foo }
+		a: foo: b: [string]~(Bar,_): { d: Bar }
 		`,
 		path: cue.MakePath(cue.Str("a"), cue.Str("foo"), cue.Str("b"), cue.AnyString),
 		out:  `{c: "foo", d: string}`,
 	}, {
 		in: `
-		[Name=string]: { a: Name }
+		[string]~(Name,_): { a: Name }
 		`,
 		path: cue.MakePath(cue.Str("a")),
 		err:  `field not found: a`,

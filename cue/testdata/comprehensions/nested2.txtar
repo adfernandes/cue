@@ -141,8 +141,7 @@ issue3940: reduced1: {
 
 		objects: {
 			for v in a
-			for _ in ({} & v).objects {
-			}
+			for _ in ({} & v).objects {}
 		}
 	}
 
@@ -181,8 +180,7 @@ issue3940: reduced2: {
 
 		objects: {
 			for v in a
-			for _ in ({} & v).objects {
-			}
+			for _ in ({} & v).objects {}
 		}
 	}
 	// The pushdown fix resolves the spurious "undefined field" error
@@ -231,7 +229,7 @@ issue3940: reduced4: {
 		_imports: [{
 			objects: {...}
 			#export: Exporter & {
-				_imports: [{ #export: Exporter }]
+				_imports: [{#export: Exporter}]
 			}
 		}]
 	}
@@ -275,8 +273,7 @@ issue3940: let: {
 		objects: {
 			for v in a
 			let x = ({} & v)
-			for _ in x.objects {
-			}
+			for _ in x.objects {}
 		}
 	}
 }
@@ -288,7 +285,7 @@ issue3940: full: {
 
 	_branch: {
 		objects: branch: {
-			#conf: {...}
+			#conf:  {...}
 			region: #conf.global.region
 		}
 		imports: [_leaf]
@@ -299,7 +296,7 @@ issue3940: full: {
 	}
 	_leaf: {
 		objects: leaf: {
-			#conf: {...}
+			#conf:  {...}
 			region: #conf.global.region
 		}
 		#export: #Exporter & {
@@ -307,9 +304,9 @@ issue3940: full: {
 		}
 	}
 	#Exporter: {
-		CONF=#conf: {...}
-		_objects: {...}
-		_imports: [...]
+		#conf~(CONF): {...}
+		_objects:     {...}
+		_imports:     [...]
 
 		objects: [
 			// local objects
@@ -424,9 +421,10 @@ issue3990: {
 	}
 
 	for import in _imports
-	for _, obj in ({extra: "unused"} & import).exportObjs {(import.name): obj},
+	for _, obj in ({extra: "unused"} & import).exportObjs {(import.name): obj}
 
-	_Deployment: this={
+	_Deployment: {
+		let this = self
 		_names: {
 			for _, v in this.volumes {
 				(v.name): v.name
@@ -480,51 +478,51 @@ issue3990: {
 [incomplete] issue3940.reduced1.a.b.objects: undefined field: objects:
     ./issue3940.cue:15:22
 [incomplete] issue3940.reduced2.a.b.objects: undefined field: objects:
-    ./issue3940.cue:55:22
+    ./issue3940.cue:54:22
 [incomplete] issue3940.let.a.b.objects: undefined field: objects:
-    ./issue3940.cue:149:15
+    ./issue3940.cue:147:15
 [incomplete] issue3940.full.out._imports.0.objects.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full.out._imports.0.imports.0.objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.imports.0.#export._objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.imports.0.#export.objects.0.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.#export._objects.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full.out._imports.0.#export._imports.0.objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.#export._imports.0.#export._objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.#export._imports.0.#export.objects.0.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full.out._imports.0.#export.objects.0.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full.out._imports.0.#export.objects.1.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._branch.objects.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full._branch.#export._objects.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full._branch.#export._imports.0.objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._branch.#export._imports.0.#export._objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._branch.#export._imports.0.#export.objects.0.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._branch.#export.objects.0.branch.region: undefined field: global:
-    ./issue3940.cue:163:18
+    ./issue3940.cue:160:18
 [incomplete] issue3940.full._branch.#export.objects.1.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._leaf.objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._leaf.#export._objects.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3940.full._leaf.#export.objects.0.leaf.region: undefined field: global:
-    ./issue3940.cue:174:18
+    ./issue3940.cue:171:18
 [incomplete] issue3990._Deployment._names: cannot range over this.volumes (incomplete):
-    ./issue3990.cue:24:16
+    ./issue3990.cue:25:16
 -- out/todo.txt --
 v3 uses structure sharing (~) for several fields in issue3940 and issue3990,
 showing them as shared references rather than expanded inline values.
@@ -537,13 +535,13 @@ dependency tracking rather than field pushdown, so the inner for-clause
 yields zero values and `objects` remains an empty struct.
 -- out/eval/stats --
 Leaks:  12
-Freed:  395
-Reused: 337
+Freed:  400
+Reused: 342
 Allocs: 70
 Retain: 0
 
-Unifications: 364
-Conjuncts:    688
+Unifications: 369
+Conjuncts:    693
 Disjuncts:    0
 Notifications: 5
 

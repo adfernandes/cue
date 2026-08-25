@@ -8,7 +8,7 @@ a: "foo"
 e: 2 @test(eq, 2)
 
 b: "bar"
-X="\(b)": {
+"\(b)"~(X): {
 	a: 1
 }
 c: X @test(eq, {a: 1})
@@ -29,14 +29,14 @@ parenExprRefParent: {
 }
 parenExprRefEqual: {
 	(x): {}
-	x: "foo"
+	x:   "foo"
 	@test(eq, {x: "foo", foo: {}})
 }
 chainedResolution: x: {
 	@test(permute, count=6)
 	(x.baz): "bar"
 	(x.foo): "baz"
-	baz: "foo"
+	baz:     "foo"
 	@test(eq, {
 		baz: "foo", foo: "bar", bar: "baz"
 	})
@@ -84,7 +84,7 @@ constraints: {
 issue3828: reduced: {
 	a: b: {}
 	a: [_]: {
-		if true let x=str {
+		if true let x = str {
 			(x): true
 		}
 	}
@@ -96,7 +96,8 @@ issue3828: full: {
 		repos: repo1: {}
 	}
 	botUser: "bot1"
-	orgs: [_]: config={
+	orgs: [_]: {
+		let config = self
 		for repo_name, _ in config.repos
 		let orgBotUser = botUser {
 			collaborators: (repo_name): (orgBotUser): true
@@ -140,13 +141,13 @@ noCycleError.foo.bar.entries: key value of dynamic field must be concrete, found
     ./invalidkey.cue:5:6
 -- out/eval/stats --
 Leaks:  4
-Freed:  74
-Reused: 51
-Allocs: 27
+Freed:  58
+Reused: 34
+Allocs: 28
 Retain: 0
 
-Unifications: 78
-Conjuncts:    91
+Unifications: 62
+Conjuncts:    76
 Disjuncts:    0
 
 NumCloseIDs: 4

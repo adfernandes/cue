@@ -23,8 +23,8 @@ e & {
 }
 
 p: {
-	{X=["foo"]: b: X | null}
-	{[Y="bar"]: b: Y}
+	{["foo"]~(X): b: X | null}
+	{["bar"]~(Y,_): b: Y}
 
 	@test(eq, {
 		["foo"]: b: null @test(final)
@@ -48,17 +48,17 @@ let _schema_1 = schema
 [structural_cycle] schema.next: structural cycle
 -- out/eval/stats --
 Leaks:  1
-Freed:  17
+Freed:  18
 Reused: 4
-Allocs: 14
+Allocs: 15
 Retain: 0
 
-Unifications: 17
-Conjuncts:    32
+Unifications: 18
+Conjuncts:    33
 Disjuncts:    0
 Notifications: 2
 
-NumCloseIDs: 13
+NumCloseIDs: 14
 -- out/diff-v2-v3.txt --
 Structural cycle reported in different location between v2 and v3.
 v2: _schema_1: structural cycle (with position ./in.cue:32:8)

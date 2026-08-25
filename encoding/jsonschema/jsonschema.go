@@ -309,6 +309,17 @@ type Config struct {
 	// will be used.
 	DefaultVersion Version
 
+	// TargetLanguageVersion holds the CUE language version that the
+	// extracted syntax must be valid at. The empty string means the
+	// current one. Note that this is unrelated to [Config.DefaultVersion],
+	// which selects a JSON Schema dialect.
+	//
+	// Set it when writing the result into a module that declares an older
+	// language version, as a spelling valid today may not parse there: an
+	// alias is written in the postfix form from v0.18.0 on, and in the
+	// prefix form before it.
+	TargetLanguageVersion string
+
 	_ struct{} // prohibit casting from different type.
 }
 

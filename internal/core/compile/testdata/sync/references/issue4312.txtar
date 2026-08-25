@@ -5,7 +5,7 @@
 -- one.cue --
 package p
 
-A=foo: "foo value"
+foo~(A): "foo value"
 
 one_alias: A
 one_field: foo

@@ -21,12 +21,14 @@ h: strings.Join(list.Repeat(["a"], 3), "") @test(eq, "aaa")
 i: list.Repeat(["b"], 3) @test(eq, ["b", "b", "b"])
 j: strings.Join(i, "")   @test(eq, "bbb")
 -- out/eval/stats --
-Leaks:  2
-Freed:  36
-Reused: 31
-Allocs: 7
-Retain: 6
+Leaks:  0
+Freed:  43
+Reused: 24
+Allocs: 19
+Retain: 0
 
 Unifications: 38
 Conjuncts:    45
-Disjuncts:    42
+Disjuncts:    0
+
+NumCloseIDs: 7

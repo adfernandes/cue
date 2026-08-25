@@ -5,28 +5,32 @@
 -- in.cue --
 package main
 
-_objectBase: self={
+_objectBase: {
+	let this = self
 	name: string
-	k8s: metadata: name: self.name
+	k8s: metadata: name: this.name
 }
 
-_namespacedResource: self={
+_namespacedResource: {
+	let this = self
 	_objectBase
 	namespace: string
-	k8s: metadata: namespace: self.namespace
+	k8s: metadata: namespace: this.namespace
 }
 
 // Key validation pattern with error() and self
-_allValuesAreValidStructs: [_]: self={
-	*{} | error("<- invalid \(self)")
+_allValuesAreValidStructs: [_]: {
+	let this = self
+	*{} | error("<- invalid \(this)")
 }
 
-_setTypeMeta: self={
+_setTypeMeta: {
+	let this = self
 	#apiVersion!: string
-	#kind!: string
+	#kind!:       string
 	#template: k8s: {
-		apiVersion: self.#apiVersion
-		kind: self.#kind
+		apiVersion: this.#apiVersion
+		kind:       this.#kind
 	}
 }
 
@@ -53,14 +57,15 @@ _namespacedResourceKinds: {
 
 	app: {
 		#apiVersion: "argoproj.io/v1alpha1"
-		#kind: "Application"
+		#kind:       "Application"
 		#resourceSchema: {
 			spec?: revisionHistoryLimit?: int
 		}
 
-		#template: self={
+		#template: {
+			let this = self
 			revisionHistoryLimit: *3 | int
-			k8s: spec: revisionHistoryLimit: self.revisionHistoryLimit
+			k8s: spec: revisionHistoryLimit: this.revisionHistoryLimit
 		}
 	}
 }
@@ -95,58 +100,58 @@ let _globalScope = self
 
 @test(err, code=eval)
 -- out/errors.txt --
-[eval] #manifests: error in call to encoding/yaml.MarshalStream: <- invalid {namespace:string,revisionHistoryLimit:*3 | int,k8s:_|_(#entries.0.argocd.app.apps: <- invalid value at path '#entries.0.argocd.app.apps'),name:string}:
+[eval] #manifests: error in call to encoding/yaml.MarshalStream: <- invalid {namespace:string,let this#4=_|_(#entries.0.argocd.app.apps.this: structural cycle),let this#6=_|_(#entries.0.argocd.app.apps.this: structural cycle),revisionHistoryLimit:*3 | int,k8s:_|_(#entries.0.argocd.app.apps: <- invalid value at path '#entries.0.argocd.app.apps'),let this#3=_|_(#entries.0.argocd.app.apps.this: structural cycle),let this#2=_|_(#entries.0.argocd.app.apps.this: structural cycle),name:string}:
     ./export.cue:18:14
-    ./in.cue:15:38
-    ./in.cue:16:8
-    ./in.cue:23:3
-    ./in.cue:40:8
-    ./in.cue:47:22
-    ./in.cue:65:13
+    ./in.cue:17:33
+    ./in.cue:19:8
+    ./in.cue:27:3
+    ./in.cue:44:8
+    ./in.cue:51:22
+    ./in.cue:70:13
 [incomplete] _setTypeMeta.#template.k8s.apiVersion: required field missing: #apiVersion:
-    ./in.cue:23:20
+    ./in.cue:27:20
 [incomplete] _setTypeMeta.#template.k8s.kind: required field missing: #kind:
-    ./in.cue:24:14
+    ./in.cue:28:20
 [eval] _namespacedResourceKinds.app.#template.k8s.apiVersion: field not allowed:
-    ./in.cue:23:3
+    ./in.cue:27:3
 [eval] _namespacedResourceKinds.app.#template.k8s.kind: field not allowed:
-    ./in.cue:24:3
+    ./in.cue:28:3
 [eval] _namespacedResourceKinds.app.#template.k8s.metadata: field not allowed:
-    ./in.cue:5:7
-    ./in.cue:11:7
+    ./in.cue:6:7
+    ./in.cue:13:7
 [eval] argocd.app.apps: 4 errors in empty disjunction:
 argocd.app.apps.k8s.apiVersion: field not allowed:
-    ./in.cue:23:3
+    ./in.cue:27:3
 argocd.app.apps.k8s.kind: field not allowed:
-    ./in.cue:24:3
+    ./in.cue:28:3
 argocd.app.apps.k8s.metadata: field not allowed:
-    ./in.cue:5:7
-    ./in.cue:11:7
-argocd.app.apps: <- invalid {namespace:string,revisionHistoryLimit:*3 | int,k8s:_|_(argocd.app.apps.k8s.apiVersion: field not allowed (and 2 more errors)),name:string}:
-    ./in.cue:16:8
-    ./in.cue:15:38
-    ./in.cue:40:8
-    ./in.cue:47:22
-    ./in.cue:65:13
+    ./in.cue:6:7
+    ./in.cue:13:7
+argocd.app.apps: <- invalid {namespace:string,let this#4=_|_(argocd.app.apps.this: structural cycle),let this#6=_|_(argocd.app.apps.this: structural cycle),revisionHistoryLimit:*3 | int,k8s:_|_(argocd.app.apps.k8s.apiVersion: field not allowed (and 2 more errors)),let this#3=_|_(argocd.app.apps.this: structural cycle),let this#2=_|_(argocd.app.apps.this: structural cycle),name:string}:
+    ./in.cue:19:8
+    ./in.cue:17:33
+    ./in.cue:44:8
+    ./in.cue:51:22
+    ./in.cue:70:13
 [eval] argocd.app.#template.k8s.apiVersion: field not allowed:
-    ./in.cue:23:3
+    ./in.cue:27:3
 [eval] argocd.app.#template.k8s.kind: field not allowed:
-    ./in.cue:24:3
+    ./in.cue:28:3
 [eval] argocd.app.#template.k8s.metadata: field not allowed:
-    ./in.cue:5:7
-    ./in.cue:11:7
+    ./in.cue:6:7
+    ./in.cue:13:7
 -- out/eval/stats --
-Leaks:  1
-Freed:  187
-Reused: 127
-Allocs: 61
+Leaks:  0
+Freed:  224
+Reused: 155
+Allocs: 69
 Retain: 0
 
-Unifications: 100
-Conjuncts:    289
+Unifications: 120
+Conjuncts:    308
 Disjuncts:    28
 
-NumCloseIDs: 77
+NumCloseIDs: 76
 
 ConjunctInfos:       196
 MaxConjunctInfos:    8

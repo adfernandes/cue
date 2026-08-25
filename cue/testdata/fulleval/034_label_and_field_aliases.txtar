@@ -1,16 +1,16 @@
 #name: label and field aliases
 #evalFull
 -- in.cue --
-p: [ID=string]: {name: ID}
-p: q: _              @test(eq, {name: "q"})
-A="foo=bar": "str"   // TODO(inline): make this work @test(eq, at="foo=bar", "str")
-a:           A       @test(eq, "str")
-B=bb:        4
+p: [string]~(ID,_): {name: ID}
+p: q:               _ @test(eq, {name: "q"})
+"foo=bar"~(A): "str"  // TODO(inline): make this work @test(eq, at="foo=bar", "str")
+a:             A @test(eq, "str")
+bb~(B):        4
 @test(eq, at=bb, 4)
-b1:          B       @test(eq, 4)
-b1:          bb
-C="\(a)":    5
-c:           C       @test(eq, 5)
+b1:         B @test(eq, 4)
+b1:         bb
+"\(a)"~(C): 5
+c:          C @test(eq, 5)
 
 @test(debugCheck, """
 	(struct){
@@ -29,11 +29,11 @@ c:           C       @test(eq, 5)
 	""")
 -- out/eval/stats --
 Leaks:  0
-Freed:  8
-Reused: 4
-Allocs: 4
-Retain: 3
+Freed:  10
+Reused: 0
+Allocs: 10
+Retain: 0
 
-Unifications: 8
-Conjuncts:    10
-Disjuncts:    9
+Unifications: 10
+Conjuncts:    13
+Disjuncts:    0

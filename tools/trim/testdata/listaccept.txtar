@@ -1,5 +1,5 @@
 -- in.cue --
-deployment: [ID=_]: {
+deployment: [_]~(ID,_): {
 	containers: [{}]
 }
 
@@ -10,7 +10,7 @@ deployment: bartender: {
 }
 -- out/trim --
 == in.cue
-deployment: [ID=_]: {
+deployment: [_]~(ID,_): {
 	containers: [{}]
 }
 

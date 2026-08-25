@@ -1,3 +1,9 @@
+# The old prefix alias syntax (X=) is only accepted below v0.18.0, where
+# @experiment(aliasv2) is stable; pin the language version so
+# that this test keeps exercising it.
+-- cue.mod/module.cue --
+module: "test.example"
+language: version: "v0.17.0"
 -- in.cue --
 [X=string]: name: X
 a: X

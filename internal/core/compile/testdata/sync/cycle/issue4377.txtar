@@ -12,24 +12,27 @@ out: {
 	}
 }
 
-#fieldTransform: F={
-	#type!: "string" | "bool"
-	out: {}
-} | {
-	#type!: ["list", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["a", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["b", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["c", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
-} | {
-	#type!: ["d", _]
-	out: items: (#fieldTransform & {#type: F.#type[1]}).out
+#fieldTransform: {
+	let F = self
+	{
+		#type!: "string" | "bool"
+		out:    {}
+	} | {
+		#type!: ["list", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["a", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["b", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["c", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	} | {
+		#type!: ["d", _]
+		out: items: (#fieldTransform & {#type: F.#type[1]}).out
+	}
 }
 
 fields: {
@@ -50,60 +53,63 @@ fields: {
       }).out
     }
   }
-  #fieldTransform: ({
-    #type!: ("string"|"bool")
-    out: {}
-  }|{
-    #type!: [
-      "list",
-      _,
-    ]
-    out: {
-      items: (〈2;#fieldTransform〉 & {
-        #type: 〈3〉.#type[1]
-      }).out
-    }
-  }|{
-    #type!: [
-      "a",
-      _,
-    ]
-    out: {
-      items: (〈2;#fieldTransform〉 & {
-        #type: 〈3〉.#type[1]
-      }).out
-    }
-  }|{
-    #type!: [
-      "b",
-      _,
-    ]
-    out: {
-      items: (〈2;#fieldTransform〉 & {
-        #type: 〈3〉.#type[1]
-      }).out
-    }
-  }|{
-    #type!: [
-      "c",
-      _,
-    ]
-    out: {
-      items: (〈2;#fieldTransform〉 & {
-        #type: 〈3〉.#type[1]
-      }).out
-    }
-  }|{
-    #type!: [
-      "d",
-      _,
-    ]
-    out: {
-      items: (〈2;#fieldTransform〉 & {
-        #type: 〈3〉.#type[1]
-      }).out
-    }
-  })
+  #fieldTransform: {
+    let F#1 = 〈1〉
+    ({
+      #type!: ("string"|"bool")
+      out: {}
+    }|{
+      #type!: [
+        "list",
+        _,
+      ]
+      out: {
+        items: (〈3;#fieldTransform〉 & {
+          #type: 〈3;let F#1〉.#type[1]
+        }).out
+      }
+    }|{
+      #type!: [
+        "a",
+        _,
+      ]
+      out: {
+        items: (〈3;#fieldTransform〉 & {
+          #type: 〈3;let F#1〉.#type[1]
+        }).out
+      }
+    }|{
+      #type!: [
+        "b",
+        _,
+      ]
+      out: {
+        items: (〈3;#fieldTransform〉 & {
+          #type: 〈3;let F#1〉.#type[1]
+        }).out
+      }
+    }|{
+      #type!: [
+        "c",
+        _,
+      ]
+      out: {
+        items: (〈3;#fieldTransform〉 & {
+          #type: 〈3;let F#1〉.#type[1]
+        }).out
+      }
+    }|{
+      #type!: [
+        "d",
+        _,
+      ]
+      out: {
+        items: (〈3;#fieldTransform〉 & {
+          #type: 〈3;let F#1〉.#type[1]
+        }).out
+      }
+    })
+  }
   fields: {
     s1: {
       type: "string"

@@ -30,6 +30,9 @@ func TestFile(t *testing.T) {
 		out      string
 		simplify bool
 		exps     []string
+		// version pins the language version used to parse in, for inputs
+		// using syntax which the latest version no longer accepts.
+		version string
 	}{
 		{
 			name:     "simplify literal tops",
@@ -530,6 +533,9 @@ w: __closeAll({
 			// Sanitize rejects, or to an invalid "let _ = self".
 			name: "aliasv2 blank aliases",
 			exps: []string{"aliasv2"},
+			// The input uses the old prefix alias syntax, which v0.18.0
+			// rejects: that is what the fix rewrites.
+			version: "v0.17.0",
 			in: `package foo
 
 obj: {[_=string]: int}
@@ -550,7 +556,8 @@ mixed: [string]~(X): {n: X.a}
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			f, err := parser.ParseFile("", tc.in, parser.ParseComments)
+			f, err := parser.ParseFile("", tc.in,
+				parser.ParseComments, parser.Version(tc.version))
 			if err != nil {
 				t.Fatal(err)
 			}

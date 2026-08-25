@@ -1665,16 +1665,12 @@ foo: {
 -->
 
 ```cue
-@experiment(aliasv2)
-
 // A field alias
 result1: X  // 4
 "not an identifier"~(X): 4
 ```
 
 ```cue
-@experiment(aliasv2)
-
 // A field alias example
 foo~(F): {
     x: F.a
@@ -1683,16 +1679,12 @@ bar: foo & {a: 1}  // {a: 1, x: 1}
 ```
 
 ```cue
-@experiment(aliasv2)
-
 // A label alias with dual form
 [string]~(K, V): { name: K, add1: V.value+1 }
 foo: { value: 1 } // outputs: foo: { name: "foo", value: 1, add1: 2 }
 ```
 
 ```cue
-@experiment(aliasv2)
-
 // Dynamic field with dual form
 ("my" + "Field")~(K, V): { label: K, foo: 42 }
 value: V.foo

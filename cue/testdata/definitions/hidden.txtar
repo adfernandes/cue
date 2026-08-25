@@ -45,13 +45,13 @@ package pkg
     ./in.cue:16:9
 -- out/eval/stats --
 Leaks:  2
-Freed:  25
+Freed:  41
 Reused: 14
-Allocs: 13
+Allocs: 29
 Retain: 0
 
-Unifications: 26
-Conjuncts:    35
+Unifications: 42
+Conjuncts:    51
 Disjuncts:    0
 
 NumCloseIDs: 4

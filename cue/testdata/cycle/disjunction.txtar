@@ -98,14 +98,14 @@ issue3042.data: conflicting values {secret:{infra:[{name:"bar1"}]}} and string (
     ./issue3042.cue:10:8
     ./issue3042.cue:10:19
 -- out/eval/stats --
-Leaks:  25
-Freed:  117
-Reused: 74
-Allocs: 68
+Leaks:  24
+Freed:  114
+Reused: 71
+Allocs: 67
 Retain: 0
 
-Unifications: 50
-Conjuncts:    159
-Disjuncts:    73
+Unifications: 49
+Conjuncts:    153
+Disjuncts:    70
 
-NumCloseIDs: 20
+NumCloseIDs: 19

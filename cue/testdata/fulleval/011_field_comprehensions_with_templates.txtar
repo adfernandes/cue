@@ -2,7 +2,7 @@
 num: 1
 a: {
 	if num < 5 {
-		[A=string]: [B=string]: {
+		[string]~(A,_): [string]~(B,_): {
 			name: A
 			kind: B
 		}
@@ -18,14 +18,12 @@ a: b: c: d: "bar"
 -- out/eval/stats --
 Leaks:  0
 Freed:  8
-Reused: 3
-Allocs: 5
+Reused: 0
+Allocs: 8
 Retain: 0
 
 Unifications: 8
 Conjuncts:    12
-Disjuncts:    8
+Disjuncts:    0
 
-MisalignedConjunct: 2
-
-NumCloseIDs: 1
+NumCloseIDs: 2

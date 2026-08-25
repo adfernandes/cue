@@ -24,7 +24,7 @@ import "encoding/json"
 
 #mkFinDefSet: {
 	#Definition!: #FinDefSetDefinition
-	#Type: or([for _, v in #Definition.#Alternatives {v}])
+	#Type:        or([for _, v in #Definition.#Alternatives {v}])
 }
 
 #FinDefSetElemType: {
@@ -71,13 +71,13 @@ import "encoding/json"
 
 #FinDefSetConfigTextElem: {
 	toString: {
-		_input: #ConfigTextRules
+		_input:  #ConfigTextRules
 		_output: (#orgForConfigTextRules & {source: _input}).orgSyntax
 	}
 }
 
 #orgForConfigText: {
-	IN=source: #ConfigText
+	source~(IN): #ConfigText
 	orgSyntax: {
 		let INS = IN & string
 		let INO = IN & {UseSectionName: _}
@@ -94,7 +94,7 @@ import "encoding/json"
 }
 
 #orgForConfigTextRule: {
-	IN=source: #ConfigTextRule
+	source~(IN): #ConfigTextRule
 	orgSyntax: {
 		let INA = IN & {Append: _}
 		let INP = IN & {Prepend: _}
@@ -111,7 +111,7 @@ import "encoding/json"
 }
 
 #orgForConfigTextRules: {
-	IN=source: #ConfigTextRules
+	source~(IN): #ConfigTextRules
 	orgSyntax: {
 		let INL = IN & [...]
 		[
@@ -127,6 +127,7 @@ import "encoding/json"
 
 value0: #FinDefSetOfConfigText
 value0: Only: [{UseSectionName: true}]
+
 
 // TODO(inline): test wrapped errors
 

@@ -19,14 +19,14 @@ cyclicalInsertInDisjunction: {
 		// disjunctions would _not_ case the reference to cross disjunction
 		// boundaries.
 		c: {d: e, e: _}
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 	}
 	maybe1: {
 		// In this case, the reference c.e crosses a disjunction boundary.
 		// However, since the reference starts from within a disjunction, this
 		// could be allowed, if we define it to be.
 		c: d: c.e
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 	}
 	err1: {
 		// This should be an error: to resolve x in c.d, we need to first
@@ -35,7 +35,7 @@ cyclicalInsertInDisjunction: {
 		// cannot be evaluated to a concrete value, resulting in an error.
 		x: c.e
 		c: d: x
-		c: {d: 1, e: 2} | {d : 2, e: 2}
+		c: {d: 1, e: 2} | {d: 2, e: 2}
 	}
 	err2: {
 		// This is a more obviously erroneous variant of err1. The div in x
@@ -45,14 +45,14 @@ cyclicalInsertInDisjunction: {
 		// NOTE: not so obvious. It clearly works, and arguably it should.
 		x: div(c.e, 2)
 		c: d: x
-		c: {d: 1, e: 2} | {d : 2, e: 3}
+		c: {d: 1, e: 2} | {d: 2, e: 3}
 	}
 	err3: {
 		// Here it is clear that d will not disambiguate the disjunction at c.
 		// So c.e. cannot be resolved.
 		x: c.e
 		c: d: 1 | 2 | x
-		c: {d: 1, e: 2} | {d : 2, e: 3}
+		c: {d: 1, e: 2} | {d: 2, e: 3}
 	}
 }
 
@@ -62,13 +62,13 @@ preseveBottomSemantics: ok: {
 	// `a: _ | X`. As we do not simplify disjunctions, the result is `a: _ | X`.
 	// However, we could consider simplifying in this case to `a: _` if we can
 	// come up with a good general mechanism for subsumption.
-	#x: { #x | {} }
+	#x: {#x | {}}
 }
 
 eliminateOpenVariant: ok: {
 	// We have two structs in the disjunction that are identical in every way
 	// except openness. TODO: should we disambiguate those?
-	c: {a: 1} | #b
+	c:  {a: 1} | #b
 	#b: {a: 1}
 }
 
@@ -81,7 +81,8 @@ cyclicSelfElimination: ok: {
 // Value aliases must resolve to the specific disjunct arm's value,
 // not the original unresolved disjunction.
 issue4251_notC: {
-	#NotC: x={
+	#NotC: {
+		let x = self
 		string
 		_must: true & x != "c"
 	}
@@ -91,7 +92,8 @@ issue4251_notC: {
 	a: "a"
 }
 issue4251_notB: {
-	#NotB: x={
+	#NotB: {
+		let x = self
 		string
 		_must: true & x != "b"
 	}
@@ -100,7 +102,8 @@ issue4251_notB: {
 	a: "a"
 }
 issue4251_notB_reversed: {
-	#NotB: x={
+	#NotB: {
+		let x = self
 		string
 		_must: true & x != "b"
 	}
@@ -227,8 +230,9 @@ panic1: {
   }
   issue4251_notC: {
     #NotC: {
+      let x#1 = 〈1〉
       string
-      _must: (true & (〈1〉 != "c"))
+      _must: (true & (〈0;let x#1〉 != "c"))
     }
     a: 〈0;#NotC〉
     a: ("a"|"b")
@@ -236,8 +240,9 @@ panic1: {
   }
   issue4251_notB: {
     #NotB: {
+      let x#2 = 〈1〉
       string
-      _must: (true & (〈1〉 != "b"))
+      _must: (true & (〈0;let x#2〉 != "b"))
     }
     a: 〈0;#NotB〉
     a: ("a"|"b")
@@ -245,8 +250,9 @@ panic1: {
   }
   issue4251_notB_reversed: {
     #NotB: {
+      let x#3 = 〈1〉
       string
-      _must: (true & (〈1〉 != "b"))
+      _must: (true & (〈0;let x#3〉 != "b"))
     }
     a: 〈0;#NotB〉
     a: ("b"|"a")

@@ -97,13 +97,13 @@ issue3984: {
 }
 -- out/eval/stats --
 Leaks:  3
-Freed:  76
+Freed:  84
 Reused: 57
-Allocs: 22
+Allocs: 30
 Retain: 0
 
-Unifications: 34
-Conjuncts:    91
+Unifications: 42
+Conjuncts:    99
 Disjuncts:    41
 -- out/errors.txt --
 [eval] selection.useCustomError: use me:

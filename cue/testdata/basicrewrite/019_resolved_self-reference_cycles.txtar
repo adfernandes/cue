@@ -43,11 +43,13 @@ nodes: t3: {
 
 -- out/eval/stats --
 Leaks:  0
-Freed:  62
-Reused: 55
-Allocs: 7
-Retain: 10
+Freed:  46
+Reused: 32
+Allocs: 14
+Retain: 0
 
-Unifications: 62
-Conjuncts:    105
-Disjuncts:    70
+Unifications: 46
+Conjuncts:    77
+Disjuncts:    0
+
+NumCloseIDs: 8

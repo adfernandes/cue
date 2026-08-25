@@ -10,12 +10,14 @@ p: close({
 }) @test(eq, {f: 9}) @test(closed)
 p: f: 9
 -- out/eval/stats --
-Leaks:  1
-Freed:  3
+Leaks:  0
+Freed:  6
 Reused: 0
-Allocs: 4
-Retain: 1
+Allocs: 6
+Retain: 0
 
-Unifications: 4
-Conjuncts:    7
-Disjuncts:    4
+Unifications: 5
+Conjuncts:    8
+Disjuncts:    0
+
+NumCloseIDs: 1

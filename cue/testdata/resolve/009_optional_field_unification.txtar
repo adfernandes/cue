@@ -12,11 +12,13 @@ e: {
 }
 -- out/eval/stats --
 Leaks:  0
-Freed:  11
-Reused: 8
-Allocs: 3
+Freed:  12
+Reused: 4
+Allocs: 8
 Retain: 0
 
-Unifications: 11
-Conjuncts:    19
-Disjuncts:    11
+Unifications: 12
+Conjuncts:    20
+Disjuncts:    0
+
+NumCloseIDs: 3

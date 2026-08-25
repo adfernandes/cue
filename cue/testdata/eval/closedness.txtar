@@ -83,7 +83,7 @@ issue4180: {
 // causing validation errors that shouldn't occur when structs are reordered.
 // https://cuelang.org/issue/3325
 issue3325: ok: {
-	#Items: [Name=string]: {
+	#Items: [string]~(Name,_): {
 		name: Name
 	}
 
@@ -136,7 +136,7 @@ patterns: shallow: {
 	#d: [<="y"]: int
 
 	single: {
-		X: #a // "k" <= x
+		X:   #a  // "k" <= x
 		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:8])
 		err: j: 3
 
@@ -155,7 +155,7 @@ patterns: shallow: {
 	}
 
 	and: p2: {
-		X: #b & #a // "k" <= x && x <= "m"
+		X:   #b & #a  // "k" <= x && x <= "m"
 		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-25:6, 1:8])
 		err: j: 3
 
@@ -164,7 +164,7 @@ patterns: shallow: {
 	}
 
 	andEmbed: p1: {
-		X: { #a & #b } // "k" <= x && x <= "m"
+		X: {#a & #b} // "k" <= x && x <= "m"
 
 		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-35:6, 1:8])
 		err: j: 3
@@ -174,7 +174,7 @@ patterns: shallow: {
 	}
 
 	andEmbed: p2: {
-		X: { #b & #a } // "k" <= x && x <= "m"
+		X:   {#b & #a}  // "k" <= x && x <= "m"
 		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-44:6, 1:8])
 		err: j: 3
 
@@ -183,7 +183,7 @@ patterns: shallow: {
 	}
 
 	orEmbed: p1: {
-		X: { #a, #b } // "k" <= x && x <= "m"
+		X: {#a, #b} // "k" <= x && x <= "m"
 
 		ok1: X @test(eq, {j: 3})
 		ok1: j: 3
@@ -193,7 +193,7 @@ patterns: shallow: {
 	}
 
 	orEmbed: p2: {
-		X: { #b, #a } // "k" <= x && x <= "m"
+		X:   {#b, #a}  // "k" <= x && x <= "m"
 		ok1: X @test(eq, {j: 3})
 		ok1: j: 3
 
@@ -250,7 +250,7 @@ patterns: shallow: {
 		#a: a
 
 		p1: { // XXX // link to code
-			X: #a
+			X:    #a
 			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
 			err1: j: 3
 
@@ -258,12 +258,12 @@ patterns: shallow: {
 			err2: j: 3 @test(err, code=eval, contains="field not allowed", pos=[0:10])
 
 			ok: X
-			ok:k: 3 @test(eq, 3)
+			ok: k: 3 @test(eq, 3)
 		}
 
 		p2: {
 			#a: a & __no_sharing
-			X: #a
+			X:  #a
 
 			err1: X
 			err1: j: 3 @test(err, code=eval, contains="field not allowed", pos=[0:10])
@@ -279,19 +279,19 @@ patterns: shallow: {
 			X: #a & __no_sharing
 
 			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
-			err1: j: 3 
+			err1: j: 3
 
 			err2: X & __no_sharing @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
-			err2: j: 3 
+			err2: j: 3
 
 			ok: X @test(eq, {k: 3})
-			ok: k: 3 
+			ok: k: 3
 		}
 
 		p4: {
 			#a: a & __no_sharing
-			X: #a
-			X: #a & __no_sharing
+			X:  #a
+			X:  #a & __no_sharing
 
 			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
 			err1: j: 3
@@ -312,7 +312,7 @@ patterns: nested: {
 	#d: x: y: [<="y"]: int
 
 	single: {
-		X: #a // "k" <= x
+		X:   #a  // "k" <= x
 		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:14])
 		err: x: y: j: 3
 
@@ -331,7 +331,7 @@ patterns: nested: {
 	}
 
 	and: p2: {
-		X: #b & #a // "k" <= x && x <= "m"
+		X:   #b & #a  // "k" <= x && x <= "m"
 		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-25:12, 1:14])
 		err: x: y: j: 3
 
@@ -340,7 +340,7 @@ patterns: nested: {
 	}
 
 	andEmbed: p1: {
-		X: { #a & #b } // "k" <= x && x <= "m"
+		X: {#a & #b} // "k" <= x && x <= "m"
 
 		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-35:12, 1:14])
 		err: x: y: j: 3
@@ -350,7 +350,7 @@ patterns: nested: {
 	}
 
 	andEmbed: p2: {
-		X: { #b & #a } // "k" <= x && x <= "m"
+		X:   {#b & #a}  // "k" <= x && x <= "m"
 		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-44:12, 1:14])
 		err: x: y: j: 3
 
@@ -359,7 +359,7 @@ patterns: nested: {
 	}
 
 	orEmbed: p1: {
-		X: { #a, #b } // "k" <= x && x <= "m"
+		X: {#a, #b} // "k" <= x && x <= "m"
 
 		ok1: X @test(eq, {x: {y: {j: 3}}})
 		ok1: x: y: j: 3
@@ -369,7 +369,7 @@ patterns: nested: {
 	}
 
 	orEmbed: p2: {
-		X: { #b, #a } // "k" <= x && x <= "m"
+		X:   {#b, #a}  // "k" <= x && x <= "m"
 		ok1: X @test(eq, {x: {y: {j: 3}}})
 		ok1: x: y: j: 3
 
@@ -426,7 +426,7 @@ patterns: nested: {
 		#a: a
 
 		p1: {
-			X: #a
+			X:    #a
 			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
 			err1: x: y: j: 3
 
@@ -439,7 +439,7 @@ patterns: nested: {
 
 		p2: {
 			#a: a & __no_sharing
-			X: #a
+			X:  #a
 
 			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
 			err1: x: y: j: 3
@@ -466,8 +466,8 @@ patterns: nested: {
 
 		p4: {
 			#a: a & __no_sharing
-			X: #a
-			X: #a & __no_sharing
+			X:  #a
+			X:  #a & __no_sharing
 
 			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
 			err1: x: y: j: 3
@@ -488,8 +488,8 @@ issue2241: {
 	#close: {}
 
 	a: {
-	    x: q: 2
-	    #close
+		x: q: 2
+		#close
 	}
 
 	b: a

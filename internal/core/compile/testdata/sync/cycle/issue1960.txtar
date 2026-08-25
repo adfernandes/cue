@@ -35,10 +35,9 @@ t3: {
 			n: string
 			e: p: {}
 		}
-		r: (_p )[p.t]
+		r: (_p)[p.t]
 		for _, pl in r.p {
-			if pl.blah {
-			}
+			if pl.blah {}
 		}
 	}
 
@@ -54,7 +53,7 @@ t3: {
 		n: string
 	}
 
-	z: [N= =~"^b"]: #i & {
+	z: [=~"^b"]~(N,_): #i & {
 		s: [
 			for n, z in z
 			if z.t == "c"
@@ -62,7 +61,7 @@ t3: {
 		]
 	}
 
-	z: [N= =~"^h"]: #c & {
+	z: [=~"^h"]~(N,_): #c & {
 		n: string
 		// Causes a structural cycle on its own, but not when referenced below.
 		let q = z[n]

@@ -276,7 +276,7 @@ package vm
 
 import (
 	"encoding/json"
-	"tool/exec"  // Uncomment when experimenting with sibling task pattern
+	"tool/exec" // Uncomment when experimenting with sibling task pattern
 	"tool/http"
 )
 
@@ -303,22 +303,22 @@ command: serve: "/echo": http.Serve & {
 
 // The echo task is defined as a sibling command that reads from the serve request.
 command: echo: exec.Run & {
-	cmd: ["cat"]
+	cmd:    ["cat"]
 	stdin:  command.serve."/echo".request.body
-	stdout: string  // Explicitly capture stdout
+	stdout: string // Explicitly capture stdout
 }
 
 // ServeJSON is a helper for endpoints that serve JSON.
 ServeJSON: {
 	response: {
 		value!: _
-		body:  json.Marshal(value)
+		body:   json.Marshal(value)
 	}
 }
 
 // All our endpoints serve from the same address.
 // We take the convention that the name of the "subcommand" is the path prefix.
-command: serve: [Prefix=string]: http.Serve & {
+command: serve: [string]~(Prefix,_): http.Serve & {
 	listenAddr: ":8082"
 	routing: path: Prefix
 }

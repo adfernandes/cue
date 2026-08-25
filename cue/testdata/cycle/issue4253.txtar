@@ -25,14 +25,14 @@ x: {
 	gateway: whoami2: {}
 } @test(eq, at=gateway.whoami2, {foo: 1, k8s: {foo: 1}})
 -- out/eval/stats --
-Leaks:  9
-Freed:  18
-Reused: 9
-Allocs: 18
+Leaks:  1
+Freed:  16
+Reused: 7
+Allocs: 10
 Retain: 0
 
-Unifications: 21
-Conjuncts:    42
+Unifications: 17
+Conjuncts:    27
 Disjuncts:    0
 
-NumCloseIDs: 16
+NumCloseIDs: 7
