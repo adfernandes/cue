@@ -328,6 +328,11 @@ func fixAliasV2Pass(f *ast.File) (result *ast.File, hasChanges bool) {
 				hasChanges = true
 
 				// Convert old-style alias (X=label) to new postfix alias (label~X).
+				// The label now starts the field, so it takes over the position
+				// the alias held; without that a field on its own line would
+				// join the line before it.
+				relPos := alias.Pos().RelPos()
+
 				// A blank alias binds nothing that can be referenced, so drop it.
 				if alias.Ident.Name != "_" {
 					n.Alias = &ast.PostfixAlias{
@@ -337,7 +342,7 @@ func fixAliasV2Pass(f *ast.File) (result *ast.File, hasChanges bool) {
 				}
 
 				n.Label = label
-				ast.SetRelPos(label, token.NoRelPos)
+				ast.SetRelPos(label, relPos)
 			}
 		}
 
