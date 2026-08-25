@@ -79,6 +79,10 @@ func TestTxtar(t *testing.T) {
 		// in isolation leave it off, exercising the renderer against the
 		// raw AST.
 		houseStyle := tc.Bool("houseStyle")
+		// version pins the language version used to parse the input,
+		// for tests that exercise syntax which is only accepted below
+		// (or above) a particular version.
+		version, _ := tc.Value("version")
 
 		fsys, err := txtar.FS(tc.Archive)
 		if err != nil {
@@ -93,7 +97,8 @@ func TestTxtar(t *testing.T) {
 		styleCfg := format.ASTStyle{RelPos: houseStyle}
 
 		// With RelPos from the parser.
-		syntax, err := parser.ParseFile("in", input, parser.ParseComments)
+		syntax, err := parser.ParseFile("in", input,
+			parser.ParseComments, parser.Version(version))
 		if err != nil {
 			tc.Fatalf("parse error: %v", err)
 		}
@@ -103,8 +108,8 @@ func TestTxtar(t *testing.T) {
 		// We run the preservation check on whatever the printer
 		// produced, even if it diverges from the golden. Losing a
 		// comment is a bug regardless of whether the layout matched.
-		checkCommentsPreserved(tc.T, "with RelPos", input, gotRelPos)
-		checkIdempotent(tc.T, gotRelPos, cfg)
+		checkCommentsPreserved(tc.T, "with RelPos", input, gotRelPos, version)
+		checkIdempotent(tc.T, gotRelPos, cfg, version)
 
 		// Without RelPos: clear the parser's layout via the style
 		// option, then (for houseStyle tests) apply the house style on
@@ -114,8 +119,8 @@ func TestTxtar(t *testing.T) {
 		clearCfg.Apply(syntax)
 		gotNoRelPos := trimTrailingNewline(string(mustFormat(tc, cfg, syntax)))
 		fmt.Fprintln(tc.Writer("norelpos"), gotNoRelPos)
-		checkCommentsPreserved(tc.T, "without RelPos", input, gotNoRelPos)
-		checkIdempotent(tc.T, gotNoRelPos, cfg)
+		checkCommentsPreserved(tc.T, "without RelPos", input, gotNoRelPos, version)
+		checkIdempotent(tc.T, gotNoRelPos, cfg, version)
 	})
 }
 
@@ -135,9 +140,10 @@ func mustFormat(tb testing.TB, cfg *pretty.Config, n ast.Node) []byte {
 
 // checkIdempotent checks that, when we re-parse formatted and print it
 // again with cfg, we get formatted back unchanged.
-func checkIdempotent(t *testing.T, formatted string, cfg *pretty.Config) {
+func checkIdempotent(t *testing.T, formatted string, cfg *pretty.Config, version string) {
 	t.Helper()
-	syntax, err := parser.ParseFile("formatted.cue", formatted, parser.ParseComments)
+	syntax, err := parser.ParseFile("formatted.cue", formatted,
+		parser.ParseComments, parser.Version(version))
 	if err != nil {
 		t.Errorf("idempotency: re-parse failed: %v\nformatted output was:\n%s", err, formatted)
 		return
@@ -153,9 +159,10 @@ func checkIdempotent(t *testing.T, formatted string, cfg *pretty.Config) {
 // substring, i.e. each comment's exact Text must appear somewhere in
 // output. Note that this catches total loss but not a comment that has
 // moved across scope boundaries.
-func checkCommentsPreserved(t *testing.T, label, input, output string) {
+func checkCommentsPreserved(t *testing.T, label, input, output, version string) {
 	t.Helper()
-	syntax, err := parser.ParseFile("in.cue", input, parser.ParseComments)
+	syntax, err := parser.ParseFile("in.cue", input,
+		parser.ParseComments, parser.Version(version))
 	if err != nil {
 		t.Fatalf("%s: reparse failed: %v", label, err)
 	}
@@ -875,7 +882,7 @@ x: {
 			if got != want {
 				t.Errorf("got:\n%s\nwant:\n%s", got, want)
 			}
-			checkIdempotent(t, got, tt.cfg)
+			checkIdempotent(t, got, tt.cfg, "")
 		})
 	}
 }

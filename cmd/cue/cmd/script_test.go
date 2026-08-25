@@ -65,7 +65,9 @@ var hostGoModCache = sync.OnceValues(func() (string, error) {
 })
 
 // TestLatest checks that the examples match the latest language standard,
-// even if still valid in backwards compatibility mode.
+// even if still valid in backwards compatibility mode. An archive which
+// deliberately exercises superseded syntax opts out with a
+// "# TestLatest: skip" line in its script.
 func TestLatest(t *testing.T) {
 	root := filepath.Join("testdata", "script")
 	if err := filepath.WalkDir(root, func(fullpath string, entry fs.DirEntry, err error) error {
@@ -80,6 +82,9 @@ func TestLatest(t *testing.T) {
 		a, err := txtar.ParseFile(fullpath)
 		if err != nil {
 			return err
+		}
+		if skipsLatest(a) {
+			return nil
 		}
 		for _, f := range a.Files {
 			t.Run(path.Join(fullpath, f.Name), func(t *testing.T) {
@@ -100,6 +105,20 @@ func TestLatest(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// skipsLatest reports whether the archive's script opts out of
+// [TestLatest] with a "# TestLatest: skip" line, as scripts pinning an
+// older language version to exercise superseded syntax do.
+func skipsLatest(a *txtar.Archive) bool {
+	for line := range bytes.SplitSeq(a.Comment, []byte("\n")) {
+		if bytes.HasPrefix(line, []byte(latestSkipMarker)) {
+			return true
+		}
+	}
+	return false
+}
+
+const latestSkipMarker = "# TestLatest: skip"
 
 func TestScript(t *testing.T) {
 	p := testscript.Params{

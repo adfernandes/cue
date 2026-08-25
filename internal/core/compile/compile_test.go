@@ -107,6 +107,11 @@ func syncTestdataInputsCUE(t *testing.T) {
 		}
 		dstPath := filepath.Join(dstRoot, rel)
 
+		// A source archive may pin an older language version in its module
+		// file, for syntax which the latest version no longer accepts;
+		// parse its files under that version.
+		langVersion := cuetxtar.ArchiveLanguageVersion(srcArchive)
+
 		archive := &txtar.Archive{Comment: bytes.Clone(srcArchive.Comment)}
 		for _, f := range srcArchive.Files {
 			if !strings.HasSuffix(f.Name, ".cue") {
@@ -117,7 +122,7 @@ func syncTestdataInputsCUE(t *testing.T) {
 			// have no effect on compile output, but leaving them in causes
 			// the compile goldens to churn whenever a @test directive is
 			// added, updated, or removed.
-			data, err := cuetxtar.StripTestAttrs(f.Data)
+			data, err := cuetxtar.StripTestAttrs(f.Data, langVersion)
 			if err != nil {
 				return err
 			}

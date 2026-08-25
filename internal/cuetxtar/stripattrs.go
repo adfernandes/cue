@@ -19,7 +19,27 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/mod/modfile"
+	"golang.org/x/tools/txtar"
 )
+
+// ArchiveLanguageVersion reports the language version declared by the
+// archive's module file, or "" if it has none. Pass it to [StripTestAttrs]
+// and to any other parse of the archive's CUE files, so that an archive
+// pinning an older version is read the way its own module would read it.
+func ArchiveLanguageVersion(a *txtar.Archive) string {
+	for _, f := range a.Files {
+		if f.Name != "cue.mod/module.cue" {
+			continue
+		}
+		mf, err := modfile.ParseNonStrict(f.Data, f.Name)
+		if err != nil || mf.Language == nil {
+			return ""
+		}
+		return mf.Language.Version
+	}
+	return ""
+}
 
 // StripTestAttrs returns src with every @test(...) attribute removed.  Both
 // forms are stripped:
@@ -35,7 +55,10 @@ import (
 // an unrelated downstream consumer (e.g. the compile golden tests) mirrors
 // CUE source from cue/testdata and would otherwise see incidental churn
 // whenever a @test directive is added, updated, or removed.
-func StripTestAttrs(src []byte) ([]byte, error) {
+// Pass the language version that src is pinned to, if any, so that source
+// which would not parse under the latest version still does; an empty version
+// means the latest.
+func StripTestAttrs(src []byte, version string) ([]byte, error) {
 	// Fast path: a file with no @test substring has nothing to strip. A false
 	// positive (e.g. "@test" in a comment or string) only costs an extra
 	// parse, since the walk below locates real attribute nodes only.
@@ -43,7 +66,7 @@ func StripTestAttrs(src []byte) ([]byte, error) {
 		return src, nil
 	}
 
-	f, err := parser.ParseFile("", src, parser.ParseComments)
+	f, err := parser.ParseFile("", src, parser.ParseComments, parser.Version(version))
 	if err != nil {
 		return src, err
 	}
