@@ -25,6 +25,7 @@ package format
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 	"text/tabwriter"
 
@@ -120,6 +121,24 @@ func KeepRelPos() Option {
 	return func(c *config) {
 		c.forceV2 = true
 		c.keepRelPos = true
+	}
+}
+
+// Compact formats the node as compact CUE: the authored line layout and
+// all the comments are discarded, so the formatter lays the node out
+// with its width-driven heuristics alone rather than reproducing an
+// authored layout. This option also makes the target line width effectively
+// unbounded, so the only line breaks are the ones the syntax requires,
+// such as those inside multi-line strings; specify [LineWidth] as a later
+// option to wrap the result at a given width instead.
+//
+// This option is only honored by the formatv2 formatter, so using it
+// selects that formatter even when the formatv2 experiment is disabled.
+func Compact() Option {
+	return func(c *config) {
+		c.forceV2 = true
+		c.compact = true
+		c.lineWidth = math.MaxInt
 	}
 }
 
@@ -231,6 +250,7 @@ func Source(b []byte, opt ...Option) ([]byte, error) {
 
 type config struct {
 	keepRelPos      bool // default: false
+	compact         bool // default: false
 	simplify        bool // default: false
 	languageVersion string
 
@@ -254,10 +274,14 @@ type config struct {
 // style builds the [ASTStyle] that drives the v2 pre-pass.
 func (cfg *config) style() ASTStyle {
 	return ASTStyle{
-		RelPos:        !cfg.keepRelPos,
-		InlineStructs: cfg.simplify,
-		Labels:        cfg.simplify,
-		Ellipsis:      cfg.simplify,
+		// The house-style layout hints would undo the compaction, so
+		// they are withheld for a compact layout.
+		RelPos:         !cfg.keepRelPos && !cfg.compact,
+		InlineStructs:  cfg.simplify,
+		Labels:         cfg.simplify,
+		Ellipsis:       cfg.simplify,
+		ClearPositions: cfg.compact,
+		ClearComments:  cfg.compact,
 	}
 }
 

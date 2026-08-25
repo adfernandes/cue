@@ -636,6 +636,141 @@ func TestNodeInPlace(t *testing.T) {
 	}
 }
 
+// TestCompact checks that Compact discards the authored layout and the
+// comments, laying the result out on as few lines as the syntax allows.
+func TestCompact(t *testing.T) {
+	const src = `package p
+
+// doc comment
+a: {
+	x: 1 // line comment
+	b: [1, 2, 3]
+}
+
+c: """
+	multi
+	line
+	"""
+`
+
+	testCases := []struct {
+		name string
+		opts []format.Option
+		want string
+	}{{
+		name: "compact",
+		opts: []format.Option{format.Compact()},
+		want: `package p
+a: {x: 1, b: [1, 2, 3]}
+c: """
+	multi
+	line
+	"""
+`,
+	}, {
+		// A width given after Compact still applies; the layout is
+		// broken up only as far as that width requires.
+		name: "compactThenWideWidth",
+		opts: []format.Option{format.Compact(), format.LineWidth(120)},
+		want: `package p
+a: {x: 1, b: [1, 2, 3]}
+c: """
+	multi
+	line
+	"""
+`,
+	}, {
+		name: "compactThenNarrowWidth",
+		opts: []format.Option{format.Compact(), format.LineWidth(22)},
+		want: `package p
+a: {
+	x: 1
+	b: [1, 2, 3]
+}
+c: """
+	multi
+	line
+	"""
+`,
+	}, {
+		name: "compactThenNarrowerWidth",
+		opts: []format.Option{format.Compact(), format.LineWidth(15)},
+		want: `package p
+a: {
+	x: 1
+	b: [
+		1,
+		2,
+		3,
+	]
+}
+c: """
+	multi
+	line
+	"""
+`,
+	}, {
+		// Compact sets the width itself, so a width given before it is
+		// overridden by the effectively unbounded one that it implies.
+		name: "widthThenCompact",
+		opts: []format.Option{format.LineWidth(15), format.Compact()},
+		want: `package p
+a: {x: 1, b: [1, 2, 3]}
+c: """
+	multi
+	line
+	"""
+`,
+	}, {
+		// A width repeated after Compact takes effect again.
+		name: "widthThenCompactThenWidth",
+		opts: []format.Option{format.LineWidth(15), format.Compact(), format.LineWidth(15)},
+		want: `package p
+a: {
+	x: 1
+	b: [
+		1,
+		2,
+		3,
+	]
+}
+c: """
+	multi
+	line
+	"""
+`,
+	}}
+
+	withoutFormatV2(t)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f, err := parser.ParseFile("in", src, parser.ParseComments)
+			qt.Assert(t, qt.IsNil(err))
+			got, err := format.Node(f, tc.opts...)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(string(got), tc.want))
+
+			// Node leaves the comments and positions it was given alone.
+			again, err := format.Node(f)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.StringContains(string(again), "// doc comment"))
+		})
+	}
+
+	// Compact does not hold back the rewrites that Simplify asks for.
+	t.Run("simplify", func(t *testing.T) {
+		f, err := parser.ParseFile("in", `"a": {
+	b: 1
+}
+`, parser.ParseComments)
+		qt.Assert(t, qt.IsNil(err))
+		got, err := format.Node(f, format.Compact(), format.Simplify())
+		qt.Assert(t, qt.IsNil(err))
+		qt.Assert(t, qt.Equals(string(got), "a: b: 1\n"))
+	})
+}
+
 // parseCleared parses src and clears the positions it carries, leaving
 // the layout entirely to the width-driven heuristics.
 func parseCleared(t *testing.T, src string) *ast.File {
