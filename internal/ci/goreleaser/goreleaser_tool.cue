@@ -9,9 +9,12 @@ import (
 	"tool/exec"
 	"tool/os"
 	"tool/cli"
-
-	"github.com/cue-lang/tmp/internal/ci/repo"
 )
+
+// _releaseTagPrefix is the prefix every release tag carries. Keep in
+// sync with the release workflow's tag pattern, which is a globbing
+// pattern rather than a regular expression.
+_releaseTagPrefix: "v"
 
 command: release: {
 	env: os.Environ
@@ -58,13 +61,11 @@ command: release: {
 		"goreleaser", "release", "-f", "-", "--clean",
 
 		// Only run the full release when running on GitHub actions for a release tag.
-		// Keep in sync with repo.releaseTagPattern, which is a globbing pattern
-		// rather than a regular expression.
 		//
 		// TODO: Once there is a "goreleaser test" command,
 		// switch to that instead of our workaround via "goreleaser release --snapshot".
 		// See: https://github.com/goreleaser/goreleaser/issues/2355
-		if _githubRef !~ "refs/tags/\(repo.releaseTagPrefix).*" {
+		if _githubRef !~ "refs/tags/\(_releaseTagPrefix).*" {
 			"--snapshot"
 		},
 	]

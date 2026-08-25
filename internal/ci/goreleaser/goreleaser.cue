@@ -61,6 +61,14 @@ config: {
 		disable:    false
 		prerelease: "auto"
 
+		// Releases are published where users consume them. Name the
+		// repository rather than letting goreleaser infer it from the
+		// checkout's git remote, so the build can run elsewhere.
+		github: {
+			owner: "cue-lang"
+			name:  "cue"
+		}
+
 		// We manually write the release notes, so they need to be added to a release on GitHub.
 		// We don't want to create the release from scratch without goreleaser,
 		// since goreleaser takes care of creating and uploading the release archives.
