@@ -202,10 +202,7 @@ func formatFile(file *build.File, opts []format.Option, version string, doDiff, 
 		return false, err
 	}
 
-	parseOpts := []parser.Option{parser.ParseComments}
-	if version != "" {
-		parseOpts = append(parseOpts, parser.Version(version))
-	}
+	parseOpts := []parser.Option{parser.ParseComments, parser.Version(version)}
 	syntax, err := parser.ParseFile(file.Filename, src, parseOpts...)
 	if err != nil {
 		return false, err

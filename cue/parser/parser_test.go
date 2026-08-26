@@ -1669,6 +1669,29 @@ a: b: 1
 	checkAll(f, cueversion.LanguageVersion())
 }
 
+func TestVersionOption(t *testing.T) {
+	// An empty version selects the current one, so that a caller whose
+	// version may be unset can pass it on rather than guarding the call.
+	if got := NewConfig(Version("")).Version; got != cueversion.LanguageVersion() {
+		t.Errorf("empty version = %q; want %q", got, cueversion.LanguageVersion())
+	}
+	if got := NewConfig(Version("v0.17.0")).Version; got != "v0.17.0" {
+		t.Errorf("pinned version = %q; want %q", got, "v0.17.0")
+	}
+	// It selects it rather than standing aside, so the options compose in
+	// either order, as any other option does.
+	if got := NewConfig(Version("v0.17.0"), Version("")).Version; got != cueversion.LanguageVersion() {
+		t.Errorf("empty version after a pinned one = %q; want %q", got, cueversion.LanguageVersion())
+	}
+	// A non-empty version must still be valid semver.
+	defer func() {
+		if recover() == nil {
+			t.Error(`Version("nope") did not panic`)
+		}
+	}()
+	Version("nope")
+}
+
 // Adapted from https://go-review.googlesource.com/c/go/+/559436
 func TestIssue57490(t *testing.T) {
 	src := `x: {a: int, b: int}

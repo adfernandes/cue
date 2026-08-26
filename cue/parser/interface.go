@@ -141,14 +141,19 @@ func (m Mode) apply(c *Config) {
 	c.Mode |= m
 }
 
-// Version specifies the language version to use when parsing
-// the CUE. The argument must be a valid semantic version, as
-// checked by [semver.IsValid].
+// Version specifies the language version to use when parsing the CUE. A
+// non-empty version must be a valid semantic version, as checked by
+// [semver.IsValid]; the empty string selects the current language version,
+// which is also what [NewConfig] starts from, so that a caller whose version
+// may be unset can pass it on without guarding the call.
 //
 // The version is recorded in the [cuelang.org/go/cue/token.File] holding the
 // parsed source, so every position reports it; see
 // [cuelang.org/go/cue/token.Pos.LanguageVersion].
 func Version(v string) Option {
+	if v == "" {
+		v = cueversion.LanguageVersion()
+	}
 	if !semver.IsValid(v) {
 		panic(fmt.Errorf("invalid language version %q", v))
 	}

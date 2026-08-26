@@ -176,9 +176,7 @@ func (fsys *fsIOFS) ReadCUEFile(p string, cfg parser.Config) (*ast.File, error) 
 		cache.entries[key] = fileCacheEntry{nil, err, nil}
 		return nil, err
 	}
-	if fsys.languageVersion != "" {
-		cfg = cfg.Apply(parser.Version(fsys.languageVersion))
-	}
+	cfg = cfg.Apply(parser.Version(fsys.languageVersion))
 	return fsys.fileCache.getCUESyntax(&build.File{
 		Filename: absPath,
 		Encoding: build.CUE,

@@ -229,10 +229,7 @@ func Source(b []byte, opt ...Option) ([]byte, error) {
 
 	// Parse at the configured language version, so that syntax which only
 	// some versions accept is parsed the way the caller means it.
-	parseOpts := []parser.Option{parser.ParseComments}
-	if cfg.languageVersion != "" {
-		parseOpts = append(parseOpts, parser.Version(cfg.languageVersion))
-	}
+	parseOpts := []parser.Option{parser.ParseComments, parser.Version(cfg.languageVersion)}
 	f, err := parser.ParseFile("", b, parseOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %s", err)

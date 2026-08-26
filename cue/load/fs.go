@@ -443,9 +443,7 @@ func (fs *overlayIOFS) ReadCUEFile(path string, cfg parser.Config) (*ast.File, e
 			return nil, err
 		}
 	}
-	if fs.languageVersion != "" {
-		cfg = cfg.Apply(parser.Version(fs.languageVersion))
-	}
+	cfg = cfg.Apply(parser.Version(fs.languageVersion))
 	return fs.fs.getCUESyntax(&build.File{
 		Filename: fpath,
 		Encoding: build.CUE,
