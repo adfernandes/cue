@@ -12,6 +12,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/lsp/fscache"
@@ -29,7 +30,7 @@ func TestCUECacheFSURI(t *testing.T) {
 		uri := protocol.URIFromPath(f)
 		fh, err := fs.ReadFile(uri)
 		qt.Assert(t, qt.IsNil(err))
-		ast, cfg, err := fh.ReadCUE(parser.NewConfig())
+		ast, bf, err := fh.ReadCUE(parser.NewConfig())
 
 		if strings.HasSuffix(f, "bad.cue") {
 			qt.Assert(t, qt.IsNil(ast))
@@ -45,7 +46,7 @@ func TestCUECacheFSURI(t *testing.T) {
 			qt.Assert(t, qt.IsNotNil(ast))
 			qt.Assert(t, qt.DeepEquals(fh.Content(), []byte(fileContentGood)))
 			qt.Assert(t, qt.IsNil(err))
-			qt.Assert(t, qt.Equals(cfg.Mode, parser.ParseComments))
+			qt.Assert(t, qt.Equals(bf.Encoding, build.CUE))
 			// 2 decls: 1 for the package one for x, because the
 			// requested mode is always modified to
 			// [parser.ParseComments].
@@ -102,9 +103,9 @@ func TestOverlayFSURI(t *testing.T) {
 
 		if f == pathModifiedAbs {
 			qt.Assert(t, qt.DeepEquals(fh.Content(), content))
-			ast, cfg, err := fh.ReadCUE(parser.NewConfig())
+			ast, bf, err := fh.ReadCUE(parser.NewConfig())
 			qt.Assert(t, qt.IsNotNil(err))
-			qt.Assert(t, qt.Equals(cfg.Mode, parser.ParseComments))
+			qt.Assert(t, qt.Equals(bf.Encoding, build.CUE))
 			// The three decls are:
 			// 1. The fake injected package declaration
 			// 2. A bad decl ("hello")
@@ -118,9 +119,9 @@ func TestOverlayFSURI(t *testing.T) {
 
 		} else {
 			qt.Assert(t, qt.DeepEquals(fh.Content(), []byte(fileContentGood)))
-			ast, cfg, err := fh.ReadCUE(parser.NewConfig())
+			ast, bf, err := fh.ReadCUE(parser.NewConfig())
 			qt.Assert(t, qt.IsNil(err))
-			qt.Assert(t, qt.Equals(cfg.Mode, parser.ParseComments))
+			qt.Assert(t, qt.Equals(bf.Encoding, build.CUE))
 			// 2 decls: 1 for the package one for x, because the
 			// requested mode is always modified to
 			// [parser.ParseComments].
@@ -268,15 +269,54 @@ func TestReadCUENonCUE(t *testing.T) {
 		fh, err := fs.ReadFile(uri)
 		qt.Assert(t, qt.IsNil(err))
 
-		ast1, cfg1, err := fh.ReadCUE(parser.NewConfig())
+		ast1, bf, err := fh.ReadCUE(parser.NewConfig())
 		qt.Assert(t, qt.IsNil(err))
 		qt.Assert(t, qt.IsNotNil(ast1))
-		qt.Assert(t, qt.IsTrue(cfg1.IsValid()))
+		qt.Assert(t, qt.Not(qt.Equals(bf.Encoding, build.CUE)))
 
 		ast2, _, err := fh.ReadCUE(parser.NewConfig())
 		qt.Assert(t, qt.IsNil(err))
 		qt.Assert(t, qt.Equals(ast1, ast2), qt.Commentf("%s: repeated reads must return the same AST", name))
 	}
+}
+
+// TestReadCUEConfigChange tests that the cached AST is keyed by the
+// parser config: reading with a different config re-parses, so an
+// imports-only AST is never returned to a caller requesting a full
+// parse, and vice versa.
+func TestReadCUEConfigChange(t *testing.T) {
+	const content = `package foo
+
+import "strings"
+
+x: strings.ToUpper("hi")
+`
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "a.cue"), content)
+	forceMFTUpdateOnWindows(t, dir)
+
+	fs := fscache.NewCUECachedFS()
+	fh, err := fs.ReadFile(protocol.URIFromPath(filepath.Join(dir, "a.cue")))
+	qt.Assert(t, qt.IsNil(err))
+
+	importsOnly, _, err := fh.ReadCUE(parser.NewConfig(parser.ImportsOnly))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.IsNotNil(importsOnly))
+	// 2 decls: the package clause and the import decl; parsing
+	// stopped before x.
+	qt.Assert(t, qt.Equals(len(importsOnly.Decls), 2))
+
+	full, _, err := fh.ReadCUE(parser.NewConfig(parser.ParseComments))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.IsNotNil(full))
+	qt.Assert(t, qt.Not(qt.Equals(full, importsOnly)))
+	// 3 decls: the package clause, the import decl, and x.
+	qt.Assert(t, qt.Equals(len(full.Decls), 3))
+
+	// Re-reading with an equal config is a cache hit.
+	fullAgain, _, err := fh.ReadCUE(parser.NewConfig(parser.ParseComments))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(fullAgain, full))
 }
 
 // TestReadCUENoDecls tests that a CUE file with no declarations

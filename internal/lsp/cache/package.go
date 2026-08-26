@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/inject/embed"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
@@ -412,15 +413,15 @@ func (pkg *Package) update(modpkg *modpkgload.Package) error {
 	extv := m.extValidator
 
 	for i, modpkgFile := range modpkgFiles {
-		evalASTs[i] = modpkgFile.Syntax
 		fileUri := joinURI(m.rootURI, modpkgFile.FilePath)
 		delete(m.dirtyFiles, fileUri)
 
-		isCue = isCue && strings.HasSuffix(string(fileUri), ".cue")
+		syntax, bf, _, _, err := m.ReadCUEFile(fileUri)
+		isCue = isCue && bf != nil && bf.Encoding == build.CUE
+		evalASTs[i] = syntax
 
 		file := w.ensureFile(fileUri)
 		filesSet[fileUri] = file
-		syntax := modpkgFile.Syntax
 		var content []byte
 		if syntax == nil {
 			// Even without an AST, the file's content allows errors
@@ -432,7 +433,9 @@ func (pkg *Package) update(modpkg *modpkgload.Package) error {
 		file.setSyntax(syntax, content)
 
 		var errs []error
-		if modpkgFile.SyntaxError != nil {
+		if err != nil {
+			errs = append(errs, err)
+		} else if modpkgFile.SyntaxError != nil {
 			errs = append(errs, modpkgFile.SyntaxError)
 		}
 

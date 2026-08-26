@@ -34,11 +34,10 @@ type FileHandle interface {
 	// URI is the URI for this file handle.
 	URI() protocol.DocumentURI
 	// ReadCUE attempts to parse the file content as CUE. The config
-	// supplied governs all parts of the parsing config apart from the
-	// Mode, which is forcibly set to ParseComments. If parsing fails,
-	// a partial AST may be returned along with the error: whenever
-	// the returned AST is non-nil, its positions are valid.
-	ReadCUE(config parser.Config) (*ast.File, parser.Config, error)
+	// supplied governs all parts of the parsing config. If parsing
+	// fails, a partial AST may be returned along with the error:
+	// whenever the returned AST is non-nil, its positions are valid.
+	ReadCUE(config parser.Config) (*ast.File, *build.File, error)
 	// Version returns the file version, as defined by the LSP client.
 	Version() int32
 	// Content returns the contents of a file. The byte slice returned
@@ -68,7 +67,6 @@ type cueFileParser struct {
 	// content and buildFile are immutable
 	content   []byte
 	buildFile *build.File
-	// TODO: will need to add the means to get the buildFile out.
 
 	mu     sync.Mutex
 	config parser.Config
@@ -89,30 +87,31 @@ type cueFileParser struct {
 // an import path can be made for every cue file within a module,
 // which means that [modpkgload.LoadPackages] can always be used to
 // load a package and resolve its imports.
-func (p *cueFileParser) ReadCUE(config parser.Config) (syntax *ast.File, cfg parser.Config, err error) {
+func (p *cueFileParser) ReadCUE(config parser.Config) (syntax *ast.File, bf *build.File, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.config.IsValid() {
-		return p.ast, p.config, p.err
+	bf = p.buildFile
+	if bf == nil {
+		return nil, nil, nil
 	}
 
-	bf := p.buildFile
-	if bf == nil {
-		return nil, parser.Config{}, nil
+	if p.config.IsValid() && p.config == config {
+		return p.ast, bf, p.err
 	}
+
+	p.config = config
+	p.ast = nil
+	p.err = nil
 
 	filename := bf.Filename
 	content := p.content
 
 	switch bf.Encoding {
 	case build.CUE:
-		cfg = parser.NewConfig(config)
-		cfg.Mode = parser.ParseComments
-		syntax, err = parser.ParseFile(filename, content, cfg)
+		syntax, err = parser.ParseFile(filename, content, config)
 
 	case build.JSON:
-		cfg = parser.NewConfig(config)
 		var expr ast.Expr
 		expr, err = parser.ParseExpr(filename, content)
 		syntax = internal.ToFile(expr, true)
@@ -123,11 +122,10 @@ func (p *cueFileParser) ReadCUE(config parser.Config) (syntax *ast.File, cfg par
 		json.PatchExpr(syntax, nil)
 
 	case build.YAML:
-		cfg = parser.NewConfig(config)
 		syntax, err = goccy.ExtractLenient(filename, content)
 
 	default:
-		return nil, parser.Config{}, nil
+		return nil, bf, nil
 	}
 
 	if syntax != nil && !syntax.Pos().HasAbsPos() {
@@ -171,11 +169,10 @@ func (p *cueFileParser) ReadCUE(config parser.Config) (syntax *ast.File, cfg par
 		syntax.Pos().File().SetContent(content)
 	}
 
-	p.config = cfg
 	p.ast = syntax
 	p.err = err
 
-	return syntax, cfg, err
+	return syntax, bf, err
 }
 
 func phantomPackageName(filename string) string {

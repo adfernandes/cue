@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/golangorgx/gopls/protocol"
 	"cuelang.org/go/internal/lsp/extvalidator"
@@ -178,17 +179,18 @@ func (m *Module) delete() {
 // ReadCUEFile attempts to read the file, using the language version
 // extracted from the module's Language.Version field. This will fail
 // if the module file can't be loaded.
-func (m *Module) ReadCUEFile(file protocol.DocumentURI) (*ast.File, parser.Config, fscache.FileHandle, error) {
+func (m *Module) ReadCUEFile(file protocol.DocumentURI) (*ast.File, *build.File, parser.Config, fscache.FileHandle, error) {
 	if err := m.ReloadModule(); err != nil {
-		return nil, parser.Config{}, nil, err
+		return nil, nil, parser.Config{}, nil, err
 	}
 	fh, err := m.workspace.overlayFS.ReadFile(file)
 	if err != nil {
-		return nil, parser.Config{}, nil, err
+		return nil, nil, parser.Config{}, nil, err
 	}
 	versionOption := parser.Version(m.modFile.Language.Version)
-	parsedFile, config, err := fh.ReadCUE(parser.NewConfig(versionOption))
-	return parsedFile, config, fh, err
+	cfg := parser.NewConfig(versionOption, parser.ParseComments)
+	parsedFile, bf, err := fh.ReadCUE(cfg)
+	return parsedFile, bf, cfg, fh, err
 }
 
 // FindImportPathForFile calculates the import path and directories
@@ -209,7 +211,7 @@ func (m *Module) FindImportPathForFile(file protocol.DocumentURI) (*ast.ImportPa
 	}
 
 	w := m.workspace
-	parsedFile, _, _, err := m.ReadCUEFile(file)
+	parsedFile, _, _, _, err := m.ReadCUEFile(file)
 	if parsedFile == nil {
 		w.debugLogf("%v Cannot read file %v: %v", m, file, err)
 		return nil, nil, err

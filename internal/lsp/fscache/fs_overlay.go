@@ -81,8 +81,8 @@ func (entry *overlayFileEntry) open() *overlayFile {
 }
 
 // ReadCUE implements [FileHandle]
-func (entry *overlayFileEntry) ReadCUE(config parser.Config) (syntax *ast.File, cfg parser.Config, err error) {
-	syntax, cfg, err = entry.cueFileParser.ReadCUE(config)
+func (entry *overlayFileEntry) ReadCUE(config parser.Config) (syntax *ast.File, bf *build.File, err error) {
+	syntax, bf, err = entry.cueFileParser.ReadCUE(config)
 	if syntax != nil {
 		file := syntax.Pos().File()
 		if file != nil {

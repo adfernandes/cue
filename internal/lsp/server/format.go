@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 
+	"cuelang.org/go/cue/build"
 	cueformat "cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 
@@ -29,7 +30,7 @@ func (s *server) Formatting(ctx context.Context, params *protocol.DocumentFormat
 	defer done()
 
 	uri := params.TextDocument.URI
-	parsedFile, config, fh, err := s.workspace.ReadCUEFile(uri)
+	parsedFile, bf, config, fh, err := s.workspace.ReadCUEFile(uri)
 	if err != nil {
 		s.client.ShowMessage(ctx, &protocol.ShowMessageParams{
 			Type:    protocol.Info,
@@ -39,10 +40,7 @@ func (s *server) Formatting(ctx context.Context, params *protocol.DocumentFormat
 	} else if parsedFile == nil {
 		s.debugLog(fmt.Sprintf("%v is not a CUE file", uri))
 		return nil, nil
-	} else if config.Mode != parser.ParseComments {
-		// ReadCUE parses plain CUE files with ParseComments; any
-		// other mode means the file is a different encoding
-		// (e.g. JSON or YAML) which we do not format as CUE.
+	} else if bf.Encoding != build.CUE {
 		s.debugLog(fmt.Sprintf("cannot format %v: not a plain CUE file", uri))
 		return nil, nil
 	}

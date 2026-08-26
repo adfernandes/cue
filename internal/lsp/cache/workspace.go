@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
@@ -1213,7 +1214,7 @@ func (w *Workspace) findPackage(modRootURI protocol.DocumentURI, ip ast.ImportPa
 // file as best as possbile. If it can be established that the file is
 // within a valid module, then the module's language version will
 // used. Otherwise the file will be parsed as a standalone file.
-func (w *Workspace) ReadCUEFile(fileUri protocol.DocumentURI) (*ast.File, parser.Config, fscache.FileHandle, error) {
+func (w *Workspace) ReadCUEFile(fileUri protocol.DocumentURI) (*ast.File, *build.File, parser.Config, fscache.FileHandle, error) {
 	// We do not attempt to find and re-use cached ASTs in [w.files]
 	// because that state offers no access to the relevent
 	// [parser.Config]. The [w.overlayFS] will be caching the AST of
@@ -1228,20 +1229,19 @@ func (w *Workspace) ReadCUEFile(fileUri protocol.DocumentURI) (*ast.File, parser
 	case errModuleNotFound, ErrBadModule:
 		fh, err := w.overlayFS.ReadFile(fileUri)
 		if err != nil {
-			return nil, parser.Config{}, nil, err
+			return nil, nil, parser.Config{}, nil, err
 		}
 
-		parsedFile, config, err := fh.ReadCUE(standaloneParserConfig)
+		parsedFile, bf, err := fh.ReadCUE(standaloneParserConfig)
 		if err != nil {
-			return nil, parser.Config{}, nil, err
+			return nil, nil, parser.Config{}, nil, err
 		}
 
-		return parsedFile, config, fh, nil
+		return parsedFile, bf, standaloneParserConfig, fh, nil
 
 	default:
-		return nil, parser.Config{}, nil, err
+		return nil, nil, parser.Config{}, nil, err
 	}
-
 }
 
 // isUnhandledPackage reports whether pkg is either a stdlib package,
