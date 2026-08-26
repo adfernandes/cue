@@ -211,20 +211,19 @@ func constraintMaxItems(key string, n cue.Value, s *state) {
 }
 
 func constraintMinItems(key string, n cue.Value, s *state) {
-	a := []ast.Expr{}
 	p, err := uint64Value(n)
 	if err != nil {
 		s.errf(n, "invalid uint")
 	}
 	s.minItems = p
-	for ; p > 0; p-- {
-		a = append(a, top())
+	if p == 0 {
+		// Every array satisfies the constraint, so all it tells us is
+		// that this is one.
+		s.add(n, arrayType, ast.NewList(&ast.Ellipsis{}))
+		return
 	}
-	s.add(n, arrayType, ast.NewList(append(a, &ast.Ellipsis{})...))
-
-	// TODO: use this once constraint resolution is properly implemented.
-	// list := s.addImport(n, "list")
-	// s.addConjunct(n, ast.NewCall(ast.NewSel(list, "MinItems"), clearPos(s.uint(n))))
+	list := s.addImport(n, "list")
+	s.add(n, arrayType, ast.NewCall(ast.NewSel(list, "MinItems"), clearPos(s.uint(n))))
 }
 
 func constraintUniqueItems(key string, n cue.Value, s *state) {

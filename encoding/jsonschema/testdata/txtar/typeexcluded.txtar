@@ -114,7 +114,7 @@ e1?: "cover" | "contain"
 
 // none
 e2?: "none"
-e3?: list.UniqueItems() & [_, ...] & [...strings.MinRunes(1)]
+e3?: list.UniqueItems() & list.MinItems(1) & [...strings.MinRunes(1)]
 
 // Main authors of the plugin
 e4?: [...string]
@@ -126,7 +126,7 @@ e7?: matchN(>=1, [
 		disableFix?: bool
 		...
 	} & {
-		ignoreMediaFeatureNames?: list.UniqueItems() & [_, ...] & [...string]
+		ignoreMediaFeatureNames?: list.MinItems(1) & list.UniqueItems() & [...string]
 		...
 	}
 ])

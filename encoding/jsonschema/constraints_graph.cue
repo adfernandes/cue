@@ -215,6 +215,13 @@ dataNodes: {
 		consumers:   ["additionalItems"]
 	}
 
+	MinItems: {
+		description: "Minimum array length (decides how a positional schema prefix is encoded)."
+		stateField:  "s.minItems"
+		producers:   ["minItems"]
+		consumers:   ["items", "prefixItems"]
+	}
+
 	ListPrefixItems: {
 		description: "PrefixItems list literal (used by items/additionalItems)."
 		stateField:  "s.list"
