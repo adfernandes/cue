@@ -127,23 +127,20 @@ close({
 		[0]: int
 		[1]: int
 	} & list.MaxItems(2)
-	requiredTuple?:     list.MinItems(2) & [int, int, ...]
+	requiredTuple?:     [int, int, ...]
 	overRequiredTuple?: list.MinItems(3) & [int, int, ...]
-	partialTuple?: list.MinItems(1) & {
-		[...]
-		[0]: int
+	partialTuple?: {
+		[int, ...]
 		[1]: int
 		[2]: int
 	}
-	partialTupleTail?: list.MinItems(1) & {
-		[...]
-		[0]:   int
+	partialTupleTail?: {
+		[int, ...]
 		[1]:   int
 		[>=2]: string
 	}
-	closedPartialTuple?: list.MinItems(1) & {
-		[...]
-		[0]: int
+	closedPartialTuple?: {
+		[int, ...]
 		[1]: int
 	} & list.MaxItems(2)
 	bigMinItems?: list.MinItems(10000)
@@ -232,13 +229,11 @@ closedTuple: invalid value [1,2,3] (does not satisfy list.MaxItems(2)): len(list
     generated.cue:26:20
     test/err-closed-tuple-too-long.json:2:17
 -- out/decode/testerr/err-partial-tuple-too-short --
-partialTuple: invalid value [] (does not satisfy list.MinItems(1)): len(list) < MinItems(1) (0 < 1):
-    generated.cue:29:17
-    generated.cue:29:31
-    test/err-partial-tuple-too-short.json:2:18
+partialTuple: incompatible list lengths (0 and 1):
+    generated.cue:30:3
 -- out/decode/testerr/err-required-tuple-too-short --
 requiredTuple: incompatible list lengths (1 and 2):
-    generated.cue:27:41
+    generated.cue:27:22
 -- out/decode/testerr/err-tuple-elem --
 tuple.0: conflicting values 1 and string (mismatched types int and string):
     generated.cue:5:1
@@ -247,18 +242,16 @@ tuple.0: conflicting values 1 and string (mismatched types int and string):
     test/err-tuple-elem.json:2:12
 -- out/decode/testerr/err-closed-partial-tuple-too-long --
 closedPartialTuple: invalid value [1,2,3] (does not satisfy list.MaxItems(2)): len(list) > MaxItems(2) (3 > 2):
-    generated.cue:45:6
-    generated.cue:41:23
-    generated.cue:45:20
+    generated.cue:42:6
+    generated.cue:39:23
+    generated.cue:42:20
     test/err-closed-partial-tuple-too-long.json:2:24
 -- out/decode/testerr/err-closed-partial-tuple-too-short --
-closedPartialTuple: invalid value [] (does not satisfy list.MinItems(1)): len(list) < MinItems(1) (0 < 1):
-    generated.cue:41:23
-    generated.cue:41:37
-    test/err-closed-partial-tuple-too-short.json:2:24
+closedPartialTuple: incompatible list lengths (0 and 1):
+    generated.cue:40:3
 -- out/decode/testerr/err-partial-tuple-tail-elem --
 partialTupleTail.2: conflicting values 3 and string (mismatched types int and string):
     generated.cue:5:1
-    generated.cue:36:3
-    generated.cue:39:10
+    generated.cue:35:3
+    generated.cue:37:10
     test/err-partial-tuple-tail-elem.json:2:29

@@ -501,6 +501,19 @@ func (s *state) add(n cue.Value, t coreType, x ast.Expr) {
 	s.types[t].add(n, x)
 }
 
+// removeMinItems drops the constraint generated for the "minItems"
+// keyword. It's called when another constraint turns out to imply it.
+func (s *state) removeMinItems() {
+	if s.minItemsExpr == nil {
+		return
+	}
+	c := &s.types[arrayType]
+	c.constraints = slices.DeleteFunc(c.constraints, func(e ast.Expr) bool {
+		return e == s.minItemsExpr
+	})
+	s.minItemsExpr = nil
+}
+
 // hasListPrefix reports whether a positional schema prefix has been
 // established by the array form of "items" or by "prefixItems".
 func (s *state) hasListPrefix() bool {
@@ -550,14 +563,16 @@ type state struct {
 	patterns []ast.Expr
 
 	// list holds the list literal generated for the array form of
-	// "items" or for "prefixItems", when every element of the prefix is
-	// guaranteed to be present. Exactly one of list and listStruct is
-	// non-nil once such a keyword has been seen.
+	// "items" or for "prefixItems", holding the elements of the prefix
+	// that are guaranteed to be present. It's non-nil once such a
+	// keyword has been seen.
 	list *ast.ListLit
 
-	// listStruct holds the index-constraint form generated for the same
-	// keywords when the instance is allowed to be shorter than the
-	// prefix; see [constraintPrefixItems].
+	// listStruct holds the struct generated for the same keywords when
+	// the instance is allowed to be shorter than the prefix: it embeds
+	// list and adds an index constraint for each remaining element; see
+	// [constraintPrefixItems]. It's nil when list holds the whole
+	// prefix.
 	listStruct *ast.StructLit
 
 	// listPrefixLen holds the number of positional schemas in list or
@@ -567,6 +582,10 @@ type state struct {
 	// minItems holds the value of the "minItems" keyword, or zero if
 	// it's not present, which is also its default.
 	minItems uint64
+
+	// minItemsExpr holds the constraint generated for a non-zero
+	// "minItems", so that [state.removeMinItems] can drop it again.
+	minItemsExpr ast.Expr
 
 	// listItemsIsArray keeps track of whether the
 	// value of the "items" keyword is an array.

@@ -71,10 +71,11 @@ func setAdditionalItems(n cue.Value, elem ast.Expr, s *state) {
 }
 
 // setAdditionalItemsStruct is the [setAdditionalItems] counterpart for
-// the index-constraint form of the prefix (see [constraintPrefixItems]).
+// a prefix that ends in index constraints (see [constraintPrefixItems]).
 func setAdditionalItemsStruct(n cue.Value, elem ast.Expr, s *state) {
 	if isTop(elem) {
-		// Nothing to do: the embedded open list already allows anything.
+		// Nothing to do: the embedded list is open, so it already
+		// allows anything.
 		return
 	}
 	if isErrorCall(elem) {
@@ -179,25 +180,34 @@ func constraintPrefixItems(key string, n cue.Value, s *state) {
 		a = append(a, v)
 	}
 	s.listPrefixLen = len(a)
-	if uint64(len(a)) <= s.minItems {
-		// Every element of the prefix is guaranteed to be present,
-		// so a regular CUE list literal expresses the constraint exactly.
-		s.list = ast.NewList(a...)
-		s.list.Elts = append(s.list.Elts, &ast.Ellipsis{})
+	// The first "minItems" elements of the prefix are guaranteed to be
+	// present, so a CUE list literal expresses those exactly, and when
+	// it holds at least as many elements as "minItems" requires, it says
+	// everything that the list.MinItems constraint does.
+	lit := len(a)
+	if uint64(lit) >= s.minItems {
+		lit = int(s.minItems)
+		s.removeMinItems()
+	}
+	elts := make([]ast.Expr, 0, lit+1)
+	elts = append(elts, a[:lit]...)
+	elts = append(elts, &ast.Ellipsis{})
+	s.list = ast.NewList(elts...)
+	if lit == len(a) {
 		s.add(n, arrayType, s.list)
 		return
 	}
-	// The instance is allowed to be shorter than the prefix, and a
-	// positional schema applies only when an element is actually
-	// present at that index. A list literal cannot express that, but
-	// an index pattern constraint can, because it holds vacuously
-	// when the list is too short.
-	decls := make([]ast.Decl, 0, len(a)+1)
-	decls = append(decls, &ast.EmbedDecl{Expr: ast.NewList(&ast.Ellipsis{})})
-	for i, elem := range a {
+	// The instance is allowed to be shorter than the rest of the prefix,
+	// and a positional schema applies only when an element is actually
+	// present at that index. A list literal cannot express that, but an
+	// index pattern constraint can, because it holds vacuously when the
+	// list is too short.
+	decls := make([]ast.Decl, 0, len(a)-lit+1)
+	decls = append(decls, &ast.EmbedDecl{Expr: s.list})
+	for i := lit; i < len(a); i++ {
 		decls = append(decls, &ast.Field{
 			Label: indexPattern(ast.NewLit(token.INT, strconv.Itoa(i))),
-			Value: elem,
+			Value: a[i],
 		})
 	}
 	s.listStruct = &ast.StructLit{Elts: decls}
@@ -223,7 +233,10 @@ func constraintMinItems(key string, n cue.Value, s *state) {
 		return
 	}
 	list := s.addImport(n, "list")
-	s.add(n, arrayType, ast.NewCall(ast.NewSel(list, "MinItems"), clearPos(s.uint(n))))
+	// Keep hold of the constraint: the encoding chosen for a positional
+	// schema prefix can turn out to imply it.
+	s.minItemsExpr = ast.NewCall(ast.NewSel(list, "MinItems"), clearPos(s.uint(n)))
+	s.add(n, arrayType, s.minItemsExpr)
 }
 
 func constraintUniqueItems(key string, n cue.Value, s *state) {

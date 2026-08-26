@@ -665,6 +665,21 @@ func (g *generator) makeItem0(v cue.Value, mode closedMode) item {
 				},
 			}
 		}
+		if v.IncompleteKind() == cue.ListKind {
+			// It's a conjunction of lists: likewise, see all the
+			// positional constraints in one coherent view, so that a
+			// literal prefix in one arm and index patterns in another
+			// (see [constraintPrefixItems]) end up in a single
+			// prefixItems keyword rather than one per arm. Validator
+			// calls such as list.MaxItems aren't visible in that view,
+			// so they're still processed individually.
+			if validators, ok := g.listValidators(args, mode); ok {
+				elems := []internItem{
+					g.unique.intern(g.makeListItem(v, mode)),
+				}
+				return &itemAllOf{elems: append(elems, validators...)}
+			}
+		}
 		// TODO technically the closedness mode should be passed down
 		// through conjunctions, but we don't do that because have the
 		// case above for passing it down for struct kinds, and when the
@@ -1583,6 +1598,42 @@ func (g *generator) makeListItem(v cue.Value, mode closedMode) item {
 	return a
 }
 
+// listValidators returns the items for the validators found among the
+// arms of a list conjunction, given the arms as returned by
+// [cue.Value.Expr]. It reports false if the conjunction holds anything
+// other than list values and validators, such as a reference, in which
+// case the arms are better processed individually.
+func (g *generator) listValidators(args []cue.Value, mode closedMode) (validators []internItem, ok bool) {
+	for _, v := range args {
+		switch op, args := v.Expr(); op {
+		case cue.AndOp:
+			vs, ok := g.listValidators(args, mode)
+			if !ok {
+				return nil, false
+			}
+			validators = append(validators, vs...)
+		case cue.CallOp:
+			validators = append(validators, g.makeItem(v, mode))
+		case cue.NoOp, cue.SelectorOp:
+			if pkg, _ := v.ReferencePath(); !pkg.Exists() {
+				// A list literal or a struct holding index patterns.
+				continue
+			}
+			// A reference to a validator function used without
+			// parentheses, such as list.UniqueItems, is a validator
+			// too; any other reference needs a definition.
+			it := g.makeCallItem(v, []cue.Value{v}, mode)
+			if it == nil {
+				return nil, false
+			}
+			validators = append(validators, g.unique.intern(it))
+		default:
+			return nil, false
+		}
+	}
+	return validators, true
+}
+
 // listMinLen returns the number of elements that the list v is
 // guaranteed to hold. It reports false if that can't be determined.
 func listMinLen(v cue.Value, open bool) (int64, bool) {
@@ -1719,11 +1770,17 @@ func classifyIndexPattern(p cue.Value) (kind indexPatternKind, index int64) {
 	return indexPatternUnknown, 0
 }
 
-// unifyOptional is like [cue.Value.Unify] except that it treats
-// a zero a as the identity.
+// unifyOptional is like [cue.Value.Unify] except that it treats a
+// zero value, and top, as the identity. Skipping top isn't only an
+// optimization: the arms of the conjunction that Unify would produce
+// no longer report their [cue.Value.ReferencePath], so a reference
+// would be inlined instead of becoming a definition.
 func unifyOptional(a, b cue.Value) cue.Value {
-	if !a.Exists() {
+	if !a.Exists() || a.IncompleteKind() == cue.TopKind {
 		return b
+	}
+	if b.IncompleteKind() == cue.TopKind {
+		return a
 	}
 	return a.Unify(b)
 }
