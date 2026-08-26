@@ -167,7 +167,17 @@ func (inst *Instance) RelPath(f *File) string {
 	return p
 }
 
-// ID returns the package ID unique for this module.
+// ID returns the package ID unique for this module. It is also the scope of the
+// package's hidden fields, as selected by [cuelang.org/go/cue.Hid].
+//
+// The ID is not always an import path; it is the first of:
+//
+//   - [Instance.CanonicalID], when set
+//   - [Instance.ImportPath], such as "mod.com@v0:b"
+//   - "_", when the instance has no package name
+//   - [Instance.Module] and [Instance.PkgName] joined by a colon, such as
+//     "mod.com@v0:b" for files named directly rather than by import path,
+//     or ":b" for "package b" outside of any module
 func (inst *Instance) ID() string {
 	if s := inst.CanonicalID; s != "" {
 		return s

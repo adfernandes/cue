@@ -96,6 +96,9 @@ func Filename(filename string) BuildOption {
 // influences the scope in which identifiers occurring in the input CUE are
 // defined. Passing the empty string is equal to not specifying this option.
 //
+// The import path also becomes the identifier of the resulting package, and so
+// the scope of its hidden fields; see [Hid].
+//
 // This option is typically not necessary when building using a build.Instance,
 // but takes precedence otherwise.
 func ImportPath(path string) BuildOption {

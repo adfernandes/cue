@@ -237,8 +237,8 @@ func (sel Selector) Compare(other Selector) int {
 	return compareSel(sel.sel, other.sel)
 }
 
-// PkgPath reports the package path associated with a hidden label or "" if
-// this is not a hidden label.
+// PkgPath reports the package scope associated with a hidden label, in the form
+// described by [Hid], or "" if this is not a hidden label.
 func (sel Selector) PkgPath() string {
 	s, _ := sel.sel.(scopedSelector)
 	return s.pkg
@@ -538,8 +538,20 @@ func (p Path) Err() error {
 }
 
 // Hid returns a selector for a hidden field. It panics if pkg is empty.
-// Hidden fields are scoped by package, and pkg indicates for which package
-// the hidden field must apply. For anonymous packages, it must be set to "_".
+//
+// Hidden fields are scoped by package, and pkg indicates for which package the
+// hidden field must apply. It must be the identifier of that package as
+// reported by [cuelang.org/go/cue/build.Instance.ID], which documents the forms
+// it takes. Note that it is not in general an import path; for source compiled
+// outside of any module declaring "package b" it is ":b".
+//
+// For a value which represents a package, the identifier is available via
+// [Value.BuildInstance], and it also scopes the hidden fields nested within
+// that value:
+//
+//	v.LookupPath(MakePath(Hid("_a", v.BuildInstance().ID())))
+//
+// The [ImportPath] build option sets the identifier directly.
 func Hid(name, pkg string) Selector {
 	if !ast.IsValidIdent(name) {
 		panic(fmt.Sprintf("invalid identifier %s", name))
