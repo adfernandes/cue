@@ -12,7 +12,7 @@ cmp stderr d-stderr
 
 -- a-stderr --
 cannot import package as definition identifier:
-    ./a/a.cue:3:11
+    ./a/invalid.cue:3:11
 -- b-stdout --
 package b
 
@@ -28,12 +28,12 @@ _x
 -- d-stderr --
 import failed: invalid package name #x:
     ./d/d.cue:3:8
-    ./other2/other.cue:1:11
+    ./other2/invalid.cue:1:11
 -- cue.mod/module.cue --
 module: "test.example"
 language: version: "v0.11.0"
 
--- a/a.cue --
+-- a/invalid.cue --
 package a
 
 import #s "strings"
@@ -66,7 +66,7 @@ package _x
 
 foo: "bar"
 
--- other2/other.cue --
+-- other2/invalid.cue --
 package #x
 
 foo: "bar"

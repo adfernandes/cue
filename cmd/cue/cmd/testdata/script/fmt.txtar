@@ -10,8 +10,8 @@ cmp issue1744/invalid.cue issue1744/invalid.cue.orig
 
 -- expect-stderr --
 expected 'STRING', found '.':
-    ./fmt/error.cue:1:9
--- fmt/error.cue --
+    ./fmt/invalid.cue:1:9
+-- fmt/invalid.cue --
 import a.b "foo"
 
 a: 2

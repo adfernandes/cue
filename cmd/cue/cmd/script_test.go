@@ -81,10 +81,6 @@ func TestLatest(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if bytes.HasPrefix(a.Comment, []byte("!")) {
-			return nil
-		}
-
 		for _, f := range a.Files {
 			t.Run(path.Join(fullpath, f.Name), func(t *testing.T) {
 				if !strings.HasSuffix(f.Name, ".cue") || path.Base(f.Name) == "invalid.cue" {
