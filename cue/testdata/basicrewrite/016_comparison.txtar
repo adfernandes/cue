@@ -31,6 +31,8 @@ lists: {
 	t7: [{a: 1}] == ([...{a: 1}] & [_])         @test(eq, true)
 	t8: [{a: 1}] != [...{a: 1}]                 @test(eq, true) // true as it is not equal
 	t9: [...int] == [...string]                 @test(eq, true) // additional types are irrelevant.
+	t10: [1] == [1.0]                           @test(eq:todo, true) // int and float compare numerically
+	t11: [[1.0]] == [[1]]                       @test(eq:todo, true)
 
 	// Non-equal lists
 	f1: [1, 2, 3] == [1, 2, 4]        @test(eq, false)
@@ -39,6 +41,7 @@ lists: {
 	f4: [] == [1]                     @test(eq, false)
 	f5: [1, 2] == [1, "2"]            @test(eq, false)  // different types
 	f6: [*1 | 2 | 3] == [*2 | 3 | 4]  @test(eq, false)
+	f7: [1.5] == [1]                  @test(eq, false)
 
 
 	// TODO: types can never match. This could be a permanent error.
@@ -76,6 +79,8 @@ structs: eq: {
 	t7: {[string]: int} == {[string]: string}                        @test(eq, true)
 	_t8l: *1 | 2 | 3
 	t8: {a: _t8l} == {a: 3| *1}                                      @test(eq, true)
+	t9: {a: 1.0} == {a: 1}                                           @test(eq:todo, true) // int and float compare numerically
+	t10: {a: b: 1} == {a: b: 1.0}                                    @test(eq:todo, true)
 
 	// Non-equal structs
 	f1: {a: 1, b: "foo"} == {a: 2, b: "foo"}  @test(eq, false)
@@ -88,6 +93,7 @@ structs: eq: {
 	f8: {{{{a: 1}}}} == {{a: 1, b: 2}}        @test(eq, false) // embedding
 	_f9r:  *2 | 3 | 4
 	f9: {a: *1 | 2 | 3} == {a: _f9r}          @test(eq, false)
+	f10: {a: 1.5} == {a: 1}                   @test(eq, false)
 
 	// Only test some versions of != recognizing the same code paths are
 	// followed for ==.
@@ -196,25 +202,25 @@ diffTypes: {
 }
 -- out/errors.txt --
 [incomplete] lists.eIncompat: invalid left-hand value to '==' (type list): 0: incomplete value int:
-    ./lists.cue:24:13
+    ./lists.cue:27:13
 [eval] lists.eErrPassthrough: invalid left-hand value to '==' (type list): 0: failed arithmetic: division by zero:
-    ./lists.cue:27:19
+    ./lists.cue:30:19
 lists.eErrPassthrough: invalid right-hand value to '==' (type list): 1: conflicting values int and string (mismatched types int and string):
-    ./lists.cue:37:19
+    ./lists.cue:40:19
 [incomplete] incomplete.iErr1: invalid left-hand value to '==' (type struct): a: field is required but not present:
-    ./structs.cue:73:9
-[incomplete] incomplete.iErr2: invalid left-hand value to '==' (type struct): a: field is required but not present:
-    ./structs.cue:74:9
-[incomplete] incomplete.eErr3: invalid left-hand value to '==' (type struct): a: incomplete value int:
-    ./structs.cue:75:9
-[eval] incomplete.eErr4: invalid left-hand value to '==' (type struct): a: failed arithmetic: division by zero:
     ./structs.cue:76:9
-[eval] incomplete.eErr5: invalid right-hand value to '==' (type struct): a: conflicting values string and int (mismatched types string and int):
+[incomplete] incomplete.iErr2: invalid left-hand value to '==' (type struct): a: field is required but not present:
+    ./structs.cue:77:9
+[incomplete] incomplete.eErr3: invalid left-hand value to '==' (type struct): a: incomplete value int:
     ./structs.cue:78:9
-[incomplete] incomplete.iErr6: invalid left-hand value to '==' (type struct): a: field is required but not present:
+[eval] incomplete.eErr4: invalid left-hand value to '==' (type struct): a: failed arithmetic: division by zero:
     ./structs.cue:79:9
+[eval] incomplete.eErr5: invalid right-hand value to '==' (type struct): a: conflicting values string and int (mismatched types string and int):
+    ./structs.cue:81:9
+[incomplete] incomplete.iErr6: invalid left-hand value to '==' (type struct): a: field is required but not present:
+    ./structs.cue:82:9
 [incomplete] incomplete.eErr7: invalid right-hand value to '==' (type struct): a: field is required but not present:
-    ./structs.cue:80:9
+    ./structs.cue:83:9
 [incomplete] diffTypes.iRecursive1: invalid left-hand value to '==' (type list): 0: incomplete value int:
     ./typediff.cue:34:15
 [incomplete] diffTypes.eRecursive2: invalid left-hand value to '==' (type list): 0: incomplete value int:
