@@ -24,6 +24,7 @@ import (
 
 	"cuelang.org/go/cue/literal"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 // ----------------------------------------------------------------------------
@@ -1124,6 +1125,40 @@ type File struct {
 	Unresolved []*Ident // unresolved identifiers in this file
 
 	comments
+
+	// experiments are the experiments that apply to a file assembled rather
+	// than parsed, carrying the language version it is written for. A parsed
+	// file's positions carry them instead; see [hiddenFile.SetExperiments].
+	experiments *cueexperiment.File
+}
+
+// hiddenFile allows defining methods in File that are hidden from public
+// documentation.
+type hiddenFile = File
+
+// Experiment reports the experiments that apply to f, which carry the
+// language version it is written for.
+//
+// A file assembled rather than parsed carries them itself, as its
+// declarations may hold positions of whatever they were read from, which say
+// nothing about the file they have been assembled into. Otherwise they come
+// from the file's position, as a parsed file's do.
+func (f *hiddenFile) Experiment() cueexperiment.File {
+	if f.experiments != nil {
+		return *f.experiments
+	}
+	return f.Pos().Experiment()
+}
+
+// SetExperiments records the experiments that apply to f, which carry the
+// language version f is written for. It replaces any already recorded.
+//
+// This is for a file built by a generator, which has no source to resolve
+// them from: a generator writing CUE into a module that declares an older
+// language version says so here, as not all syntax is accepted at every
+// version.
+func (f *hiddenFile) SetExperiments(experiments *cueexperiment.File) {
+	f.experiments = experiments
 }
 
 // Preamble returns the declarations of the preamble at the top of the file,

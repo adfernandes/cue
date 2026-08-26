@@ -24,6 +24,7 @@ import (
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal"
+	"cuelang.org/go/internal/cueexperiment"
 	"cuelang.org/go/internal/cuetest"
 	"cuelang.org/go/internal/tdtest"
 )
@@ -141,4 +142,64 @@ func TestNewStruct(t *testing.T) {
 		}
 		t.Equal(string(b), tc.want)
 	})
+}
+
+func TestFileExperiments(t *testing.T) {
+	forVersion := func(t *testing.T, version string) *cueexperiment.File {
+		t.Helper()
+		exp, err := cueexperiment.NewFile(version)
+		qt.Assert(t, qt.IsNil(err))
+		return exp
+	}
+	// version is the language version f reports through its experiments.
+	version := func(f *ast.File) string {
+		exp := f.Experiment()
+		return exp.LanguageVersion()
+	}
+	newFile := func() *ast.File {
+		return &ast.File{Decls: []ast.Decl{
+			&ast.Field{Label: ast.NewIdent("a"), Value: ast.NewString("b")},
+		}}
+	}
+
+	// A file assembled rather than parsed has no source to resolve
+	// experiments from, so it carries them once told which apply.
+	f := newFile()
+	qt.Assert(t, qt.Equals(version(f), ""))
+	f.SetExperiments(forVersion(t, "v0.14.0"))
+	qt.Assert(t, qt.Equals(version(f), "v0.14.0"))
+
+	// Recording a second set replaces the first.
+	f.SetExperiments(forVersion(t, "v0.15.0"))
+	qt.Assert(t, qt.Equals(version(f), "v0.15.0"))
+
+	// A parsed file resolves them from its position instead.
+	parsed, err := parser.ParseFile("p.cue", "a: 1\n", parser.Version("v0.17.0"))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(version(parsed), "v0.17.0"))
+
+	// Declarations assembled from elsewhere keep the positions they were
+	// parsed with, which report the version of the file they came from. What
+	// the file itself carries wins, being what it is assembled for.
+	built := &ast.File{Decls: parsed.Decls}
+	qt.Assert(t, qt.Equals(version(built), "v0.17.0"))
+	built.SetExperiments(forVersion(t, "v0.14.0"))
+	qt.Assert(t, qt.Equals(version(built), "v0.14.0"))
+
+	// Setting them leaves the file's position alone: it is the experiments
+	// that are carried, not a source location the file does not have.
+	qt.Assert(t, qt.Equals(built.Pos(), parsed.Decls[0].Pos()))
+
+	// Experiments a source enabled by attribute travel with the set, which a
+	// language version on its own could not express.
+	attr, err := parser.ParseFile("attr.cue", "@experiment(aliasv2)\na: 1\n",
+		parser.Version("v0.17.0"))
+	qt.Assert(t, qt.IsNil(err))
+	carried := attr.Experiment()
+	qt.Assert(t, qt.IsTrue(carried.AliasV2))
+	g := newFile()
+	g.SetExperiments(&carried)
+	qt.Assert(t, qt.Equals(version(g), "v0.17.0"))
+	exp := g.Experiment()
+	qt.Assert(t, qt.IsTrue(exp.AliasV2))
 }
