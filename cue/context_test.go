@@ -283,3 +283,84 @@ func TestContextCheck(t *testing.T) {
 		c.CompileString("1")
 	}, `.*use cuecontext\.New.*`))
 }
+
+// TestHiddenFieldScope tests looking up hidden fields with [cue.Hid] across the
+// ways in which a package scope can be established. The package scope must
+// always be spelled as the identifier of the instance the hidden field was
+// compiled as part of, as reported by [build.Instance.ID], which is not in
+// general an import path.
+func TestHiddenFieldScope(t *testing.T) {
+	const src = `package b
+
+_a: 42
+`
+	ctx := cuecontext.New()
+
+	// loaded builds src as a package of the module mod.com@v0.
+	loaded := func() cue.Value {
+		a := txtar.Parse([]byte(`
+-- cue.mod/module.cue --
+module: "mod.com@v0"
+language: version: "v0.14.0"
+-- b.cue --
+` + src))
+		inst := cuetxtar.Load(a, t.TempDir())[0]
+		qt.Assert(t, qt.IsNil(inst.Err))
+		return ctx.BuildInstance(inst)
+	}
+
+	// bare builds src as an instance whose import path is a bare name, as
+	// builtin packages such as "list" have.
+	bare := func() cue.Value {
+		inst := build.NewContext().NewInstance("b.cue", nil)
+		inst.ImportPath = "b"
+		qt.Assert(t, qt.IsNil(inst.AddFile("b.cue", src)))
+		return ctx.BuildInstance(inst)
+	}
+
+	testCases := []struct {
+		desc string
+		v    cue.Value
+		pkg  string // the one package scope which matches
+	}{{
+		desc: "package clause",
+		v:    ctx.CompileString(src),
+		pkg:  ":b",
+	}, {
+		desc: "no package clause",
+		v:    ctx.CompileString("_a: 42"),
+		pkg:  "_",
+	}, {
+		desc: "ImportPath option",
+		v:    ctx.CompileString(src, cue.ImportPath("b")),
+		pkg:  "b",
+	}, {
+		desc: "bare import path",
+		v:    bare(),
+		pkg:  "b",
+	}, {
+		desc: "loaded from a module",
+		v:    loaded(),
+		pkg:  "mod.com@v0:b",
+	}}
+	// Each value must match its own package scope and no other's.
+	var allPkgs []string
+	for _, tc := range testCases {
+		allPkgs = append(allPkgs, tc.pkg)
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			qt.Assert(t, qt.IsNil(tc.v.Err()))
+			// The scope is always available from the value itself.
+			qt.Assert(t, qt.Equals(tc.v.BuildInstance().ID(), tc.pkg))
+			for _, pkg := range allPkgs {
+				got := fmt.Sprint(tc.v.LookupPath(cue.MakePath(cue.Hid("_a", pkg))))
+				want := "42"
+				if pkg != tc.pkg {
+					want = `_|_ // field not found: _a`
+				}
+				qt.Assert(t, qt.Equals(got, want), qt.Commentf("package scope %q", pkg))
+			}
+		})
+	}
+}
