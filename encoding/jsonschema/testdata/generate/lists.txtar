@@ -1,6 +1,8 @@
 -- test.cue --
 package test
 
+import "list"
+
 // Open list with element type
 stringList?: [...string]
 
@@ -19,6 +21,44 @@ emptyList?: []
 // Empty open list
 emptyOpenList?: [...]
 
+// Tuple whose elements need not all be present
+partialTuple?: {
+	[...]
+	[0]: string
+	[1]: int
+}
+
+// Partial tuple with a constrained tail
+partialTupleTail?: {
+	[...]
+	[0]:   string
+	[>=1]: int
+}
+
+// Only the elements from index 2 onwards are constrained
+gappyTuple?: {
+	[...]
+	[>1]: int
+}
+
+// An index pattern that matches every index is just an element type
+intIndexed?: {
+	[...]
+	[int]: int
+}
+
+uintIndexed?: {
+	[...]
+	[uint]: int
+}
+
+// Partial tuple with a bounded length
+boundedPartialTuple?: {
+	[...]
+	[0]: string
+	[1]: int
+} & list.MaxItems(2)
+
 -- datatest/tests.cue --
 package datatest
 
@@ -31,6 +71,49 @@ ok1: data: {
 }
 
 ok2: data: {}
+
+ok3: data: {
+	intIndexed: [1, 2]
+	uintIndexed: []
+	gappyTuple: ["anything", true]
+	partialTuple: []
+	partialTupleTail: ["a"]
+	boundedPartialTuple: ["a"]
+}
+
+ok4: data: {
+	intIndexed: []
+	uintIndexed: [3]
+	gappyTuple: ["anything", true, 1, 2]
+	partialTuple: ["a", 1]
+	partialTupleTail: ["a", 1, 2]
+	boundedPartialTuple: ["a", 1]
+}
+
+badIntIndexed: {
+	data: intIndexed: [1, "x"]
+	error: true
+}
+
+badGappyTuple: {
+	data: gappyTuple: ["anything", true, "c"]
+	error: true
+}
+
+badPartialTuple: {
+	data: partialTuple: ["a", "b"]
+	error: true
+}
+
+badPartialTupleTail: {
+	data: partialTupleTail: ["a", "b"]
+	error: true
+}
+
+badBoundedPartialTuple: {
+	data: boundedPartialTuple: ["a", 1, 2]
+	error: true
+}
 
 badStringList: {
 	data: stringList: [1, 2, 3]
@@ -51,6 +134,12 @@ badTupleType: {
 	$schema: "https://json-schema.org/draft/2020-12/schema"
 	type:    "object"
 	properties: {
+		boundedPartialTuple: {
+			type:        "array"
+			description: "Partial tuple with a bounded length"
+			prefixItems: [{type: "string"}, {type: "integer"}]
+			maxItems:    2
+		}
 		emptyList: {
 			description: "Empty list"
 			const:       []
@@ -58,6 +147,17 @@ badTupleType: {
 		emptyOpenList: {
 			type:        "array"
 			description: "Empty open list"
+		}
+		gappyTuple: {
+			type:        "array"
+			description: "Only the elements from index 2 onwards are constrained"
+			items: type: "integer"
+			prefixItems: [true, true]
+		}
+		intIndexed: {
+			type:        "array"
+			description: "An index pattern that matches every index is just an element type"
+			items: type: "integer"
 		}
 		mixedTuple: {
 			type:        "array"
@@ -71,6 +171,17 @@ badTupleType: {
 			description: "Open list with number elements"
 			items: type: "number"
 		}
+		partialTuple: {
+			type:        "array"
+			description: "Tuple whose elements need not all be present"
+			prefixItems: [{type: "string"}, {type: "integer"}]
+		}
+		partialTupleTail: {
+			type:        "array"
+			description: "Partial tuple with a constrained tail"
+			items: type: "integer"
+			prefixItems: [{type: "string"}]
+		}
 		stringList: {
 			type:        "array"
 			description: "Open list with element type"
@@ -83,22 +194,51 @@ badTupleType: {
 			maxItems:    2
 			minItems:    2
 		}
+		uintIndexed: {
+			type: "array"
+			items: type: "integer"
+		}
 	}
 }
 -- out/generate-v3/badStringList --
 badStringList.data.stringList.0: conflicting values 1 and string (mismatched types int and string):
-    ./datatest/tests.cue:14:21
+    ./datatest/tests.cue:57:21
 badStringList.data.stringList.1: conflicting values 2 and string (mismatched types int and string):
-    ./datatest/tests.cue:14:24
+    ./datatest/tests.cue:57:24
 badStringList.data.stringList.2: conflicting values 3 and string (mismatched types int and string):
-    ./datatest/tests.cue:14:27
+    ./datatest/tests.cue:57:27
 -- out/generate-v3/badTupleLength --
 badTupleLength.data.tuple: incompatible list lengths (1 and 2):
-    1:639
+    1:1386
 badTupleLength.data.tuple: incompatible list lengths (1 and 2):
-    1:705
+    1:1452
 -- out/generate-v3/badTupleType --
 badTupleType.data.tuple.0: conflicting values 1 and string (mismatched types int and string):
-    ./datatest/tests.cue:24:16
+    ./datatest/tests.cue:67:16
 -- out/generate-v3/ok1 --
 -- out/generate-v3/ok2 --
+-- out/generate-v3/badBoundedPartialTuple --
+badBoundedPartialTuple.data.boundedPartialTuple: invalid value ["a",1,2] (does not satisfy list.MaxItems(2)): len(list) > MaxItems(2) (3 > 2):
+    1:232
+    ./datatest/tests.cue:52:29
+-- out/generate-v3/badPartialTuple --
+badPartialTuple.data.partialTuple.1: conflicting values "b" and int (mismatched types string and int):
+    ./datatest/tests.cue:42:28
+    1:1021
+    1:1055
+-- out/generate-v3/badPartialTupleTail --
+badPartialTupleTail.data.partialTupleTail.1: conflicting values "b" and int (mismatched types string and int):
+    ./datatest/tests.cue:47:32
+    1:1173
+    1:1191
+-- out/generate-v3/ok3 --
+-- out/generate-v3/ok4 --
+-- out/generate-v3/badGappyTuple --
+badGappyTuple.data.gappyTuple.2: conflicting values "c" and int (mismatched types string and int):
+    ./datatest/tests.cue:37:39
+    1:472
+    1:490
+-- out/generate-v3/badIntIndexed --
+badIntIndexed.data.intIndexed.1: conflicting values "x" and int (mismatched types string and int):
+    ./datatest/tests.cue:32:24
+    1:637

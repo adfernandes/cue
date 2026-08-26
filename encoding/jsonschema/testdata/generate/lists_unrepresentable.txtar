@@ -1,0 +1,94 @@
+A list index pattern constraint maps onto JSON Schema only when it
+matches a single index (prefixItems) or every index from some point
+onwards (items). Anything else is dropped rather than approximated by
+the nearest keyword, which would reject data that the CUE value
+accepts. The generated schema therefore admits more than the CUE value
+does, as the data tests below show.
+
+-- test.cue --
+package test
+
+// Matches indexes 0 to 4 only
+upperBound?: {
+	[...]
+	[<5]: int
+}
+
+// Matches indexes 1 to 4 only
+boundedRange?: {
+	[...]
+	[>=1 & <5]: int
+}
+
+// Matches indexes 0 and 1 only
+disjunction?: {
+	[...]
+	[0 | 1]: int
+}
+
+// A bound that isn't an integer
+nonIntegerBound?: {
+	[...]
+	[>1.5]: int
+}
+
+// Only the unrepresentable half is dropped
+mixed?: {
+	[...]
+	[0]:  string
+	[<5]: int
+}
+
+-- datatest/tests.cue --
+package datatest
+
+// The dropped constraints mean the generated schema accepts data that
+// the original CUE rejects.
+droppedConstraints: data: {
+	upperBound: ["not an int"]
+	boundedRange: [true, true]
+	disjunction: ["a", "b"]
+	nonIntegerBound: [1, 2, "c"]
+}
+
+// The representable part of "mixed" is still enforced.
+mixedPrefixKept: data: mixed: ["a", "anything"]
+
+badMixedPrefix: {
+	data: mixed: [1]
+	error: true
+}
+-- out/generate-v3/schema --
+{
+	$schema: "https://json-schema.org/draft/2020-12/schema"
+	type:    "object"
+	properties: {
+		boundedRange: {
+			type:        "array"
+			description: "Matches indexes 1 to 4 only"
+		}
+		disjunction: {
+			type:        "array"
+			description: "Matches indexes 0 and 1 only"
+		}
+		mixed: {
+			type:        "array"
+			description: "Only the unrepresentable half is dropped"
+			prefixItems: [{type: "string"}]
+		}
+		nonIntegerBound: {
+			type:        "array"
+			description: "A bound that isn't an integer"
+		}
+		upperBound: {
+			type:        "array"
+			description: "Matches indexes 0 to 4 only"
+		}
+	}
+}
+-- out/generate-v3/badMixedPrefix --
+badMixedPrefix.data.mixed.0: conflicting values 1 and string (mismatched types int and string):
+    ./datatest/tests.cue:16:16
+    1:322
+-- out/generate-v3/droppedConstraints --
+-- out/generate-v3/mixedPrefixKept --

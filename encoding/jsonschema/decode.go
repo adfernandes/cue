@@ -501,6 +501,12 @@ func (s *state) add(n cue.Value, t coreType, x ast.Expr) {
 	s.types[t].add(n, x)
 }
 
+// hasListPrefix reports whether a positional schema prefix has been
+// established by the array form of "items" or by "prefixItems".
+func (s *state) hasListPrefix() bool {
+	return s.list != nil || s.listStruct != nil
+}
+
 func (s *state) setTypeUsed(n cue.Value, t coreType) {
 	if int(t) >= len(s.types) {
 		panic(fmt.Errorf("type out of range %v/%v", int(t), len(s.types)))
@@ -543,7 +549,24 @@ type state struct {
 
 	patterns []ast.Expr
 
+	// list holds the list literal generated for the array form of
+	// "items" or for "prefixItems", when every element of the prefix is
+	// guaranteed to be present. Exactly one of list and listStruct is
+	// non-nil once such a keyword has been seen.
 	list *ast.ListLit
+
+	// listStruct holds the index-constraint form generated for the same
+	// keywords when the instance is allowed to be shorter than the
+	// prefix; see [constraintPrefixItems].
+	listStruct *ast.StructLit
+
+	// listPrefixLen holds the number of positional schemas in list or
+	// listStruct.
+	listPrefixLen int
+
+	// minItems holds the value of the "minItems" keyword, or zero if
+	// it's not present, which is also its default.
+	minItems uint64
 
 	// listItemsIsArray keeps track of whether the
 	// value of the "items" keyword is an array.

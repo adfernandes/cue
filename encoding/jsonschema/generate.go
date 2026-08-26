@@ -1496,70 +1496,236 @@ func (g *generator) makeStructItem(v cue.Value, mode closedMode) item {
 }
 
 func (g *generator) makeListItem(v cue.Value, mode closedMode) item {
-	ellipsis := v.LookupPath(cue.MakePath(cue.AnyIndex))
-	lenv := v.Len()
-	var n int64
-	if ellipsis.Exists() {
-		// It's an open list. The length will be in the form int&>=5
-		op, args := lenv.Expr()
-		if op != cue.AndOp || len(args) != 2 {
-			g.addErrorf(v, "list length has unexpected form; got %v want int&>=N", lenv)
-			return &itemFalse{}
+	// A list is closed only when its length is known exactly. Anything
+	// else (an ellipsis, a list validator, or a value holding index
+	// pattern constraints only) is treated as open: wrongly closing a
+	// list would reject data that the CUE value accepts.
+	closed := !v.LookupPath(cue.MakePath(cue.AnyIndex)).Exists()
+	n, ok := listMinLen(v, !closed)
+	if !ok {
+		// We know that the type is a list but not how many elements it's
+		// guaranteed to hold. We'll treat this as if it's [... _].
+		n, closed = 0, false
+	}
+	// Positional schemas can also be expressed as index pattern
+	// constraints, which (unlike list elements) hold vacuously when the
+	// list is too short to reach the index. See [constraintPrefixItems].
+	pos, bounds, err := listIndexPatterns(v)
+	if err != nil {
+		g.addError(v, err)
+		return &itemFalse{}
+	}
+	// Every element from prefixLen onwards is subject to exactly the
+	// same constraints, so that's where the prefix can stop.
+	prefixLen := n
+	if !closed {
+		for i := range pos {
+			prefixLen = max(prefixLen, i+1)
 		}
-		op, args = args[1].Expr()
-		if op != cue.GreaterThanEqualOp || len(args) != 1 {
-			g.addErrorf(v, "list length has unexpected form (2); got %v want >=N", lenv)
-			return &itemFalse{}
-		}
-		var err error
-		n, err = args[0].Int64()
-		if err != nil {
-			g.addErrorf(v, "cannot extract list length from %v: %v", v, err)
-			return &itemFalse{}
-		}
-	} else {
-		var err error
-		n, err = lenv.Int64()
-		if err != nil {
-			// This can happen legitimately when we know that the type is a list
-			// but we don't know anything about the number of items,
-			// for example, a list validator. We'll treat this as if it's [... _]
-			n = 0
-			ellipsis = v.Context().CompileString("_")
+		for _, b := range bounds {
+			prefixLen = max(prefixLen, b.index)
 		}
 	}
-	prefix := make([]internItem, n)
-	for i := range n {
-		elem := v.LookupPath(cue.MakePath(cue.Index(i)))
-		if !elem.Exists() {
-			g.addErrorf(v, "cannot get value at index %d in %v", i, v)
-			return &itemFalse{}
+	prefix := make([]internItem, prefixLen)
+	for i := range prefixLen {
+		var elem cue.Value
+		if i < n {
+			elem = v.LookupPath(cue.MakePath(cue.Index(i)))
+			if !elem.Exists() {
+				g.addErrorf(v, "cannot get value at index %d in %v", i, v)
+				return &itemFalse{}
+			}
+		} else {
+			// The index is beyond the guaranteed length of the list, so
+			// gather the constraints that apply to it from the patterns.
+			elem = pos[i]
+			for _, b := range bounds {
+				if b.index <= i {
+					elem = unifyOptional(elem, b.value)
+				}
+			}
+			if !elem.Exists() {
+				elem = v.Context().CompileString("_")
+			}
 		}
 		prefix[i] = g.makeItem(elem, mode)
+	}
+	// Every bound starts at or before prefixLen, so all of them
+	// constrain the elements beyond the prefix.
+	var rest cue.Value
+	for _, b := range bounds {
+		rest = unifyOptional(rest, b.value)
 	}
 	a := &itemAllOf{
 		elems: []internItem{g.unique.intern(&itemType{kinds: []string{"array"}})},
 	}
 	items := &itemItems{}
-	if len(prefix) > 0 {
+	if n > 0 {
 		a.elems = append(a.elems, g.unique.intern(&itemItemsBounds{
 			constraint: cue.GreaterThanEqualOp,
-			n:          len(prefix),
+			n:          int(n),
 		}))
+	}
+	if len(prefix) > 0 {
 		items.prefix = prefix
 	}
-	if ellipsis.Exists() {
-		items.rest = trueAsNil(g.makeItem(ellipsis, mode))
-	} else {
+	if closed {
 		a.elems = append(a.elems, g.unique.intern(&itemItemsBounds{
 			constraint: cue.LessThanEqualOp,
 			n:          len(prefix),
 		}))
+	} else if rest.Exists() {
+		items.rest = trueAsNil(g.makeItem(rest, mode))
 	}
 	if items.rest.Value() != nil || len(items.prefix) > 0 {
 		a.elems = append(a.elems, g.unique.intern(items))
 	}
 	return a
+}
+
+// listMinLen returns the number of elements that the list v is
+// guaranteed to hold. It reports false if that can't be determined.
+func listMinLen(v cue.Value, open bool) (int64, bool) {
+	lenv := v.Len()
+	if !open {
+		n, err := lenv.Int64()
+		return n, err == nil
+	}
+	// It's an open list. The length will be in the form int&>=5
+	op, args := lenv.Expr()
+	if op != cue.AndOp || len(args) != 2 {
+		return 0, false
+	}
+	op, args = args[1].Expr()
+	if op != cue.GreaterThanEqualOp || len(args) != 1 {
+		return 0, false
+	}
+	n, err := args[0].Int64()
+	return n, err == nil
+}
+
+// indexBound holds the constraint imposed on all list indexes
+// from index onwards.
+type indexBound struct {
+	index int64
+	value cue.Value
+}
+
+// listIndexPatterns returns the pattern constraints on the list v.
+// The pos map holds the constraints that apply to a single index only;
+// bounds holds the constraints that apply to all indexes from some index
+// onwards, which includes the element type of an open list.
+//
+// A pattern matching any other set of indexes, such as [<5], is dropped:
+// CUE is more expressive than JSON Schema here, and omitting a
+// constraint we can't express only widens the generated schema, whereas
+// approximating it with the nearest keyword would reject valid data.
+func listIndexPatterns(v cue.Value) (pos map[int64]cue.Value, bounds []indexBound, err error) {
+	iter, err := v.Fields(cue.All(), cue.Patterns(true))
+	if err != nil {
+		return nil, nil, err
+	}
+	for iter.Next() {
+		sel := iter.Selector()
+		if sel.ConstraintType() != cue.PatternConstraint {
+			continue
+		}
+		switch kind, i := classifyIndexPattern(sel.Pattern()); kind {
+		case indexPatternExact:
+			// A single index, as produced for a positional schema
+			// that need not be present.
+			if pos == nil {
+				pos = make(map[int64]cue.Value)
+			}
+			pos[i] = unifyOptional(pos[i], iter.Value())
+		case indexPatternFrom:
+			bounds = append(bounds, indexBound{
+				index: i,
+				value: iter.Value(),
+			})
+		}
+	}
+	return pos, bounds, nil
+}
+
+// indexPatternKind describes the set of list indexes matched by an index
+// pattern constraint.
+type indexPatternKind int
+
+const (
+	// indexPatternUnknown indicates a pattern matching some other set of
+	// indexes, which JSON Schema has no way of expressing.
+	indexPatternUnknown indexPatternKind = iota
+
+	// indexPatternExact indicates a pattern matching one index only.
+	indexPatternExact
+
+	// indexPatternFrom indicates a pattern matching every index from
+	// some index onwards.
+	indexPatternFrom
+)
+
+// classifyIndexPattern classifies the index pattern p of a list pattern
+// constraint. Unless the kind is [indexPatternUnknown], index holds the
+// index matched by the pattern or the first index matched by it
+// respectively.
+//
+// Note that although the two kinds overlap in principle (an exact index
+// is not a suffix, but a suffix starting at the end of the list matches
+// nothing), a list is unbounded, so they're always distinct here.
+func classifyIndexPattern(p cue.Value) (kind indexPatternKind, index int64) {
+	if p.Kind() == cue.IntKind {
+		// It's a single concrete index.
+		i, err := p.Int64()
+		if err != nil || i < 0 {
+			return indexPatternUnknown, 0
+		}
+		return indexPatternExact, i
+	}
+	if p.Subsume(p.Context().CompileString("int")) == nil {
+		// It admits every integer, and hence every index; for example
+		// the int type itself or the _ pattern of an open list.
+		return indexPatternFrom, 0
+	}
+	op, args := p.Expr()
+	switch op {
+	case cue.GreaterThanEqualOp, cue.GreaterThanOp:
+		if len(args) != 1 {
+			return indexPatternUnknown, 0
+		}
+		// Note: a non-integer bound such as >=1.5 is rejected rather
+		// than rounded; there's no reason for one to appear as a list
+		// index and rounding it is easy to get subtly wrong.
+		i, err := args[0].Int64()
+		if err != nil {
+			return indexPatternUnknown, 0
+		}
+		if op == cue.GreaterThanOp {
+			i++
+		}
+		return indexPatternFrom, max(i, 0)
+	case cue.AndOp:
+		// For example int&>=2, or uint, which is int&>=0.
+		index := int64(0)
+		for _, a := range args {
+			kind, i := classifyIndexPattern(a)
+			if kind != indexPatternFrom {
+				return indexPatternUnknown, 0
+			}
+			index = max(index, i)
+		}
+		return indexPatternFrom, index
+	}
+	return indexPatternUnknown, 0
+}
+
+// unifyOptional is like [cue.Value.Unify] except that it treats
+// a zero a as the identity.
+func unifyOptional(a, b cue.Value) cue.Value {
+	if !a.Exists() {
+		return b
+	}
+	return a.Unify(b)
 }
 
 // newGenerateDialect returns the dialect used to generate the given version.
