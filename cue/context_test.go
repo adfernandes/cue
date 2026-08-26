@@ -357,7 +357,9 @@ language: version: "v0.14.0"
 				got := fmt.Sprint(tc.v.LookupPath(cue.MakePath(cue.Hid("_a", pkg))))
 				want := "42"
 				if pkg != tc.pkg {
-					want = `_|_ // field not found: _a`
+					want = fmt.Sprintf("_|_ // field not found: _a in package %q; "+
+						"hidden fields are scoped by package, and this value has _a in package %q",
+						pkg, tc.pkg)
 				}
 				qt.Assert(t, qt.Equals(got, want), qt.Commentf("package scope %q", pkg))
 			}

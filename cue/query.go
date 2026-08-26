@@ -15,6 +15,9 @@
 package cue
 
 import (
+	"fmt"
+	"strings"
+
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/core/adt"
@@ -91,7 +94,8 @@ outer:
 		if err, ok := sel.sel.(pathError); ok {
 			x = &adt.Bottom{Err: err.Error}
 		} else {
-			x = mkErr(n, adt.EvalError, "field not found: %v", sel.sel)
+			x = mkErr(n, adt.EvalError, "field not found: %v%s",
+				sel.sel, hiddenScopeHint(ctx, deref, sel.sel))
 			if n.Accept(ctx, f) {
 				x.Code = adt.IncompleteError
 			}
@@ -101,4 +105,29 @@ outer:
 		return newErrValue(v, x)
 	}
 	return makeValue(v.idx, n, parent)
+}
+
+// hiddenScopeHint reports the package scopes under which v does hold a hidden
+// field named like sel, for a hidden field selector which did not match.
+// Hidden fields are scoped by package, see [Hid], and a value does not show
+// those scopes anywhere, so a mismatched scope is easily mistaken for a
+// missing field.
+func hiddenScopeHint(ctx *adt.OpContext, v *adt.Vertex, sel selector) string {
+	s, ok := sel.(scopedSelector)
+	if !ok {
+		return ""
+	}
+	var pkgs []string
+	for _, a := range v.Arcs {
+		if f := a.Label; f.IsHidden() && f.IdentString(ctx) == s.name {
+			if pkg := f.PkgID(ctx); pkg != s.pkg {
+				pkgs = append(pkgs, fmt.Sprintf("package %q", pkg))
+			}
+		}
+	}
+	if len(pkgs) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" in package %q; hidden fields are scoped by package, and this value has %s in %s",
+		s.pkg, s.name, strings.Join(pkgs, " and "))
 }
