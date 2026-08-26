@@ -1143,6 +1143,9 @@ type hiddenFile = File
 // declarations may hold positions of whatever they were read from, which say
 // nothing about the file they have been assembled into. Otherwise they come
 // from the file's position, as a parsed file's do.
+//
+// A file with neither reports no experiments at all, rather than those of the
+// current language version; what to make of that is the caller's.
 func (f *hiddenFile) Experiment() cueexperiment.File {
 	if f.experiments != nil {
 		return *f.experiments

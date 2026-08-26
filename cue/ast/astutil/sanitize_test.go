@@ -20,8 +20,10 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal"
+	"cuelang.org/go/internal/cueexperiment"
 
 	"github.com/go-quicktest/qt"
 )
@@ -256,6 +258,108 @@ c: {
 	a: {}
 	b: a_9
 	c: d
+}
+`,
+	}, {
+		// The field already binds a name, so that name is reused through a
+		// let clause rather than a second alias being introduced.
+		desc: "Reuse the postfix field alias of a shadowed field",
+		file: func() *ast.File {
+			field := &ast.Field{
+				Label: ast.NewIdent("a"),
+				Alias: &ast.PostfixAlias{Field: ast.NewIdent("X")},
+				Value: ast.NewString("b"),
+			}
+			return &ast.File{Decls: []ast.Decl{
+				field,
+				&ast.Field{
+					Label: ast.NewIdent("c"),
+					Value: ast.NewStruct(
+						ast.NewIdent("a"), ast.NewStruct(),
+						ast.NewIdent("b"), &ast.Ident{
+							Name: "a",
+							Node: field.Value,
+						},
+					),
+				},
+			}}
+		}(),
+		want: `let X_9 = X
+a~(X): "b"
+c: {
+	a: {}
+	b: X_9
+}
+`,
+	}, {
+		// A reference to the alias name itself, shadowed where it is used.
+		desc: "Unshadow a reference to a postfix field alias",
+		file: func() *ast.File {
+			field := &ast.Field{
+				Label: ast.NewIdent("a"),
+				Alias: &ast.PostfixAlias{Field: ast.NewIdent("X")},
+				Value: ast.NewString("b"),
+			}
+			return &ast.File{Decls: []ast.Decl{
+				field,
+				&ast.Field{
+					Label: ast.NewIdent("c"),
+					Value: &ast.StructLit{Elts: []ast.Decl{
+						// A let shadows the alias name; a field of that name
+						// would be rejected outright.
+						&ast.LetClause{
+							Ident: ast.NewIdent("X"),
+							Expr:  ast.NewString("shadow"),
+						},
+						&ast.Field{
+							Label: ast.NewIdent("b"),
+							Value: &ast.Ident{Name: "X", Node: field},
+						},
+					}},
+				},
+			}}
+		}(),
+		want: `let X_9 = X
+a~(X): "b"
+c: {
+	let X = "shadow"
+	b: X_9
+}
+`,
+	}, {
+		// A dual alias binding only the label leaves the field half free, so
+		// the new name goes there rather than into a prefix alias beside it,
+		// whatever the current language version would otherwise pick.
+		desc: "Fill in the free half of a dual postfix alias",
+		file: func() *ast.File {
+			field := &ast.Field{
+				Label: ast.NewIdent("a"),
+				// A half that binds nothing is spelled with the blank
+				// identifier; PostfixAlias.Field is never nil.
+				Alias: &ast.PostfixAlias{
+					Label: ast.NewIdent("K"),
+					Field: ast.NewIdent("_"),
+				},
+				Value: ast.NewString("b"),
+			}
+			return &ast.File{Decls: []ast.Decl{
+				field,
+				&ast.Field{
+					Label: ast.NewIdent("c"),
+					Value: ast.NewStruct(
+						ast.NewIdent("a"), ast.NewStruct(),
+						ast.NewIdent("b"), &ast.Ident{
+							Name: "a",
+							Node: field.Value,
+						},
+					),
+				},
+			}}
+		}(),
+		want: `a~(K,a_9): "b"
+c: {
+	a: {}
+	b: a_9
 }
 `,
 	}, {
@@ -646,4 +750,99 @@ func TestX(t *testing.T) {
 	}
 
 	t.Error(string(b))
+}
+
+// TestSanitizeAliasSyntax checks that an alias Sanitize introduces is written
+// in the syntax the target language version accepts, since neither the prefix
+// nor the postfix form parses at every version.
+func TestSanitizeAliasSyntax(t *testing.T) {
+	// build parses a file at the given version and adds a reference to the
+	// outer "a" from inside "c", already resolved past the inner "a" that
+	// shadows it. Sanitize has to bind the outer field to a fresh name for
+	// that reference to keep working.
+	build := func(t *testing.T, attr, version string) *ast.File {
+		f, err := parser.ParseFile("in.cue", attr+`a: "b"
+c: {
+	a: {}
+}
+`, parser.ParseComments, parser.Version(version))
+		qt.Assert(t, qt.IsNil(err))
+		var fields []*ast.Field
+		for _, d := range f.Decls {
+			if x, ok := d.(*ast.Field); ok {
+				fields = append(fields, x)
+			}
+		}
+		outer := fields[0]
+		inner := fields[1].Value.(*ast.StructLit)
+		inner.Elts = append(inner.Elts, &ast.Field{
+			Label: ast.NewIdent("b"),
+			Value: &ast.Ident{Name: "a", Node: outer.Value},
+		})
+		return f
+	}
+
+	testCases := []struct {
+		desc string
+		// attr is a file-level attribute prepended to the source.
+		attr string
+		// parseAt is the version the source is parsed at, and outAt the one
+		// the result must parse at; they differ when opts override the file.
+		parseAt string
+		outAt   string
+		// setVersion is recorded on the built file, standing in for the
+		// version a parsed file would carry.
+		setVersion string
+		built      bool
+		want       string
+	}{{
+		desc:    "prefix form below the stable version",
+		parseAt: "v0.17.0",
+		outAt:   "v0.17.0",
+		want:    "a_9=a",
+	}, {
+		desc:    "postfix form where the attribute enables the experiment",
+		attr:    "@experiment(aliasv2)\n",
+		parseAt: "v0.17.0",
+		outAt:   "v0.17.0",
+		want:    "a~(a_9)",
+	}, {
+		desc: "the current version decides when nothing is pinned",
+		want: "a_9=a",
+	}, {
+		// A file that was built rather than parsed carries whatever version
+		// it was told it is written for.
+		desc:       "a built file carries the version it is given",
+		built:      true,
+		setVersion: "v0.17.0",
+		outAt:      "v0.17.0",
+		want:       "a_9=a",
+	}, {
+		desc:  "a built file with no version targets the current one",
+		built: true,
+		want:  "a_9=a",
+	}}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			f := build(t, tc.attr, tc.parseAt)
+			if tc.built {
+				// A file an exporter assembled: its declarations keep the
+				// positions they were parsed with, and it carries the
+				// experiments it is written for.
+				f = &ast.File{Decls: f.Decls}
+				exp, err := cueexperiment.NewFile(tc.setVersion)
+				qt.Assert(t, qt.IsNil(err))
+				f.SetExperiments(exp)
+			}
+			qt.Assert(t, qt.IsNil(astutil.Sanitize(f)))
+
+			b, errs := format.Node(f)
+			qt.Assert(t, qt.IsNil(errs))
+			qt.Assert(t, qt.StringContains(string(b), tc.want))
+
+			// Whatever it emitted must parse back at the target version.
+			_, err := parser.ParseFile("out.cue", b, parser.Version(tc.outAt))
+			qt.Assert(t, qt.IsNil(err))
+		})
+	}
 }

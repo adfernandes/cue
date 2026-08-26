@@ -19,10 +19,12 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
+	"sync"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal/cueexperiment"
 )
 
 // TODO:
@@ -49,6 +51,33 @@ func SanitizeFiles(files []*ast.File) error {
 		}
 	}
 	return nil
+}
+
+// currentExperiments are those of the current language version.
+var currentExperiments = sync.OnceValue(func() cueexperiment.File {
+	exp, err := cueexperiment.NewFile("")
+	if err != nil {
+		// An empty version naming no experiments cannot be rejected.
+		panic(err)
+	}
+	return *exp
+})
+
+// requiresPostfixAliases reports whether an alias introduced into f must be
+// written in the postfix form (a~X) rather than the prefix form (X=a). This
+// is determined by f's experiments, aliasv2 being what enables the postfix
+// form: from the language version where it is stable, or wherever the file
+// enables it outright.
+//
+// The parser sets f's experiments; a generator sets whatever it was told
+// applies. A file with neither says nothing about what it is written for, and
+// the current version is the only reasonable reading of that.
+func requiresPostfixAliases(f *ast.File) bool {
+	exp := f.Experiment()
+	if exp.LanguageVersion() == "" {
+		exp = currentExperiments()
+	}
+	return exp.AliasV2
 }
 
 // labelName returns the name of a label, or "" if it cannot be determined.
@@ -80,8 +109,9 @@ func Sanitize(f *ast.File) error {
 
 func sanitize(f *ast.File, names map[string]bool) error {
 	z := &sanitizer{
-		file: f,
-		rand: rand.New(rand.NewPCG(123, 456)), // ensure determinism between runs
+		file:           f,
+		postfixAliases: requiresPostfixAliases(f),
+		rand:           rand.New(rand.NewPCG(123, 456)), // ensure determinism between runs
 
 		names:      map[string]bool{},
 		importMap:  map[string]*ast.ImportSpec{},
@@ -129,6 +159,10 @@ func sanitize(f *ast.File, names map[string]bool) error {
 type sanitizer struct {
 	file      *ast.File
 	fileScope *scope
+
+	// postfixAliases records whether an alias this sanitizer introduces must
+	// be written in the postfix form to parse at the target language version.
+	postfixAliases bool
 
 	rand *rand.Rand
 
@@ -192,8 +226,12 @@ func (z *sanitizer) unshadow(parent ast.Node, base string, link ast.Node) string
 			if (*decls)[i] == link {
 				break
 			}
-			if f, ok := (*decls)[i].(*ast.Field); ok && f.Label == link {
-				break
+			if f, ok := (*decls)[i].(*ast.Field); ok {
+				// The link is the node the name was declared by, which for a
+				// field is its label, or the alias beside it.
+				if f.Label == link || f.Alias == link {
+					break
+				}
 			}
 		}
 
@@ -230,6 +268,30 @@ func (z *sanitizer) cleanImports() {
 		ast.SetRelPos(decl, token.NewSection)
 		break
 	}
+}
+
+// bindField binds name to the value of field x, whose label is the identifier
+// y, in the syntax the target language version accepts. The postfix form sits
+// beside the label; the prefix form wraps it, and so takes the label's
+// formatting and comments with it.
+func (z *sanitizer) bindField(x *ast.Field, y *ast.Ident, name string) {
+	ident := ast.NewIdent(name)
+	// A field already carrying a postfix alias takes the name into its free
+	// half, whatever the target version would otherwise pick: a field cannot
+	// hold both forms at once, and the one already there is the one the file
+	// it belongs to evidently accepts.
+	if x.Alias == nil && !z.postfixAliases {
+		CopyMeta(ident, y)
+		ast.SetRelPos(y, token.NoRelPos)
+		ast.SetComments(y, nil)
+		x.Label = &ast.Alias{Ident: ident, Expr: y}
+		return
+	}
+	if x.Alias == nil {
+		x.Alias = &ast.PostfixAlias{}
+	}
+	ast.SetRelPos(ident, token.NoSpace)
+	x.Alias.Field = ident
 }
 
 func (z *sanitizer) handleIdent(s *scope, n *ast.Ident) bool {
@@ -340,10 +402,14 @@ func (z *sanitizer) handleIdent(s *scope, n *ast.Ident) bool {
 		if ok {
 			break
 		}
-		// If this field has not alias, introduce one with a unique name.
-		// If this has an alias, also introduce a new name. There is a
-		// possibility that the alias can be used, but it is easier to just
-		// assign a new name, assuming this case is rather rare.
+		// If this field already binds its value to a name, unshadow that name.
+		// Otherwise introduce an alias with a unique name. There is a
+		// possibility that an existing alias can be used, but it is easier to
+		// just assign a new name, assuming this case is rather rare.
+		if a := x.Alias; a != nil && a.Field != nil && a.Field.Name != "_" {
+			name = z.unshadow(parent, a.Field.Name, a)
+			break
+		}
 		switch y := x.Label.(type) {
 		case *ast.Alias:
 			name = z.unshadow(parent, y.Ident.Name, y)
@@ -352,13 +418,7 @@ func (z *sanitizer) handleIdent(s *scope, n *ast.Ident) bool {
 			var isNew bool
 			name, isNew = z.addRename(y.Name, x)
 			if isNew {
-				ident := ast.NewIdent(name)
-				// Move formatting and comments from original label to alias
-				// identifier.
-				CopyMeta(ident, y)
-				ast.SetRelPos(y, token.NoRelPos)
-				ast.SetComments(y, nil)
-				x.Label = &ast.Alias{Ident: ident, Expr: y}
+				z.bindField(x, y, name)
 			}
 
 		default:
@@ -371,6 +431,11 @@ func (z *sanitizer) handleIdent(s *scope, n *ast.Ident) bool {
 
 	case *ast.Alias:
 		name = z.unshadow(parent, x.Ident.Name, x)
+
+	case *ast.PostfixAlias:
+		// n resolved to either half of the alias, so it already holds the
+		// name that half was inserted under.
+		name = z.unshadow(parent, n.Name, x)
 
 	default:
 		panic(fmt.Sprintf("unexpected link type %T", e.link))
