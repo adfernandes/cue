@@ -143,7 +143,7 @@ func writeInstanceInfo(t *testing.T, w io.Writer, inst *build.Instance, depth in
 	// Check that the source files have actually been parsed with
 	// the expected version.
 	for _, f := range inst.Files {
-		qt.Check(t, qt.Equals(f.LanguageVersion, inst.ModuleFile.Language.Version), qt.Commentf("pkg %v", inst.ImportPath))
+		qt.Check(t, qt.Equals(f.Pos().LanguageVersion(), inst.ModuleFile.Language.Version), qt.Commentf("pkg %v", inst.ImportPath))
 	}
 }
 
@@ -221,5 +221,5 @@ package main
 	})
 	qt.Assert(t, qt.HasLen(insts, 1))
 	qt.Assert(t, qt.HasLen(insts[0].Files, 1))
-	qt.Assert(t, qt.Equals(insts[0].Files[0].LanguageVersion, "v0.9.0-test"))
+	qt.Assert(t, qt.Equals(insts[0].Files[0].Pos().LanguageVersion(), "v0.9.0-test"))
 }

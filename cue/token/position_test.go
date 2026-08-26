@@ -40,6 +40,16 @@ func TestNoPos(t *testing.T) {
 		t.Errorf("NoPos should not be valid")
 	}
 	checkPos(t, "nil NoPos", NoPos.Position(), Position{})
+	if v := NoPos.LanguageVersion(); v != "" {
+		t.Errorf("NoPos language version = %q; want %q", v, "")
+	}
+}
+
+func TestLanguageVersion(t *testing.T) {
+	// Only a parsed file records a version; one built here has none.
+	if v := NewFile("a", -1, 0).LanguageVersion(); v != "" {
+		t.Errorf("language version = %q; want %q", v, "")
+	}
 }
 
 var tests = []struct {

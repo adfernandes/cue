@@ -81,6 +81,15 @@ func (p Pos) File() *File {
 	return p.file
 }
 
+// LanguageVersion reports the language version of the file that p belongs to,
+// as [File.LanguageVersion] does. It is empty for a position with no file.
+func (p Pos) LanguageVersion() string {
+	if !p.HasAbsPos() {
+		return ""
+	}
+	return p.file.LanguageVersion()
+}
+
 // hiddenPos allows defining methods in Pos that are hidden from public
 // documentation.
 type hiddenPos = Pos
@@ -391,6 +400,16 @@ type hiddenFile = File
 
 func (f *hiddenFile) SetExperiments(experiments *cueexperiment.File) {
 	f.experiments = experiments
+}
+
+// LanguageVersion reports the language version recorded for the file, if any.
+// The parser records the version it resolved, which defaults to the current
+// language version.
+func (f *File) LanguageVersion() string {
+	if f.experiments == nil {
+		return ""
+	}
+	return f.experiments.LanguageVersion()
 }
 
 // NOTE: this is an internal API and may change at any time without notice.

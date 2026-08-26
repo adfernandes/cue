@@ -40,7 +40,6 @@ b: 3
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/file.cue/omitempty-strings --
 *ast.File{
@@ -68,5 +67,4 @@ b: 3
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }

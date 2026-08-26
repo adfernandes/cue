@@ -2059,10 +2059,7 @@ func (p *parser) parseFile() *ast.File {
 	}
 	p.closeList()
 
-	f := &ast.File{
-		Decls:           decls,
-		LanguageVersion: p.cfg.Version,
-	}
+	f := &ast.File{Decls: decls}
 	c.closeNode(p, f)
 	return f
 }

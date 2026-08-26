@@ -45,13 +45,12 @@ func Simplify() Option {
 	return func(c *config) { c.simplify = true }
 }
 
-// Version specifies the CUE language version to use when formatting.
-// This affects which canonical style is applied when combined with [Simplify];
-// for instance, as of v0.17.0 commas between list elements on separate lines
-// are omitted when simplifying. An empty version string means the version is
-// taken from the [*ast.File] node being formatted, falling back to conservative
-// behavior (same as pre-v0.17.0: always emit explicit commas). The version must
-// be a valid semantic version string as checked by [semver.IsValid].
+// Version specifies the CUE language version that [Source] parses its input
+// at, which decides what syntax is accepted; from v0.17.0 on, for instance,
+// commas between list elements on separate lines may be omitted. It has no
+// effect on the formatted output. An empty version string means the current
+// language version. The version must be a valid semantic version string as
+// checked by [semver.IsValid].
 func Version(v string) Option {
 	return func(c *config) { c.languageVersion = v }
 }
@@ -228,8 +227,8 @@ func Source(b []byte, opt ...Option) ([]byte, error) {
 
 	cfg := newConfig(opt)
 
-	// Pass the language version to the parser so that ast.File.LanguageVersion
-	// is set correctly; the formatter then reads it back from the AST.
+	// Parse at the configured language version, so that syntax which only
+	// some versions accept is parsed the way the caller means it.
 	parseOpts := []parser.Option{parser.ParseComments}
 	if cfg.languageVersion != "" {
 		parseOpts = append(parseOpts, parser.Version(cfg.languageVersion))

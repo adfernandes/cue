@@ -37,11 +37,6 @@ func printNode(node interface{}, f *printer) error {
 		if f.cfg.simplify {
 			ls.markReferences(x)
 		}
-		// Prefer the language version from the AST (set by the parser from the
-		// module file) over any explicit option, which is used as a fallback.
-		if x.LanguageVersion != "" {
-			f.cfg.languageVersion = x.LanguageVersion
-		}
 		s.file(x)
 	case ast.Expr:
 		if f.cfg.simplify {

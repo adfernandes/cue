@@ -64,7 +64,6 @@ disjunctoin: b | c | *d
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/unify.txtar/omitempty-strings --
 *ast.File{
@@ -109,5 +108,4 @@ disjunctoin: b | c | *d
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }

@@ -145,8 +145,9 @@ func (m Mode) apply(c *Config) {
 // the CUE. The argument must be a valid semantic version, as
 // checked by [semver.IsValid].
 //
-// The version will be recorded in the [ast.File] returned
-// from [ParseFile].
+// The version is recorded in the [cuelang.org/go/cue/token.File] holding the
+// parsed source, so every position reports it; see
+// [cuelang.org/go/cue/token.Pos.LanguageVersion].
 func Version(v string) Option {
 	if !semver.IsValid(v) {
 		panic(fmt.Errorf("invalid language version %q", v))

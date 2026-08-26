@@ -21,6 +21,7 @@ import (
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/internal/astinternal"
+	"cuelang.org/go/internal/cueversion"
 )
 
 func TestParse(t *testing.T) {
@@ -1635,6 +1636,37 @@ func TestIncompleteSelection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLanguageVersionInPositions(t *testing.T) {
+	const src = `package p
+
+a: b: 1
+`
+	checkAll := func(f *ast.File, want string) {
+		t.Helper()
+		ast.Walk(f, func(n ast.Node) bool {
+			if got := n.Pos().LanguageVersion(); got != want {
+				t.Errorf("%T position = %q; want %q", n, got, want)
+			}
+			return true
+		}, nil)
+	}
+
+	// The version is recorded in the token.File, so every position in the
+	// file reports it, not just the file's own.
+	f, err := ParseFile("input", src, Version("v0.17.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkAll(f, "v0.17.0")
+
+	// Parsing without an explicit version resolves to the current one.
+	f, err = ParseFile("input", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkAll(f, cueversion.LanguageVersion())
 }
 
 // Adapted from https://go-review.googlesource.com/c/go/+/559436

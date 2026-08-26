@@ -16,7 +16,6 @@ import (
 -- out/debugprint/empty.cue --
 *ast.File{
 	Filename: "empty.cue"
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/package_only.cue --
 *ast.File{
@@ -30,12 +29,10 @@ import (
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/comments_only.cue --
 *ast.File{
 	Filename: "comments_only.cue"
-	LanguageVersion: "v0.13.0"
 	Comments: []*ast.CommentGroup{
 		{
 			List: []*ast.Comment{
@@ -100,12 +97,10 @@ import (
 			Rparen: token.Pos("imports.cue:8:1", newline)
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/empty.cue/omitempty-strings --
 *ast.File{
 	Filename: "empty.cue"
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/package_only.cue/omitempty-strings --
 *ast.File{
@@ -117,12 +112,10 @@ import (
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
 -- out/debugprint/comments_only.cue/omitempty-strings --
 *ast.File{
 	Filename: "comments_only.cue"
-	LanguageVersion: "v0.13.0"
 	Comments: []*ast.CommentGroup{
 		{
 			List: []*ast.Comment{
@@ -172,5 +165,4 @@ import (
 			}
 		}
 	}
-	LanguageVersion: "v0.13.0"
 }
