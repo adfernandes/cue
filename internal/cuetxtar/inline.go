@@ -16,6 +16,8 @@
 // This file implements inline-assertion mode where @test(...) attributes on CUE
 // fields replace golden-file comparison.
 //
+// The attribute syntax is documented in full in cue/testdata/readme.md.
+//
 // # Placement
 //
 // A @test attribute may appear in two positions:

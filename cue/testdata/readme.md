@@ -1,8 +1,9 @@
-# Inline Test Attributes — `cue/testdata/inlinetest`
+# Inline Test Attributes
 
-This directory contains the reference test suite for the **inline assertion**
-system implemented in `internal/cuetxtar/inline.go`. Each `.txtar` archive
-here exercises a distinct feature area.
+This is the reference for the **inline assertion** system implemented in
+`internal/cuetxtar/inline.go`, which any `.txtar` archive under
+`cue/testdata` may use. The [inlinetest](inlinetest/) directory holds its
+reference test suite, each archive exercising a distinct feature area.
 
 ---
 
@@ -10,10 +11,11 @@ here exercises a distinct feature area.
 
 Inline assertion mode replaces golden-file comparison with `@test(...)`
 attributes written directly in the `.cue` source of a txtar archive.  The
-runner (`cuetxtar.RunInlineTests`, called from `TestEvalV3`) detects inline
-mode automatically: if any `.cue` file in the archive contains at least one
-`@test(...)` attribute, the archive is processed as an inline test.  Archives
-with no `@test` attributes continue to use golden-file comparison unchanged.
+runner detects inline mode automatically wherever it is enabled (`Inline:
+true` on a `cuetxtar.TxTarTest`, as in `TestEvalV3`): if any `.cue` file in
+the archive contains at least one `@test(...)` attribute, the archive is
+processed as an inline test.  Archives with no `@test` attributes continue to
+use golden-file comparison unchanged.
 
 There are two syntactic positions for `@test(...)` attributes:
 
@@ -32,6 +34,10 @@ simpleStr: "hello"        @test(eq, "hello")
 errField:  1 & 2          @test(err)
 kindInt:   int            @test(kind=int)
 ```
+
+Do not attach a field attribute after a closing brace — `} @test(eq, ...)`.
+Write it as a trailing decl attribute inside the struct instead, as
+`struct_eq.txtar` does.
 
 ---
 
@@ -133,6 +139,7 @@ Optional arguments:
 | `contains="s"` | error message must contain substring `s` |
 | `any` | at least one *descendant* has the error (requires `code=`) |
 | `at=<path>` | navigate to sub-path before checking error (e.g. `at=a.b`) |
+| `path=<path>` | the path the error reports as its own location (see below) |
 | `pos=[...]` | error positions must match (see below) |
 | `args=[...]` | Msg() args must contain the listed values (see below) |
 | `suberr=(...)` | sub-error spec for multi-error values (see below) |
@@ -152,6 +159,24 @@ outer: {
 The path must not include hidden fields (identifiers beginning with `_`); hidden
 fields cannot be accessed via `cue.ParsePath` and are silently skipped by the
 annotation infrastructure.
+
+#### `path=<path>` — the error's own path
+
+Asserts the dotted CUE path the error reports via `errors.Error.Path()`.
+This is distinct from `at=`, which navigates to a sub-value before checking;
+`path=` checks what the error says about itself, wherever it was found.
+
+`CUE_UPDATE=1` writes `path=` automatically, omitting it when it would be
+redundant: when the error's path equals the annotated field's path, and when
+the `at=` value is a path-boundary suffix of the error path (`at=w.y.z.b.E`
+suppresses `path=fieldNotAllowed.t3.w.y.z.b.E`). It is also accepted inside
+`suberr=(...)`, which is often the only way to tell sub-errors apart:
+
+```cue
+x: ({a: int & string} | {b: int & bool}) @test(err,
+    suberr=(path=x.a, contains="string"),
+    suberr=(path=x.b, contains="bool"))
+```
 
 #### `pos=[...]` — error positions
 
@@ -374,6 +399,19 @@ Attaches a numeric priority to any `:todo` directive.  `p=0` is critical,
 `p=1` important, `p=2` good-to-have.  Purely informational — shown in log
 output; does not affect pass/fail behavior.
 
+### `hint="..."` — note logged on failure
+
+```cue
+a: c: 1 @test(err, code=eval, contains="field not allowed",
+    hint="v3 only reports the direct definition position; see out/todo.txt")
+```
+
+Accepted by any directive. The text is logged as an extra note when the
+directive fails, and is the place to explain why the expected result is
+correct despite appearances, or which known evaluator difference produced
+it. Anyone diagnosing such a failure should read the hint before changing
+either the test or the evaluator.
+
 ### `desc` — human-readable description
 
 ```cue
@@ -407,7 +445,13 @@ Rules:
   expression is treated as documentation only.
 - The sharing assertion itself runs after all eq checks.
 
-`@test(shareID=name)` may only appear inside a `@test(eq, {...})` body.
+`@test(shareID=name)` may also annotate the fields directly, which is the
+only option when the fields carry no `@test(eq, {...})` body:
+
+```cue
+#T: ["d", ...#T] @test(shareID=T)
+x: #T            @test(shareID=T)
+```
 
 ---
 
@@ -425,6 +469,10 @@ evaluates the field and rewrites the attribute in the source file:
 without modifying any files.  Documentary sections (e.g. `out/errors.txt`)
 are also validated in this mode.  `CUE_UPDATE=force` overwrites unconditionally,
 including non-empty `pos=` specs that would normally require manual review.
+
+The `out/errors.txt` section needs no manual upkeep: `CUE_UPDATE=1` inserts it
+after the last input file once the archive produces errors, updates it in place
+as they change, and removes it when they are gone.
 
 ---
 
@@ -444,16 +492,37 @@ wip: someExpr @test(eq, 42) @test(skip:v3, why="known regression")
 
 ---
 
-## Files in this directory
+## Archives that cannot use inline mode
+
+The runner has to compile an archive's source to reach its attributes, so a
+file which produces compile errors of its own — arithmetic on abstract types
+such as `string + ":" + string`, or comparisons such as `string == number` —
+cannot carry inline assertions and stays in golden-file form.
+
+Where inline mode is enabled, an archive with no `@test` directives must say
+why in its archive comment, so that unconverted files cannot be added
+silently:
+
+```
+#inlinetest:exclude the file does not compile on its own
+```
+
+---
+
+## Files in the inlinetest directory
 
 | File | Feature area |
 |------|-------------|
-| `basic.txtar` | Basic inline form: `eq`, `err`, `kind`, `closed`, `permute`, `ignore` |
-| `directives.txtar` | Comprehensive directive coverage for the inline form |
 | `struct_eq.txtar` | Struct-level `@test(eq, ...)` as decl attribute |
 | `decl_eq.txtar` | File-level `@test(eq, ...)`: whole-file equality check |
 | `decl_eq_pattern.txtar` | File-level `@test(eq, ...)` with pattern constraints |
 | `decl_eq_mixed.txtar` | File-level `@test(eq, ...)` coexisting with field-level `@test` |
+| `closedness.txtar` | `closed` assertions |
+| `validators.txtar` | Builtin validators under inline assertions |
+| `hidden_fields.txtar` | Hidden fields in `@test(eq, {...})` bodies |
+| `permute.txtar` | Structural `permute` groups |
+| `structural.txtar` | Tests converted from structural to inline form |
+| `debug.txtar` | `debugCheck` printer output |
 
 ---
 
