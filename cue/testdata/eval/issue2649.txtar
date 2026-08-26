@@ -4,7 +4,7 @@
 # https://cuelang.org/issue/2649
 -- in.cue --
 @test(eq, 8.0)
-@test(eq:todo, 8)
+@test(eq, 8)
 @test(kind=float) // TODO: should this be a float, or can it also be an int?
 (4 + 8 + 12) / 3
 -- out/eval/stats --

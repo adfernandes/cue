@@ -72,7 +72,13 @@ func equalVertex(ctx *OpContext, x *Vertex, v Value, flags Flag) bool {
 	yk := y.Kind()
 
 	if xk != yk {
-		return false
+		// Numbers of a different kind may still be equal: when comparing an
+		// integer with a floating-point number, the integer is first converted
+		// to floating-point. Structural equality, by contrast, distinguishes
+		// int from float.
+		if flags&CheckStructural != 0 || xk&^NumberKind != 0 || yk&^NumberKind != 0 {
+			return false
+		}
 	}
 
 	maxArcType := ArcRequired
