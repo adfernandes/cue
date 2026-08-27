@@ -20,15 +20,15 @@ import (
 	"cuelang.org/go/cue/build"
 )
 
-// These benchmarks cover the four representative operations recorded in
-// specs/ace8n-dynamic-filetypes research.md §3. Warm benchmarks measure the
-// memoized steady state. Cold benchmarks pre-materialize the built-in data and
-// clear the relevant cache before each operation outside the timed region, so
-// they measure a cache miss, the generic driver, and the cache fill without
-// charging either one-time setup or the test-only invalidation mechanism. The
-// subsidiary-string benchmark covers the intentionally uncached
-// arbitrary-value path. BenchmarkBuiltinDataMaterialization separately
-// measures the one-time construction now deferred from package initialization.
+// These benchmarks cover four representative operations. Warm benchmarks
+// measure the memoized steady state. Cold benchmarks pre-materialize the
+// built-in data and clear the relevant cache before each operation outside
+// the timed region, so they measure a cache miss, the generic driver, and the
+// cache fill without charging either one-time setup or the test-only
+// invalidation mechanism. The subsidiary-string benchmark covers the
+// intentionally uncached arbitrary-value path.
+// BenchmarkBuiltinDataMaterialization separately measures the one-time
+// construction now deferred from package initialization.
 //
 // Run warm benchmarks with -benchtime=2s. Run Cold benchmarks with a fixed
 // -benchtime=10000x so repeated timer stops do not make the wall-clock run

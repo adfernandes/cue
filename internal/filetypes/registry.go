@@ -18,7 +18,7 @@ package filetypes
 // process-wide set of encodings registered at runtime through
 // cuelang.org/go/unstable/encodingregistry, and the codec registry
 // that internal/encoding and cmd/cue consult for decoder/encoder
-// constructors (specs/ace8n-dynamic-filetypes, D-005).
+// constructors.
 //
 // This package deliberately does not link the CUE evaluator: dynamic
 // registrations arrive here pre-validated against the types.cue
@@ -28,8 +28,7 @@ package filetypes
 // new immutable snapshot through an atomic pointer (copy on write).
 // The first resolution or codec lookup freezes the registry, after
 // which Register fails with *LateRegistrationError and readers proceed
-// without locks (D-002 add-only semantics; contract in
-// specs/ace8n-dynamic-filetypes/contracts/registration-api.md).
+// without locks; registration is add-only.
 
 import (
 	"fmt"

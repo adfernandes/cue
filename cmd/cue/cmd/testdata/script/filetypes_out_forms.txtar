@@ -6,8 +6,7 @@
 # graph), and every other combination is contradictory and reports
 # which form the mode does not support. The earlier lookup tables
 # accepted all twelve cells because their generator dropped form-only
-# tags in every mode after input; see the parity record in
-# specs/ace8n-dynamic-filetypes/research.md.
+# tags in every mode after input.
 #
 # The input contains a definition and a reference so that the
 # per-command defaults are visible in the goldens: export resolves the

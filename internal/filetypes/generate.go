@@ -15,8 +15,7 @@
 //go:build ignore
 
 // Generate types_gen.go: the open per-encoding data structures that
-// the fixed unification driver in unify.go resolves file types over
-// (specs/ace8n-dynamic-filetypes, decision D-005).
+// the fixed unification driver in unify.go resolves file types over.
 //
 // The generator evaluates types.cue — the single source of truth —
 // with the real CUE evaluator and emits every mode base, extension,

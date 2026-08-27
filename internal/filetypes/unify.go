@@ -16,10 +16,9 @@ package filetypes
 
 // This file holds the fixed, generic unification driver that resolves
 // file types over open per-encoding data structures derived from
-// types.cue (specs/ace8n-dynamic-filetypes, decision D-005). The
-// built-in data is generated into types_gen.go at build time; dynamic
-// registrations (registry.go) insert additional entries at runtime.
-// This driver never evaluates CUE.
+// types.cue. The built-in data is generated into types_gen.go at build
+// time; dynamic registrations (registry.go) insert additional entries
+// at runtime. This driver never evaluates CUE.
 
 import (
 	"cmp"
