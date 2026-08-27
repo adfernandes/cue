@@ -229,6 +229,11 @@ func equalTerminal(ctx *OpContext, v, w Value, flags Flag) bool {
 		if y, ok := w.(*Builtin); ok {
 			return x.self() == y.self() && equalFuncTypes(x.Types, y.Types)
 		}
+
+	case *ExternalValidator:
+		if y, ok := w.(*ExternalValidator); ok {
+			return x == y
+		}
 	}
 
 	return false

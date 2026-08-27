@@ -170,9 +170,11 @@ func (*Conjunction) Concreteness() Concreteness { return Constraint }
 func (*Disjunction) Concreteness() Concreteness { return Constraint }
 func (*BoundValue) Concreteness() Concreteness  { return Constraint }
 
-func (*Builtin) Concreteness() Concreteness          { return Concrete }
-func (*BuiltinValidator) Concreteness() Concreteness { return Constraint }
-func (*FuncValue) Concreteness() Concreteness        { return Concrete }
+func (*Builtin) Concreteness() Concreteness           { return Concrete }
+func (*BuiltinValidator) Concreteness() Concreteness  { return Constraint }
+func (*FuncValue) Concreteness() Concreteness         { return Concrete }
+func (*ExternalFunc) Concreteness() Concreteness      { return Concrete }
+func (*ExternalValidator) Concreteness() Concreteness { return Constraint }
 
 // Value and Expr
 
@@ -200,23 +202,25 @@ func (*DisjunctionExpr) expr() {}
 
 // Expr and Value
 
-func (*Bottom) expr()           {}
-func (*Null) expr()             {}
-func (*Bool) expr()             {}
-func (*Num) expr()              {}
-func (*String) expr()           {}
-func (*Bytes) expr()            {}
-func (*Top) expr()              {}
-func (*BasicType) expr()        {}
-func (*Vertex) expr()           {}
-func (*ListMarker) expr()       {}
-func (*StructMarker) expr()     {}
-func (*Conjunction) expr()      {}
-func (*Disjunction) expr()      {}
-func (*BoundValue) expr()       {}
-func (*BuiltinValidator) expr() {}
-func (*Builtin) expr()          {}
-func (*FuncValue) expr()        {}
+func (*Bottom) expr()            {}
+func (*Null) expr()              {}
+func (*Bool) expr()              {}
+func (*Num) expr()               {}
+func (*String) expr()            {}
+func (*Bytes) expr()             {}
+func (*Top) expr()               {}
+func (*BasicType) expr()         {}
+func (*Vertex) expr()            {}
+func (*ListMarker) expr()        {}
+func (*StructMarker) expr()      {}
+func (*Conjunction) expr()       {}
+func (*Disjunction) expr()       {}
+func (*BoundValue) expr()        {}
+func (*BuiltinValidator) expr()  {}
+func (*Builtin) expr()           {}
+func (*FuncValue) expr()         {}
+func (*ExternalValidator) expr() {}
+func (*ExternalFunc) expr()      {}
 
 // Expr and Resolver
 
@@ -275,82 +279,86 @@ func (*LetClause) declNode() {}
 
 // Decl and Elem
 
-func (*StructLit) declNode()        {}
-func (*StructLit) elemNode()        {}
-func (*ListLit) declNode()          {}
-func (*ListLit) elemNode()          {}
-func (*Bottom) declNode()           {}
-func (*Bottom) elemNode()           {}
-func (*Null) declNode()             {}
-func (*Null) elemNode()             {}
-func (*Bool) declNode()             {}
-func (*Bool) elemNode()             {}
-func (*Num) declNode()              {}
-func (*Num) elemNode()              {}
-func (*String) declNode()           {}
-func (*String) elemNode()           {}
-func (*Bytes) declNode()            {}
-func (*Bytes) elemNode()            {}
-func (*Top) declNode()              {}
-func (*Top) elemNode()              {}
-func (*BasicType) declNode()        {}
-func (*BasicType) elemNode()        {}
-func (*BoundExpr) declNode()        {}
-func (*BoundExpr) elemNode()        {}
-func (*Vertex) declNode()           {}
-func (*Vertex) elemNode()           {}
-func (*ListMarker) declNode()       {}
-func (*ListMarker) elemNode()       {}
-func (*StructMarker) declNode()     {}
-func (*StructMarker) elemNode()     {}
-func (*Conjunction) declNode()      {}
-func (*Conjunction) elemNode()      {}
-func (*Disjunction) declNode()      {}
-func (*Disjunction) elemNode()      {}
-func (*BoundValue) declNode()       {}
-func (*BoundValue) elemNode()       {}
-func (*BuiltinValidator) declNode() {}
-func (*BuiltinValidator) elemNode() {}
-func (*FuncValue) declNode()        {}
-func (*FuncValue) elemNode()        {}
-func (*NodeLink) declNode()         {}
-func (*NodeLink) elemNode()         {}
-func (*FuncCallRef) declNode()      {}
-func (*FuncCallRef) elemNode()      {}
-func (*FieldReference) declNode()   {}
-func (*FieldReference) elemNode()   {}
-func (*ValueReference) declNode()   {}
-func (*ValueReference) elemNode()   {}
-func (*LabelReference) declNode()   {}
-func (*LabelReference) elemNode()   {}
-func (*DynamicReference) declNode() {}
-func (*DynamicReference) elemNode() {}
-func (*ImportReference) declNode()  {}
-func (*ImportReference) elemNode()  {}
-func (*LetReference) declNode()     {}
-func (*LetReference) elemNode()     {}
-func (*SelectorExpr) declNode()     {}
-func (*SelectorExpr) elemNode()     {}
-func (*IndexExpr) declNode()        {}
-func (*IndexExpr) elemNode()        {}
-func (*SliceExpr) declNode()        {}
-func (*SliceExpr) elemNode()        {}
-func (*Interpolation) declNode()    {}
-func (*Interpolation) elemNode()    {}
-func (*UnaryExpr) declNode()        {}
-func (*UnaryExpr) elemNode()        {}
-func (*BinaryExpr) declNode()       {}
-func (*BinaryExpr) elemNode()       {}
-func (*OpenExpr) declNode()         {}
-func (*OpenExpr) elemNode()         {}
-func (*CallExpr) declNode()         {}
-func (*CallExpr) elemNode()         {}
-func (*Function) declNode()         {}
-func (*Function) elemNode()         {}
-func (*Builtin) declNode()          {}
-func (*Builtin) elemNode()          {}
-func (*DisjunctionExpr) declNode()  {}
-func (*DisjunctionExpr) elemNode()  {}
+func (*StructLit) declNode()         {}
+func (*StructLit) elemNode()         {}
+func (*ListLit) declNode()           {}
+func (*ListLit) elemNode()           {}
+func (*Bottom) declNode()            {}
+func (*Bottom) elemNode()            {}
+func (*Null) declNode()              {}
+func (*Null) elemNode()              {}
+func (*Bool) declNode()              {}
+func (*Bool) elemNode()              {}
+func (*Num) declNode()               {}
+func (*Num) elemNode()               {}
+func (*String) declNode()            {}
+func (*String) elemNode()            {}
+func (*Bytes) declNode()             {}
+func (*Bytes) elemNode()             {}
+func (*Top) declNode()               {}
+func (*Top) elemNode()               {}
+func (*BasicType) declNode()         {}
+func (*BasicType) elemNode()         {}
+func (*BoundExpr) declNode()         {}
+func (*BoundExpr) elemNode()         {}
+func (*Vertex) declNode()            {}
+func (*Vertex) elemNode()            {}
+func (*ListMarker) declNode()        {}
+func (*ListMarker) elemNode()        {}
+func (*StructMarker) declNode()      {}
+func (*StructMarker) elemNode()      {}
+func (*Conjunction) declNode()       {}
+func (*Conjunction) elemNode()       {}
+func (*Disjunction) declNode()       {}
+func (*Disjunction) elemNode()       {}
+func (*BoundValue) declNode()        {}
+func (*BoundValue) elemNode()        {}
+func (*BuiltinValidator) declNode()  {}
+func (*BuiltinValidator) elemNode()  {}
+func (*FuncValue) declNode()         {}
+func (*FuncValue) elemNode()         {}
+func (*ExternalValidator) declNode() {}
+func (*ExternalValidator) elemNode() {}
+func (*NodeLink) declNode()          {}
+func (*NodeLink) elemNode()          {}
+func (*FuncCallRef) declNode()       {}
+func (*FuncCallRef) elemNode()       {}
+func (*FieldReference) declNode()    {}
+func (*FieldReference) elemNode()    {}
+func (*ValueReference) declNode()    {}
+func (*ValueReference) elemNode()    {}
+func (*LabelReference) declNode()    {}
+func (*LabelReference) elemNode()    {}
+func (*DynamicReference) declNode()  {}
+func (*DynamicReference) elemNode()  {}
+func (*ImportReference) declNode()   {}
+func (*ImportReference) elemNode()   {}
+func (*LetReference) declNode()      {}
+func (*LetReference) elemNode()      {}
+func (*SelectorExpr) declNode()      {}
+func (*SelectorExpr) elemNode()      {}
+func (*IndexExpr) declNode()         {}
+func (*IndexExpr) elemNode()         {}
+func (*SliceExpr) declNode()         {}
+func (*SliceExpr) elemNode()         {}
+func (*Interpolation) declNode()     {}
+func (*Interpolation) elemNode()     {}
+func (*UnaryExpr) declNode()         {}
+func (*UnaryExpr) elemNode()         {}
+func (*BinaryExpr) declNode()        {}
+func (*BinaryExpr) elemNode()        {}
+func (*OpenExpr) declNode()          {}
+func (*OpenExpr) elemNode()          {}
+func (*CallExpr) declNode()          {}
+func (*CallExpr) elemNode()          {}
+func (*Function) declNode()          {}
+func (*Function) elemNode()          {}
+func (*Builtin) declNode()           {}
+func (*Builtin) elemNode()           {}
+func (*ExternalFunc) declNode()      {}
+func (*ExternalFunc) elemNode()      {}
+func (*DisjunctionExpr) declNode()   {}
+func (*DisjunctionExpr) elemNode()   {}
 
 // Decl, Elem, and Yielder
 
@@ -367,6 +375,8 @@ func (*Disjunction) node()       {}
 func (*BoundValue) node()        {}
 func (*Builtin) node()           {}
 func (*BuiltinValidator) node()  {}
+func (*ExternalFunc) node()      {}
+func (*ExternalValidator) node() {}
 func (*Bottom) node()            {}
 func (*Null) node()              {}
 func (*Bool) node()              {}
