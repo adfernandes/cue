@@ -94,20 +94,9 @@ func (c *httpCmd) Run(ctx *task.Context) (res interface{}, err error) {
 		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
 	if tlsVerify && len(caCert) > 0 {
-		pool := x509.NewCertPool()
-		for {
-			block, rest := pem.Decode(caCert)
-			if block == nil {
-				break
-			}
-			if block.Type == "PUBLIC KEY" {
-				c, err := x509.ParseCertificate(block.Bytes)
-				if err != nil {
-					return nil, errors.Wrapf(err, ctx.Obj.Pos(), "failed to parse caCert")
-				}
-				pool.AddCert(c)
-			}
-			caCert = rest
+		pool, err := caCertPool(caCert)
+		if err != nil {
+			return nil, errors.Wrapf(err, caCertValue.Pos(), "invalid caCert")
 		}
 		transport.TLSClientConfig.RootCAs = pool
 	}
@@ -164,6 +153,39 @@ func (c *httpCmd) Run(ctx *task.Context) (res interface{}, err error) {
 			"trailer":    resp.Trailer,
 		},
 	}, err
+}
+
+// caCertPool collects the PEM encoded certificates in caCert into a pool of
+// root certificates. It reports an error if any of them cannot be parsed, or
+// if caCert holds none at all, as an empty pool would reject every server.
+func caCertPool(caCert []byte) (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	found := false
+	for {
+		block, rest := pem.Decode(caCert)
+		if block == nil {
+			break
+		}
+		caCert = rest
+		// x509.CertPool.AppendCertsFromPEM would do the work below, but it
+		// skips certificates it cannot parse and only accepts "CERTIFICATE".
+		// "PUBLIC KEY" holds a public key rather than a certificate, yet it
+		// was the only block type accepted here until
+		// https://cuelang.org/issue/4468, so it keeps working.
+		if block.Type != "CERTIFICATE" && block.Type != "PUBLIC KEY" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		pool.AddCert(cert)
+		found = true
+	}
+	if !found {
+		return nil, errors.New("no certificates found")
+	}
+	return pool, nil
 }
 
 func parseHeaders(obj cue.Value, label string) (http.Header, error) {

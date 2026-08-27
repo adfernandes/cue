@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/task"
 	"cuelang.org/go/internal/value"
@@ -91,34 +92,24 @@ func TestTLS(t *testing.T) {
 		wantErr string
 	}{{
 		// The encoding which any certificate authority hands out.
-		// TODO(https://cuelang.org/issue/4468): this should succeed;
-		// the block is skipped, leaving an empty pool which then
-		// rejects the very certificate it was given.
-		name:    "certificate",
-		caCert:  pemBlock("CERTIFICATE", s.Certificate().Raw),
-		wantErr: "certificate signed by unknown authority",
+		name:   "certificate",
+		caCert: pemBlock("CERTIFICATE", s.Certificate().Raw),
 	}, {
 		// Not a certificate encoding, but supported for backwards compatibility.
 		name:   "public key",
 		caCert: pemBlock("PUBLIC KEY", s.Certificate().Raw),
 	}, {
-		// TODO(https://cuelang.org/issue/4468): caCert without any usable
-		// certificate should be reported as such, rather than failing the
-		// handshake against an empty pool.
 		name:    "not PEM",
 		caCert:  "not a PEM file at all\n",
-		wantErr: "certificate signed by unknown authority",
+		wantErr: "invalid caCert: no certificates found",
 	}, {
-		// TODO(https://cuelang.org/issue/4468): as above.
 		name:    "unrelated PEM block",
 		caCert:  pemBlock("PRIVATE KEY", []byte("not a certificate")),
-		wantErr: "certificate signed by unknown authority",
+		wantErr: "invalid caCert: no certificates found",
 	}, {
-		// TODO(https://cuelang.org/issue/4468): this should report that
-		// the certificate could not be parsed.
 		name:    "malformed certificate",
 		caCert:  pemBlock("CERTIFICATE", []byte("not a certificate")),
-		wantErr: "certificate signed by unknown authority",
+		wantErr: "invalid caCert: x509:",
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
 			v := parse(t, "tool/http.Get", fmt.Sprintf(`{url: %q, tls: caCert: %q}`, s.URL, tc.caCert))
@@ -127,6 +118,11 @@ func TestTLS(t *testing.T) {
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("got %v; want an error containing %q", err, tc.wantErr)
+				}
+				// The error points at caCert rather than at the whole task.
+				want := v.LookupPath(cue.MakePath(cue.Str("tls"), cue.Str("caCert"))).Pos()
+				if got := errors.Positions(err); len(got) == 0 || got[0] != want {
+					t.Errorf("got error positions %v; want %v", got, want)
 				}
 				return
 			}

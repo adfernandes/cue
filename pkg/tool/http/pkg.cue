@@ -24,7 +24,9 @@ Do: {
 	tls: {
 		// Whether the server certificate must be validated.
 		verify: *true | bool
-		// PEM encoded certificate(s) to validate the server certificate.
+		// PEM encoded certificate(s) to validate the server certificate,
+		// as CERTIFICATE blocks. PUBLIC KEY blocks are also accepted for
+		// backwards compatibility, and any other block type is ignored.
 		// If not set the CA bundle of the system is used.
 		caCert?: bytes | string
 	}
