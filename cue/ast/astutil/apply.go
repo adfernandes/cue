@@ -317,19 +317,14 @@ func applyDeclList(v applyVisitor, parent Cursor, list []ast.Decl) []ast.Decl {
 	return c.decls
 }
 
-type nilableNode interface {
-	ast.Node
-	comparable // pointer nodes, which can be compared to nil
-}
-
-func applyIfNotNil[N nilableNode](v applyVisitor, parent Cursor, nodePtr *N) {
+func applyIfNotNil[N ast.NilableNode](v applyVisitor, parent Cursor, nodePtr *N) {
 	var zero N // nil
 	if *nodePtr != zero {
 		apply(v, parent, nodePtr)
 	}
 }
 
-func apply[N nilableNode](v applyVisitor, parent Cursor, nodePtr *N) {
+func apply[N ast.NilableNode](v applyVisitor, parent Cursor, nodePtr *N) {
 	node := *nodePtr
 	var zero N // nil
 	if node == zero {
