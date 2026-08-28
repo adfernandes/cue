@@ -30,12 +30,14 @@ import (
 
 // TestFunctions tests subsumption of native function values and function
 // types (bodyless signatures). Subsumption is structural, following the
-// signature matching rules of function tightening and type meets: named
-// parameters match by label, anonymous parameters match positionally,
+// signature matching rules of function tightening and type meets:
+// positional parameters align by ordinal, their contract labels agree when
+// both are present, and name-only parameters match by label;
 // requiredness must agree, and extras of the subsumed signature are
 // admitted only against an open subsuming signature. Each matched
 // parameter constraint and the result constraint of the subsumer must
-// subsume the corresponding constraint of the subsumed.
+// subsume the corresponding constraint of the subsumed, and every plain
+// label promised by the subsumer must already select the matched slot.
 func TestFunctions(t *testing.T) {
 	type subsumeTest struct {
 		// the result of b ⊑ a, where a and b are defined in "in"
@@ -52,6 +54,51 @@ func TestFunctions(t *testing.T) {
 		{
 			// A closed signature does not admit an extra plain parameter.
 			in:  `a: func(n: int) -> int, b: func(n: int, m: int) -> int`,
+			err: "value not an instance",
+		},
+		{
+			// An open type may acquire future parameters and is not an
+			// instance of an otherwise matching closed type.
+			in:  `a: func(n: int) -> int, b: func(n: int, ...) -> int`,
+			err: "value not an instance",
+		},
+		{
+			// A composite type is effectively closed when any retained
+			// signature is closed.
+			in:  `a: func(n: int) -> int, b: (func(n: int, ...) -> int) & (func(n: int) -> int)`,
+			err: "",
+		},
+		{
+			// Extra declarations in a retained signature count even when the
+			// composite type's selected head does not declare them.
+			in:  `a: func(n: int) -> int, b: (func(n: int, ...) -> int) & (func(n: int, m: int, ...) -> int)`,
+			err: "value not an instance",
+		},
+		{
+			// The same result holds when the retained signatures are met in
+			// the opposite order.
+			in:  `a: func(n: int) -> int, b: (func(n: int, m: int, ...) -> int) & (func(n: int, ...) -> int)`,
+			err: "value not an instance",
+		},
+		{
+			// A composite bodyless type is checked independently of which
+			// constituent becomes its selected head. The optional name-only x
+			// is not a second concrete slot in either operand order.
+			in:  `a: func(x: int, ...) -> int, b: (func(int, x?: int, ...) -> int) & (func(x: int, ...) -> int)`,
+			err: "value not an instance",
+		},
+		{
+			in:  `a: func(x: int, ...) -> int, b: (func(x: int, ...) -> int) & (func(int, x?: int, ...) -> int)`,
+			err: "value not an instance",
+		},
+		{
+			// A weaker selected head cannot hide an incompatible constraint
+			// contributed by another signature.
+			in:  `a: func(x?: int, ...) -> int, b: (func(...) -> int) & (func(x: string, ...) -> int)`,
+			err: "value not an instance",
+		},
+		{
+			in:  `a: func(x?: int, ...) -> int, b: (func(x: string, ...) -> int) & (func(...) -> int)`,
 			err: "value not an instance",
 		},
 		{
@@ -136,8 +183,8 @@ func TestFunctions(t *testing.T) {
 			err: "",
 		},
 
-		// Positional parameters align by ordinal. A contract label promised by
-		// the subsumer must already name that slot on the candidate.
+		// Positional parameters align by ordinal and name-only parameters match
+		// by label. A plain contract label is an additional requirement.
 		{
 			in:  `a: func(int, ...) -> int, b: func(n: int, ...) -> int`,
 			err: "",
@@ -147,13 +194,28 @@ func TestFunctions(t *testing.T) {
 			err: "",
 		},
 		{
-			// Tightening could add n to this unnamed slot, but the untightened
-			// candidate does not yet satisfy the labeled call contract.
+			// A named parameter is positional too, so an anonymous parameter
+			// of b matches it by position, but b does not satisfy the complete
+			// callable interface until that name has actually been attached.
 			in:  `a: func(n: int, ...) -> int, b: func(int, ...) -> int`,
 			err: "value not an instance",
 		},
 		{
+			// Different contract labels conflict during unification and also fail
+			// the directional callable-interface check for subsumption.
 			in:  `a: func(n: int, ...) -> int, b: func(other: int, ...) -> int`,
+			err: "value not an instance",
+		},
+		{
+			// Attaching the type names the previously unnamed slot, after which
+			// the tightened value satisfies the complete interface.
+			in:  `T: func(n: int, ...) -> int, f: func(_~v: int) -> int: v, a: T, b: T & f`,
+			err: "",
+		},
+		{
+			// A name-only constraint follows a sibling contract label when
+			// deciding whether the candidate satisfies the type.
+			in:  `a: func(x?: int, ...) -> string, b: (func(x: string, ...) -> string) & (func(_~v: string) -> string: v)`,
 			err: "value not an instance",
 		},
 		{
@@ -218,6 +280,12 @@ func TestFunctions(t *testing.T) {
 			err: "value not an instance",
 		},
 		{
+			// A partial application no longer exposes the complete callable
+			// interface of the type attached before parameters were bound.
+			in:  `T: func(a: int, b: int) -> int, f: func(a: int, b: int) -> int: a+b, a: T, b: (T & f)(1, ...)`,
+			err: "value not an instance",
+		},
+		{
 			// A plain function value does not subsume a partial application
 			// of itself, nor the other way around.
 			in:  `f: func(n: int, m: int) -> int: n+m, a: f, b: f(5, ...)`,
@@ -274,10 +342,34 @@ func TestFunctions(t *testing.T) {
 			err: "value not an instance",
 		},
 		{
-			// A named parameter is positional too, so it can constrain the raw
-			// builtin slot and supply its contract label.
+			// The builtin package's attached signature exposes the same contract
+			// label for this raw positional slot.
 			in:  "import \"strings\"\na: func(s: string, ...) -> string, b: strings.ToUpper",
 			err: "",
+		},
+		{
+			// A different contract name conflicts with the builtin package's
+			// attached signature.
+			in:  "import \"strings\"\na: func(input: string, ...) -> string, b: strings.ToUpper",
+			err: "value not an instance",
+		},
+		{
+			// Static kind compatibility does not prove that a bare builtin
+			// enforces a narrower value-level constraint.
+			in:  "import \"strings\"\na: func(s: =~\"^x$\", ...) -> string, b: strings.ToUpper",
+			err: "value not an instance",
+		},
+		{
+			// Once the narrowing signature is attached, the builtin enforces
+			// it and satisfies the type by construction.
+			in:  "import \"strings\"\nT: func(s: =~\"^x$\", ...) -> string, a: T, b: T & strings.ToUpper",
+			err: "",
+		},
+		{
+			// An optional name-only constraint follows a sibling contract label.
+			// It cannot be ignored when that label is exposed by b.
+			in:  "import \"strings\"\na: func(s?: int, ...) -> string, b: (func(s: string, ...) -> string) & strings.ToUpper",
+			err: "value not an instance",
 		},
 		{
 			// A parameter that can only be passed by label cannot be

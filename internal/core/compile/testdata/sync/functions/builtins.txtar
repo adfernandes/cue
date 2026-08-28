@@ -1,12 +1,13 @@
 # Tests that builtins satisfy function types: unifying a builtin with a
 # compatible function type succeeds and yields the builtin, with the type's
-# parameter and result constraints additionally enforced on every call.
-# A builtin binds its arguments by position, so a type's parameters match the
-# builtin's by position. Naming them is allowed: a plain parameter is both
-# named and positional, so it gives the otherwise unnamed raw slot a contract
-# label without changing the builtin's positional ABI. Only a parameter that
-# can be passed by label alone —
-# marked required (a!) or optional (a?) — cannot be satisfied by a builtin.
+# parameter and result constraints additionally enforced on every ordinary
+# full call. The legacy validator-constructor form remains a separate path.
+# A builtin binds its raw arguments by position. Positional type parameters
+# align with those raw slots by ordinal; a plain name supplies a contract label
+# only when the slot does not already have a different one. A required
+# name-only parameter cannot be satisfied by a builtin; an unmatched optional
+# one contributes no slot or label, though its constraint follows that slot if
+# a sibling positional signature supplies the label.
 # Statically checked at unification time are parameter matching, arity, and
 # kind-level compatibility where the constraint is literally a basic type;
 # all other constraints surface when the tightened builtin is called.
@@ -32,10 +33,11 @@ tighten: {
 	o:  O & strings.ToUpper
 	ox: o("hi")
 
-	// A named parameter is positional as well, so it matches the builtin's
-	// raw parameter by position and supplies its contract label.
+	// The generated signature names this raw positional slot s; the same
+	// contract label may be repeated by a compatible type.
 	named: (func(s: string) -> string) & strings.ToUpper
 	nx:    named("hi")
+	nxLabel: named(s: "bye")
 }
 
 static: {
@@ -56,7 +58,7 @@ static: {
 }
 
 // Constraints that are not decidable from the signatures alone are enforced
-// dynamically, on every call through the tightened builtin.
+// dynamically, on every ordinary full call through the tightened builtin.
 dynamic: {
 	// The type narrows the parameter to a bound.
 	P:  func(<="m", ...) -> string
@@ -82,20 +84,25 @@ dynamic: {
 }
 
 // An extra parameter is admitted against a closed signature iff it is
-// optional. For builtins this cuts both ways: an extra optional named
-// parameter of the type can never be bound by a call through the builtin,
-// but no call needs it either; the builtin's own parameters carry no
-// optional markers, so only a parameter with a default may exceed a closed
-// type's count (defaults of builtins are static metadata, unlike function
-// value defaults, which are dynamic and never probed).
+// optional. An unmatched optional name-only parameter contributes no slot or
+// label, but no call needs it either; if a sibling positional signature
+// exposes the same label, its constraint follows that slot. The builtin's own
+// parameters carry no optional markers, so only a parameter with a default
+// may exceed a closed type's count (defaults of builtins are static metadata,
+// unlike function value defaults, which are dynamic and never probed).
 optionalExtra: {
 	O:  func(string, sep?: string) -> string
 	up: O & strings.ToUpper
 	x:  up("hi")
 
+	// An unmatched optional name-only constraint contributes no raw slot.
+	OnlyExtra: func(extra?: int, ...) -> string
+	upExtra:   OnlyExtra & strings.ToUpper
+	y:         upExtra("hi")
+
 	// A required parameter is rejected: unlike a plain named parameter
-	// (see tighten.named), it can only be passed by label, which a call
-	// through a builtin cannot do.
+	// (see tighten.named), it declares no positional slot of its own and is
+	// rejected by the static builtin-attachment check.
 	bad: (func(string, sep!: string) -> string) & strings.ToUpper
 }
 
@@ -140,8 +147,8 @@ polymorphic: {
 
 // A labeled argument binds through the contract labels of the builtin's
 // declared signature; the call proceeds with the arguments in positional
-// order. The standard library's builtins carry their declared signatures,
-// so their contract labels are callable.
+// order. Generated, signature-bearing standard-library functions ordinarily
+// carry attached labels which are callable.
 labeled: {
 	import1: {
 		named:   list.Drop(x: [1, 2, 3], n: 1)
@@ -150,7 +157,7 @@ labeled: {
 	}
 
 	errors: {
-		// A label no attached signature names does not bind.
+		// A label no attached signature declares does not bind.
 		unknown: list.Drop(lst: [1], n: 0)
 
 		// A parameter cannot be given both positionally and by label.
@@ -160,27 +167,20 @@ labeled: {
 		hole: list.Slice([1, 2, 3], j: 2)
 	}
 
-	// A user signature may supply the contract label of an unnamed raw
-	// builtin slot. Once a generated signature has supplied a label, an
-	// attached signature must either leave the slot unnamed or use the same
-	// label; a different label conflicts.
+	// An anonymous user type remains compatible with the builtin's named
+	// declaration. The declaration's contract label stays callable.
 	user: {
 		T: func(s: string, sep: string) -> [...string]
 		f: T & strings.SplitN
 
-		Unnamed: func(string, ...) -> string
-		unnamed: Unnamed & strings.ToUpper
-		unnamedResult: unnamed(s: "hi")
+		U:  func(string, ...) -> string
+		up: U & strings.ToUpper
+		x:  up(s: "hi")
 
-		Same: func(s: string, ...) -> string
-		same: Same & strings.ToUpper
-		sameResult: same(s: "hi")
-
-		Different: func(text: string, ...) -> string
-		different: Different & strings.ToUpper
+		// A second contract name for the already named slot conflicts.
+		badName: (func(text: string, ...) -> string) & strings.ToUpper
 	}
 }
-
 -- out/compile --
 --- in.cue
 {
@@ -195,6 +195,7 @@ labeled: {
     ox: 〈0;o〉("hi")
     named: (func(s: string) -> string & 〈import;strings〉.ToUpper)
     nx: 〈0;named〉("hi")
+    nxLabel: 〈0;named〉(s: "bye")
   }
   static: {
     tooMany: (func(string, string, ...) -> string & 〈import;strings〉.ToUpper)
@@ -223,6 +224,9 @@ labeled: {
     O: func(string, sep?: string) -> string
     up: (〈0;O〉 & 〈import;strings〉.ToUpper)
     x: 〈0;up〉("hi")
+    OnlyExtra: func(extra?: int, ...) -> string
+    upExtra: (〈0;OnlyExtra〉 & 〈import;strings〉.ToUpper)
+    y: 〈0;upExtra〉("hi")
     bad: (func(string, sep!: string) -> string & 〈import;strings〉.ToUpper)
   }
   disjunction: {
@@ -286,14 +290,10 @@ labeled: {
         ...string,
       ]
       f: (〈0;T〉 & 〈import;strings〉.SplitN)
-      Unnamed: func(string, ...) -> string
-      unnamed: (〈0;Unnamed〉 & 〈import;strings〉.ToUpper)
-      unnamedResult: 〈0;unnamed〉(s: "hi")
-      Same: func(s: string, ...) -> string
-      same: (〈0;Same〉 & 〈import;strings〉.ToUpper)
-      sameResult: 〈0;same〉(s: "hi")
-      Different: func(text: string, ...) -> string
-      different: (〈0;Different〉 & 〈import;strings〉.ToUpper)
+      U: func(string, ...) -> string
+      up: (〈0;U〉 & 〈import;strings〉.ToUpper)
+      x: 〈0;up〉(s: "hi")
+      badName: (func(text: string, ...) -> string & 〈import;strings〉.ToUpper)
     }
   }
 }

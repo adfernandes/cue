@@ -1470,7 +1470,8 @@ type FuncParam struct {
 //
 // Types holds the function types (bodyless signatures) the value has been
 // unified with. Their parameter and result constraints are folded into the
-// normalized struct frame used for every call.
+// normalized struct frame used for every call. A plain parameter name can
+// supply the contract label of an otherwise unnamed matched slot.
 // For a bodyless FuncValue — itself a function type — Types holds the other
 // types it has been met with.
 type FuncValue struct {
@@ -1625,28 +1626,13 @@ func (n *nodeContext) scheduleFuncCall(ref *FuncCallRef, env *Environment, ci Cl
 			}
 		}
 		for _, t := range ref.types {
-			pos := 0
-			for _, p := range t.Fn.Params {
-				pi := -1
-				if p.Positional {
-					pi = pos
-					pos++
-				}
-				if p.Value == nil {
+			matches := matchFuncParamsToValue(t.Fn, ref.fn, ref.types)
+			for i, p := range t.Fn.Params {
+				if p.Value == nil || matches[i] < 0 {
 					continue
 				}
-				var q FuncParam
-				var j int
-				var ok bool
-				if p.Label != InvalidLabel {
-					q, j, ok = MatchFuncParam(ref.fn, p.Label, -1)
-				} else {
-					q, j, ok = MatchFuncParam(ref.fn, InvalidLabel, pi)
-				}
-				if !ok {
-					continue
-				}
-				label := funcParamSlotLabel(n.ctx, j, q)
+				j := matches[i]
+				label := funcParamSlotLabel(n.ctx, j, ref.fn.Params[j])
 				if a := frame.LookupRaw(label); a != nil {
 					a.addConjunctUnchecked(MakeConjunct(t.Env, p.Value, ci))
 				}
@@ -1763,11 +1749,12 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 	// Phase 1: bind arguments to parameters. bindings[i] is the argument bound
 	// to parameter i — by an earlier partial application (x.args) or by this
 	// call — with the environment it resolves in; a nil expr marks an unbound
-	// parameter.
+	// parameter. Labeled arguments resolve through the value's own contract
+	// labels or the compatible label supplied by an attached signature.
 	bindings := make([]funcArg, len(x.Fn.Params))
 	copy(bindings, x.args)
 	used := make([]bool, len(call.Args))
-	argFields := make([]Decl, 0, len(x.Fn.Params))
+	byLabel, _ := funcParamLabels(x.Fn, x.Types)
 
 	nextPos := 0
 	for i, p := range x.Fn.Params {
@@ -1787,24 +1774,23 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 			}
 		}
 
-		if p.Label != InvalidLabel {
-			byLabel := false
-			for j, label := range call.ArgLabels {
-				if label != p.Label {
-					continue
-				}
-				switch {
-				case byLabel:
-					c.AddErrf("duplicate argument %s", p.Label.SelectorString(c))
-					return nil
-				case arg != nil:
-					c.AddErrf("argument %s provided by position and label", p.Label.SelectorString(c))
-					return nil
-				}
-				arg = call.Args[j]
-				used[j] = true
-				byLabel = true
+		var boundLabel Feature
+		for j, label := range call.ArgLabels {
+			param, ok := byLabel[label]
+			if !ok || param != i {
+				continue
 			}
+			switch {
+			case boundLabel != InvalidLabel:
+				c.AddErrf("duplicate argument %s", label.SelectorString(c))
+				return nil
+			case arg != nil:
+				c.AddErrf("argument %s provided by position and label", label.SelectorString(c))
+				return nil
+			}
+			arg = call.Args[j]
+			used[j] = true
+			boundLabel = label
 		}
 
 		if arg != nil {
@@ -1842,7 +1828,11 @@ func (x *FuncValue) call(c *OpContext, call *CallExpr, state Flags) Value {
 	}
 
 	// Phase 2: complete the call. Validate arity/default requirements and
-	// lower every supplied argument into its canonical frame field.
+	// lower every supplied argument into the canonical field of the normalized
+	// call frame. Labels from attached signatures were resolved to these slots
+	// during phase 1, so named and positional arguments constrain the same
+	// field before ordinary struct unification begins.
+	argFields := make([]Decl, 0, len(x.Fn.Params))
 	for i, p := range x.Fn.Params {
 		arg := bindings[i].expr
 		argEnv := bindings[i].env
@@ -1985,9 +1975,11 @@ func funcParamSlotLabel(c *OpContext, i int, p FuncParam) Feature {
 
 // template builds the normalized slot layout shared by calls of x. Each
 // implementation parameter has exactly one canonical field. Argument values
-// and every matched signature constraint later unify on these fields. The
-// actual constraints are injected only after the result-field cycle anchor
-// resolves; see [nodeContext.scheduleFuncCall].
+// and every matched signature constraint later unify on these fields;
+// an attached plain name supplies binder metadata for an otherwise unnamed
+// slot rather than a duplicate struct field. The actual constraints are
+// injected only after the result-field cycle anchor resolves; see
+// [nodeContext.scheduleFuncCall].
 func (x *FuncValue) template(c *OpContext) *StructLit {
 	decls := make([]Decl, 0, len(x.Fn.Params))
 	for i, p := range x.Fn.Params {
@@ -2001,8 +1993,8 @@ func (x *FuncValue) template(c *OpContext) *StructLit {
 }
 
 // funcTemplate returns the stable canonical slot layout for x. Attached
-// signatures contribute constraints to these existing slots; they do not
-// change the frame's fields.
+// signatures contribute constraints to these existing slots and may supply a
+// compatible contract label; they do not change the frame's fields.
 func (c *OpContext) funcTemplate(x *FuncValue) *StructLit {
 	if c.funcTemplates == nil {
 		c.funcTemplates = map[funcTemplateKey]*StructLit{}
@@ -2272,6 +2264,14 @@ func (x *CallExpr) evaluate(c *OpContext, state Flags) Value {
 			return nil
 		}
 		if x.hasArgLabels() {
+			// The legacy validator-constructor form leaves raw slot zero for
+			// the value validated later. Its argument list is not represented
+			// by an attached function type, so applying full-call labels here
+			// could silently bind a constructor argument to the wrong raw slot.
+			if f.IsValidator(len(x.Args)) {
+				c.AddErrf("labeled arguments are not supported for validator constructor %s", x.Fun)
+				return nil
+			}
 			// A labeled argument binds through the parameter names of
 			// the builtin's declared signature; the call proceeds with
 			// the arguments in positional order.
@@ -2434,41 +2434,21 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 		}
 	}
 
-	// The function types the builtin was unified with constrain its
-	// arguments on every call: an anonymous type parameter constrains the
-	// argument in the same position. Builtins have no labeled parameters,
-	// and named type parameters were already rejected when the builtin was
-	// unified with the type. Like for native functions, the constraints are
-	// compiled in the type's closure scope and are evaluated in the type's
-	// environment.
-	for _, t := range builtin.Types {
-		pos := 0
-		for _, tp := range t.Fn.Params {
-			if !tp.Positional {
-				continue
-			}
-			i := pos
-			pos++
-			if tp.Value == nil || i >= len(args) {
-				continue
-			}
-			// A constraint that only restricts the kind is already enforced
-			// by the builtin's own parameter kind, which was checked against
-			// the type when the two were unified. Skip it rather than
-			// materialize the argument (see kindOnlyConstraint).
-			if k, ok := kindOnlyConstraint(tp.Value); ok &&
-				i < len(builtin.Params) && builtin.Params[i].Kind()&^k == 0 {
-				continue
-			}
-			w := c.newInlineVertex(nil, nil,
-				MakeConjunct(t.Env, tp.Value, c.ci),
-				MakeConjunct(nil, args[i], c.ci))
-			w.Finalize(c)
-			if b := w.Bottom(); b != nil && !b.IsIncomplete() {
-				return b
-			}
-			args[i] = w
-		}
+	// Materialize raw defaults before applying attached signature
+	// constraints. The builtin implementation has always received these
+	// values through Builtin.call; doing it here as well ensures an omitted
+	// defaulted argument is constrained just like an explicit argument.
+	if !builtin.checkArgs(c, Pos(call), len(args)) {
+		return nil
+	}
+	for i := len(args); i < len(builtin.Params); i++ {
+		args = append(args, builtin.Params[i].Default())
+	}
+
+	var b *Bottom
+	args, b = builtin.applyParamTypes(c, args)
+	if b != nil {
+		return b
 	}
 
 	callCtx.args = args
@@ -2487,6 +2467,41 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 	v, ci := c.evalStateCI(result, Flags{status: partial, condition: state.condition, mode: state.mode})
 	c.ci = ci
 	return builtin.applyResultTypes(c, v)
+}
+
+// applyParamTypes applies every attached function type's parameter
+// constraints to args, which are indexed by raw builtin position.
+// Positionally bindable parameters map by ordinal; a name-only parameter may
+// map through the contract label supplied by another attached signature.
+// Like CUE function constraints, these expressions are
+// evaluated in the environment in which their signature was declared.
+func (builtin *Builtin) applyParamTypes(c *OpContext, args []Value) ([]Value, *Bottom) {
+	for _, t := range builtin.Types {
+		matches := matchBuiltinParams(t.Fn, builtin)
+		for j, tp := range t.Fn.Params {
+			i := matches[j]
+			if tp.Value == nil || i < 0 || i >= len(args) || args[i] == nil {
+				continue
+			}
+			// A constraint that only restricts the kind is already enforced
+			// by the builtin's own parameter kind, which was checked against
+			// the type when the two were unified. Skip it rather than
+			// materialize the argument (see kindOnlyConstraint).
+			if k, ok := kindOnlyConstraint(tp.Value); ok &&
+				i < len(builtin.Params) && builtin.Params[i].Kind()&^k == 0 {
+				continue
+			}
+			w := c.newInlineVertex(nil, nil,
+				MakeConjunct(t.Env, tp.Value, c.ci),
+				MakeConjunct(nil, args[i], c.ci))
+			w.Finalize(c)
+			if b := w.Bottom(); b != nil && !b.IsIncomplete() {
+				return nil, b
+			}
+			args[i] = w
+		}
+	}
+	return args, nil
 }
 
 // applyResultTypes unifies the result of a builtin call with the result
@@ -2551,7 +2566,9 @@ type Builtin struct {
 
 	// Types holds the function types (bodyless signatures) this builtin has
 	// been unified with; their parameter constraints and result constraints
-	// are additionally enforced on every call (see [Builtin.rawCall]). A
+	// are additionally enforced on every ordinary full call (see
+	// [Builtin.rawCall]). The legacy validator-constructor path remains
+	// separate. A
 	// Builtin carrying Types is a clone of a package-level builtin, which
 	// remains identified through orig.
 	Types []FuncType

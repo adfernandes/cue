@@ -28,7 +28,10 @@ import (
 func TestNativeFunctions(t *testing.T) {
 	ctx := cuecontext.New()
 	v := ctx.CompileString(`
+@experiment(aliasv2)
 @experiment(functions)
+
+import "list"
 
 sum: func(a: int, b: int) -> int: a + b
 twice: func(n: int) -> int: sum(n, n)
@@ -46,6 +49,31 @@ paramScope: {
 	out: f("shadow")
 }
 
+typedAdd1: func(_~x: int) -> int: x + 1
+typedAdd1: func(x: int) -> int
+typedAdd1: func(x: <10) -> int
+
+_reviewerAdd1: func(_~x: int) -> int: x + 1
+_reviewerAdd1: func(x: int) -> int
+
+limited: func(_~n: int) -> int: n
+limited: func(input: <10) -> int
+
+typedSum: func(_~a: int, _~b: int) -> int: a + b
+typedSum: func(x: int, y: int) -> int
+addLeft: typedSum(x: 1, ...)
+
+unmatchedOptional: func(_~n: int) -> int: n
+unmatchedOptional: func(extra?: <0, ...) -> int
+
+// An unmatched optional name-only parameter is not a concrete positional
+// slot in a bodyless type meet. Both operand orders must therefore agree.
+typeOptionalLabelLeft:  (func(int, x?: int, ...) -> int) & (func(x: int, ...) -> int)
+typeOptionalLabelRight: (func(x: int, ...) -> int) & (func(int, x?: int, ...) -> int)
+
+schemaType: func(list: [...], n: 1, matchValue: _) -> bool
+schemaBuiltin: schemaType & list.MatchN
+
 positional: sum(1, 2)
 nested:     twice(twice(2))
 labeled:    sum(a: 1, b: 2)
@@ -60,6 +88,13 @@ callerArg: {
 	local: 3
 	out: capture(local)
 }
+attachedLabel: typedAdd1(x: 2)
+reviewerRepro: _reviewerAdd1(x: 2)
+repeatedAttachedName: typedAdd1(x: 3)
+attachedConstraint: limited(input: 5)
+partialAttachedLabel: addLeft(y: 2)
+unmatchedOptionalResult: unmatchedOptional(5)
+schemaConstraintResult: schemaBuiltin([1, 2], int, int)
 `)
 	if err := v.Err(); err != nil {
 		t.Fatal(err)
@@ -81,6 +116,12 @@ callerArg: {
 		{"captured", 12},
 		{"callerArg.out", 13},
 		{"paramScope.out", 7},
+		{"attachedLabel", 3},
+		{"reviewerRepro", 3},
+		{"repeatedAttachedName", 4},
+		{"attachedConstraint", 5},
+		{"partialAttachedLabel", 3},
+		{"unmatchedOptionalResult", 5},
 	} {
 		got, err := v.LookupPath(cue.ParsePath(tc.path)).Int64()
 		if err != nil {
@@ -90,6 +131,10 @@ callerArg: {
 			t.Fatalf("%s: got %d; want %d", tc.path, got, tc.want)
 		}
 	}
+	got, err := v.LookupPath(cue.ParsePath("schemaConstraintResult")).Bool()
+	if err != nil || got {
+		t.Fatalf("schemaConstraintResult: got %v, %v; want false", got, err)
+	}
 }
 
 func TestNativeFunctionErrors(t *testing.T) {
@@ -98,6 +143,212 @@ func TestNativeFunctionErrors(t *testing.T) {
 		in   string
 		err  string
 	}{
+		{
+			name: "attached constraint follows positional match",
+			in: `
+@experiment(functions)
+
+f: func(_~n: int) -> int: n
+f: func(input: <10) -> int
+out: f(input: 15)
+`,
+			err: "invalid value 15 (out of bound <10)",
+		},
+		{
+			name: "different contract labels on one positional slot",
+			in: `
+@experiment(functions)
+
+out: (func(a: int) -> int) & (func(b: int) -> int)
+`,
+			err: "conflicting parameter labels",
+		},
+		{
+			name: "attached constraint follows positional call",
+			in: `
+@experiment(functions)
+
+f: func(_~n: int) -> int: n
+f: func(input: <10) -> int
+out: f(15)
+`,
+			err: "invalid value 15 (out of bound <10)",
+		},
+		{
+			name: "name-only constraint follows sibling contract label",
+			in: `
+@experiment(functions)
+
+T1: func(x?: <10, ...) -> int
+T2: func(x: int, ...) -> int
+f: (T1 & T2) & (func(_~v: int) -> int: v)
+out: f(x: 20)
+`,
+			err: "invalid value 20 (out of bound <10)",
+		},
+		{
+			name: "builtin name-only constraint follows sibling contract label",
+			in: `
+@experiment(functions)
+
+import "strings"
+
+T1: func(s?: =~"^[a-z]+$", ...) -> string
+T2: func(s: string, ...) -> string
+f: (T1 & T2) & strings.ToUpper
+out: f(s: "ABC")
+`,
+			err: "out of bound",
+		},
+		{
+			name: "builtin default is constrained by attached signature",
+			in: `
+@experiment(functions)
+
+import "path"
+
+T: func(path: string, os: "windows") -> string
+f: T & path.Clean
+out: f("a\\b")
+`,
+			err: "conflicting values",
+		},
+		{
+			name: "validator constructor rejects full-call first label",
+			in: `
+@experiment(functions)
+
+import "strings"
+
+out: strings.MinRunes(s: 3)
+`,
+			err: "labeled arguments are not supported for validator constructor strings.MinRunes",
+		},
+		{
+			name: "validator constructor rejects full-call trailing label",
+			in: `
+@experiment(functions)
+
+import "strings"
+
+out: strings.MinRunes(min: 3)
+`,
+			err: "labeled arguments are not supported for validator constructor strings.MinRunes",
+		},
+		{
+			name: "different attached contract labels conflict",
+			in: `
+@experiment(functions)
+
+f: func(_~n: int) -> int: n
+f: func(input: int) -> int
+f: func(value: int) -> int
+out: f
+`,
+			err: "conflicting parameter labels",
+		},
+		{
+			name: "attached contract label duplicates positional argument",
+			in: `
+@experiment(functions)
+
+f: func(_~n: int) -> int: n
+f: func(input: int) -> int
+out: f(1, input: 2)
+`,
+			err: "argument input provided by position and label",
+		},
+		{
+			name: "parameter matching is one-to-one",
+			in: `
+@experiment(functions)
+
+out: (func(int, int) -> int) & (func(int) -> int: 1)
+`,
+			err: "function type has more positional parameters than closed function",
+		},
+		{
+			name: "attached contract-label conflict",
+			in: `
+@experiment(functions)
+
+f: func(_~a: int, _~b: int) -> int: a + b
+f: func(x: int, y: int) -> int
+f: func(y: int, x: int) -> int
+out: f
+`,
+			err: "conflicting parameter labels",
+		},
+		{
+			name: "attached contract-label conflict merging tightened values",
+			in: `
+@experiment(functions)
+
+f: func(_~a: int, _~b: int) -> int: a + b
+left: f & (func(x: int, y: int) -> int)
+right: f & (func(y: int, x: int) -> int)
+out: left & right
+`,
+			err: "conflicting parameter labels",
+		},
+		{
+			name: "attached contract-label ambiguity beyond open head",
+			in: `
+@experiment(functions)
+
+out: (func(...) -> int) & (func(x: int, ...) -> int) & (func(int, x: int, ...) -> int)
+`,
+			err: "ambiguous parameter label",
+		},
+		{
+			name: "attached contract label collides with name-only parameter",
+			in: `
+@experiment(functions)
+
+f: func(_~v: int, x!: int) -> int: v + x
+f: func(x: int, ...) -> int
+out: f
+`,
+			err: "ambiguous parameter label",
+		},
+		{
+			name: "builtin attached contract-label conflict",
+			in: `
+@experiment(functions)
+
+import "strings"
+
+f: strings.Repeat
+f: func(x: string, y: int) -> string
+f: func(y: string, x: int) -> string
+out: f
+`,
+			err: "conflicting parameter labels",
+		},
+		{
+			name: "cannot tighten after partial application",
+			in: `
+@experiment(functions)
+
+f: func(_~a: int, _~b: int) -> int: a + b
+p: f(1, ...)
+out: p & (func(b: int) -> int)
+`,
+			err: "cannot tighten a partially applied function",
+		},
+		{
+			name: "incompatible types merging tightened builtins",
+			in: `
+@experiment(functions)
+
+import "path"
+
+short: (func(path: string) -> string) & path.Clean
+long: (func(path: string, os: string) -> string) & path.Clean
+out: short & long
+`,
+			err: "parameter os of function type not allowed by closed function type",
+		},
 		{
 			name: "return constraint",
 			in: `

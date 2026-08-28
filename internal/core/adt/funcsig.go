@@ -28,12 +28,12 @@ import (
 // decidable from the compiled signatures alone:
 //
 //   - every parameter of the type must be declared by the value. Positional
-//     parameters align by ordinal. Their plain contract labels then unify:
-//     equal labels agree, a label on only one side names the shared slot, and
-//     two different labels conflict. A name-only parameter (a! or a?, which
-//     can be passed by label alone) matches by label. A type parameter that
-//     the value does not declare is allowed only if the parameter is optional
-//     (a?); callable function values are closed;
+//     parameters first align by ordinal. Their plain contract labels then
+//     unify: equal labels agree, a label on only one side names the shared
+//     slot, and two different labels conflict. A name-only parameter (a! or
+//     a?, which can be passed by label alone) matches by label. A type
+//     parameter that the value does not declare is allowed only if the
+//     parameter is optional (a?); callable function values are closed;
 //   - a matched pair of parameters must agree on requiredness (a! matches
 //     only a!);
 //   - unless the type's signature is open, every parameter of the value must
@@ -50,9 +50,10 @@ import (
 //   - defaults are dynamic and are never probed statically: a value
 //     parameter with a default still counts as non-optional for the
 //     closedness check above;
-//   - the type's parameter order and positional/named calling conventions
-//     are not enforced beyond the matching described above; calls are always
-//     bound against the value's signature.
+//   - the type's parameter order does not replace the value's implementation
+//     signature. A plain name can supply the contract label of an otherwise
+//     unnamed matched slot, while positional calls and the function body's
+//     local bindings remain those of the value.
 //
 // Unifying two function types checks the same parameter matching in both
 // directions — a parameter present in only one signature is allowed only if
@@ -70,7 +71,8 @@ import (
 // A FuncType records a function type that a function value or another
 // function type has been unified with. The type's parameter constraints and
 // result constraint must additionally be enforced on any call through the
-// carrying [FuncValue].
+// carrying [FuncValue]. A plain parameter name supplies the contract label of
+// a matched positional slot when that slot was otherwise unnamed.
 type FuncType struct {
 	Fn  *Function
 	Env *Environment
@@ -109,9 +111,266 @@ func MatchFuncParam(fn *Function, label Feature, pos int) (FuncParam, int, bool)
 	return FuncParam{}, -1, false
 }
 
+// matchFuncParams maps every parameter of x to the parameter of y that it
+// declares, or to -1 when y does not declare it. Positional parameters map by
+// positional ordinal; name-only parameters map by label.
+//
+// A parameter of y can be matched at most once. This keeps positional and
+// name-only matches from ever collapsing two declarations onto one slot.
+func matchFuncParams(x, y *Function) []int {
+	matches := make([]int, len(x.Params))
+	for i := range matches {
+		matches[i] = -1
+	}
+	used := make([]bool, len(y.Params))
+	pos := 0
+	for i, p := range x.Params {
+		var j int
+		var ok bool
+		if p.Positional {
+			_, j, ok = MatchFuncParam(y, InvalidLabel, pos)
+			pos++
+			if ok && used[j] {
+				ok = false
+			}
+		} else {
+			_, j, ok = MatchFuncParam(y, p.Label, -1)
+			if ok && used[j] {
+				ok = false
+			}
+		}
+		if ok {
+			matches[i] = j
+			used[j] = true
+		}
+	}
+	return matches
+}
+
+// conflictingPositionalLabels reports the first positional ordinal for which
+// two signatures declare different contract labels. An absent label is not a
+// conflict: a compatible signature may add a contract name to an otherwise
+// unnamed positional slot.
+func conflictingPositionalLabels(x, y *Function) (a, b Feature, pos int, ok bool) {
+	xi, yi := 0, 0
+	for pos := 0; ; pos++ {
+		for xi < len(x.Params) && !x.Params[xi].Positional {
+			xi++
+		}
+		for yi < len(y.Params) && !y.Params[yi].Positional {
+			yi++
+		}
+		if xi == len(x.Params) || yi == len(y.Params) {
+			break
+		}
+		a, b := x.Params[xi].Label, y.Params[yi].Label
+		if a != InvalidLabel && b != InvalidLabel && a != b {
+			return a, b, pos, true
+		}
+		xi++
+		yi++
+	}
+	return InvalidLabel, InvalidLabel, -1, false
+}
+
+// checkParamsDeclared verifies that every parameter of x is declared by y.
+// Positional parameters first align by ordinal. Equal plain contract labels
+// agree, a label on only one side names the shared slot, and different labels
+// conflict. A name-only parameter (one marked a! or a?, which can be passed by
+// label alone) matches by label.
+// A parameter of x that y does not declare is allowed only if y's signature
+// is open or the parameter is optional (a?): an optional parameter can never
+// be bound by a call through y, but no call needs it either. Matched pairs
+// must agree on requiredness. The strings xd and yd describe the two
+// signatures in error messages.
+func checkParamsDeclared(c *OpContext, x, y *Function, xd, yd string) *Bottom {
+	if a, b, pos, ok := conflictingPositionalLabels(x, y); ok {
+		return c.NewErrf("conflicting parameter labels %s and %s for positional parameter %d in %s and %s",
+			a.SelectorString(c), b.SelectorString(c), pos+1, xd, yd)
+	}
+	matches := matchFuncParams(x, y)
+	for i, p := range x.Params {
+		j := matches[i]
+		if j < 0 {
+			if p.Positional && p.Label != InvalidLabel {
+				// A same-named name-only parameter does not declare this
+				// positional slot. Check it only to preserve the precise
+				// requiredness diagnostic for plain a against a!.
+				if q, _, ok := MatchFuncParam(y, p.Label, -1); ok && (p.ArcType == ArcRequired) != (q.ArcType == ArcRequired) {
+					return c.NewErrf("parameter %s must be required in both %s and %s",
+						p.Label.SelectorString(c), xd, yd)
+				}
+			}
+			if y.Open || p.ArcType == ArcOptional {
+				continue
+			}
+			if p.Label != InvalidLabel {
+				return c.NewErrf("parameter %s of %s not allowed by closed %s",
+					p.Label.SelectorString(c), xd, yd)
+			}
+			return c.NewErrf("%s has more positional parameters than closed %s", xd, yd)
+		}
+		q := y.Params[j]
+		if (p.ArcType == ArcRequired) != (q.ArcType == ArcRequired) {
+			return c.NewErrf("parameter %s must be required in both %s and %s",
+				p.Label.SelectorString(c), xd, yd)
+		}
+	}
+	return nil
+}
+
+// checkFuncTypeMeet verifies that two function types have unifiable
+// signatures: positional parameters align by ordinal and unify their contract
+// labels, name-only parameters match by label, and a parameter present in only
+// one is allowed only if the other signature is open or the parameter is
+// optional.
+func checkFuncTypeMeet(c *OpContext, x, y *Function) *Bottom {
+	if b := checkParamsDeclared(c, x, y, "function type", "function type"); b != nil {
+		return b
+	}
+	// The reverse direction only checks presence; requiredness of matched
+	// pairs was already checked above.
+	return checkParamsDeclared(c, y, x, "function type", "function type")
+}
+
+// checkFuncTightening verifies that the function value val may be tightened
+// by the function type typ: every non-optional parameter of the type must
+// be declared by the value, and, unless the type is open, every
+// non-optional parameter of the value must be addressable through the type.
+func checkFuncTightening(c *OpContext, typ, val *Function) *Bottom {
+	if b := checkParamsDeclared(c, typ, val, "function type", "function"); b != nil {
+		return b
+	}
+	if typ.Open {
+		return nil
+	}
+	p, ok := ExtraFuncParam(typ, val)
+	if !ok {
+		return nil
+	}
+	if p.Label != InvalidLabel {
+		return c.NewErrf("parameter %s of function not allowed by closed function type",
+			p.Label.SelectorString(c))
+	}
+	return c.NewErrf("function has more positional parameters than closed function type")
+}
+
+// ExtraFuncParam returns the first non-optional parameter of val that is not
+// addressable through the closed signature typ — by label for name-only
+// parameters or by ordinal for positional parameters — and reports whether
+// such a parameter exists. An optional
+// parameter never qualifies: calls through typ can never bind it, but no
+// call needs it either. Note that a parameter with a default does qualify:
+// defaults are dynamic and are not probed statically.
+//
+// The helper implements the closedness side of the one rule governing extra
+// parameters (see the file comment) and is shared between function
+// tightening and subsumption (internal/core/subsume).
+func ExtraFuncParam(typ, val *Function) (FuncParam, bool) {
+	matched := make([]bool, len(val.Params))
+	for _, j := range matchFuncParams(typ, val) {
+		if j >= 0 {
+			matched[j] = true
+		}
+	}
+	for i, p := range val.Params {
+		if matched[i] || p.ArcType == ArcOptional {
+			continue
+		}
+		return p, true
+	}
+	return FuncParam{}, false
+}
+
+// funcParamLabels returns the callable labels of a CUE function value.
+// The value's own plain and name-only labels bind directly. A plain label of
+// an attached signature names the otherwise unnamed value parameter that the
+// signature matched, without changing the implementation's parameter list or
+// local bindings. Compatibility checks ensure that a positional slot has at
+// most one contract label.
+//
+// A label contributed for different parameter indexes is ambiguous and maps
+// to -1. Such a label binds no argument, matching the treatment of conflicting
+// contract labels on builtins in [bindBuiltinArgs].
+func funcParamLabels(fn *Function, types []FuncType) (map[Feature]int, Feature) {
+	byLabel := make(map[Feature]int)
+	ambiguous := InvalidLabel
+	add := func(label Feature, pos int) {
+		if label == InvalidLabel {
+			return
+		}
+		if prev, ok := byLabel[label]; ok && prev != pos {
+			byLabel[label] = -1
+			if ambiguous == InvalidLabel {
+				ambiguous = label
+			}
+		} else if !ok {
+			byLabel[label] = pos
+		}
+	}
+	for i, p := range fn.Params {
+		add(p.Label, i)
+	}
+	for _, t := range types {
+		matches := matchFuncParams(t.Fn, fn)
+		for i, p := range t.Fn.Params {
+			if p.Positional && matches[i] >= 0 {
+				add(p.Label, matches[i])
+			}
+		}
+	}
+	return byLabel, ambiguous
+}
+
+// matchFuncParamsToValue maps a signature's parameters to the concrete
+// parameter indexes of a function value. Positional parameters map by
+// ordinal. Name-only parameters map through the value's complete callable
+// label surface, so a contract label contributed by a sibling attached
+// signature also carries a matching name-only constraint to the same slot.
+//
+// As in [matchFuncParams], one destination parameter may be selected at most
+// once by a given source signature.
+func matchFuncParamsToValue(x, fn *Function, types []FuncType) []int {
+	byLabel, _ := funcParamLabels(fn, types)
+	matches := make([]int, len(x.Params))
+	for i := range matches {
+		matches[i] = -1
+	}
+	used := make([]bool, len(fn.Params))
+	pos := 0
+	for i, p := range x.Params {
+		j := -1
+		if p.Positional {
+			_, j, _ = MatchFuncParam(fn, InvalidLabel, pos)
+			pos++
+		} else if p.Label != InvalidLabel {
+			var ok bool
+			j, ok = byLabel[p.Label]
+			if !ok {
+				j = -1
+			}
+		}
+		if j < 0 || used[j] {
+			continue
+		}
+		matches[i] = j
+		used[j] = true
+	}
+	return matches
+}
+
+// MatchFuncValueParams maps every parameter of x to the concrete parameter
+// index it selects on v, including through the contract label contributed by
+// an attached signature. It is exported for structural subsumption checks.
+func MatchFuncValueParams(x *Function, v *FuncValue) []int {
+	return matchFuncParamsToValue(x, v.Fn, v.Types)
+}
+
 // funcPositionalLabelConflict reports the first violation of the one-to-one
-// relation between plain contract labels and positional ordinals across fn
-// and types.
+// relation between plain contract labels and positional ordinals across fn and
+// types. It scans signature ordinals rather than only parameters materialized
+// by fn, so conflicts in extra positions of an open signature are rejected
+// before a later concrete value supplies them.
 func funcPositionalLabelConflict(fn *Function, types []FuncType) (a, b Feature, pos int) {
 	byLabel := make(map[Feature]int)
 	byPos := make(map[int]Feature)
@@ -153,141 +412,44 @@ func funcPositionalLabelConflict(fn *Function, types []FuncType) (a, b Feature, 
 	return conflictA, conflictB, conflictPos
 }
 
+// checkFuncParamLabels rejects a meet that would assign different contract
+// labels to one positional parameter or one label to different parameters.
 func checkFuncParamLabels(c *OpContext, fn *Function, types []FuncType) *Bottom {
+	// Positional ordinals are representation-independent, including for a
+	// meet of bodyless types whose chosen head depends on operand order. Always
+	// validate both directions of the label-to-ordinal relation.
 	a, b, pos := funcPositionalLabelConflict(fn, types)
 	if b != InvalidLabel {
 		return c.NewErrf("conflicting parameter labels %s and %s for positional parameter %d",
 			a.SelectorString(c), b.SelectorString(c), pos+1)
 	}
-	if a != InvalidLabel {
-		return c.NewErrf("ambiguous parameter label %s refers to multiple positions",
-			a.SelectorString(c))
-	}
-	return nil
-}
-
-// checkParamsDeclared verifies that every parameter of x is declared by y.
-// Positional parameters align by ordinal. A plain contract label may name an
-// otherwise unnamed aligned slot, but two present labels must be equal. A
-// name-only parameter (one marked a! or a?, which can be passed by label alone)
-// matches by label.
-// A parameter of x that y does not declare is allowed only if y's signature
-// is open or the parameter is optional (a?): an optional parameter can never
-// be bound by a call through y, but no call needs it either. Matched pairs
-// must agree on requiredness. The strings xd and yd describe the two
-// signatures in error messages.
-func checkParamsDeclared(c *OpContext, x, y *Function, xd, yd string) *Bottom {
-	pos := 0
-	for _, p := range x.Params {
-		var q FuncParam
-		var ok bool
-		if p.Positional {
-			q, _, ok = MatchFuncParam(y, InvalidLabel, pos)
-			pos++
-			if !ok && p.Label != InvalidLabel {
-				// A plain named parameter additionally matches a name-only
-				// parameter of the other signature by its label; requiredness
-				// agreement below then reports a! against plain a precisely.
-				q, _, ok = MatchFuncParam(y, p.Label, -1)
-			}
-		} else {
-			q, _, ok = MatchFuncParam(y, p.Label, -1)
-		}
-		if !ok {
-			if y.Open || p.ArcType == ArcOptional {
-				continue
-			}
-			if p.Label != InvalidLabel {
-				return c.NewErrf("parameter %s of %s not allowed by closed %s",
-					p.Label.SelectorString(c), xd, yd)
-			}
-			return c.NewErrf("%s has more positional parameters than closed %s", xd, yd)
-		}
-		if (p.ArcType == ArcRequired) != (q.ArcType == ArcRequired) {
-			return c.NewErrf("parameter %s must be required in both %s and %s",
-				p.Label.SelectorString(c), xd, yd)
+	ambiguous := a
+	if fn.Body != nil {
+		// A concrete function additionally has a materialized parameter list.
+		// Check attached contract labels against all of its own labels,
+		// including name-only parameters. A bodyless type cannot use this check:
+		// an unmatched optional name-only parameter in its chosen head is not a
+		// concrete slot, and treating its slice index as one makes type meets
+		// operand-order dependent.
+		_, concreteAmbiguous := funcParamLabels(fn, types)
+		if concreteAmbiguous != InvalidLabel {
+			ambiguous = concreteAmbiguous
 		}
 	}
-	return nil
-}
-
-// checkFuncTypeMeet verifies that two function types have unifiable
-// signatures: positional parameters align by ordinal and unify their contract
-// labels, name-only parameters match by label, and a parameter present in only
-// one is allowed only if the other signature is open or the parameter is
-// optional.
-func checkFuncTypeMeet(c *OpContext, x, y *Function) *Bottom {
-	if b := checkFuncParamLabels(c, x, []FuncType{{Fn: y}}); b != nil {
-		return b
-	}
-	if b := checkParamsDeclared(c, x, y, "function type", "function type"); b != nil {
-		return b
-	}
-	// The reverse direction only checks presence; requiredness of matched
-	// pairs was already checked above.
-	return checkParamsDeclared(c, y, x, "function type", "function type")
-}
-
-// checkFuncTightening verifies that the function value val may be tightened
-// by the function type typ: every non-optional parameter of the type must
-// be declared by the value, and, unless the type is open, every
-// non-optional parameter of the value must be addressable through the type.
-func checkFuncTightening(c *OpContext, typ, val *Function) *Bottom {
-	if b := checkFuncParamLabels(c, val, []FuncType{{Fn: typ}}); b != nil {
-		return b
-	}
-	if b := checkParamsDeclared(c, typ, val, "function type", "function"); b != nil {
-		return b
-	}
-	if typ.Open {
+	if ambiguous == InvalidLabel {
 		return nil
 	}
-	p, ok := ExtraFuncParam(typ, val)
-	if !ok {
-		return nil
-	}
-	if p.Label != InvalidLabel {
-		return c.NewErrf("parameter %s of function not allowed by closed function type",
-			p.Label.SelectorString(c))
-	}
-	return c.NewErrf("function has more positional parameters than closed function type")
+	return c.NewErrf("ambiguous parameter label %s refers to multiple positions",
+		ambiguous.SelectorString(c))
 }
 
-// ExtraFuncParam returns the first non-optional parameter of val that is not
-// addressable through the closed signature typ — by label, or, for a
-// positional parameter of val, through an anonymous parameter of typ in the
-// same position — and reports whether such a parameter exists. An optional
-// parameter never qualifies: calls through typ can never bind it, but no
-// call needs it either. Note that a parameter with a default does qualify:
-// defaults are dynamic and are not probed statically.
-//
-// The helper implements the closedness side of the one rule governing extra
-// parameters (see the file comment) and is shared between function
-// tightening and subsumption (internal/core/subsume).
-func ExtraFuncParam(typ, val *Function) (FuncParam, bool) {
-	pos := 0
-	for _, p := range val.Params {
-		pi := -1
-		if p.Positional {
-			pi = pos
-			pos++
-		}
-		if p.Label != InvalidLabel {
-			if _, _, ok := MatchFuncParam(typ, p.Label, -1); ok {
-				continue
-			}
-		}
-		if pi >= 0 {
-			if _, _, ok := MatchFuncParam(typ, InvalidLabel, pi); ok {
-				continue
-			}
-		}
-		if p.ArcType == ArcOptional {
-			continue
-		}
-		return p, true
-	}
-	return FuncParam{}, false
+// FuncParamLabelIndex reports the parameter index selected by label on v's
+// effective callable interface, including a contract label contributed by an
+// attached signature. It is exported for structural subsumption checks.
+func FuncParamLabelIndex(v *FuncValue, label Feature) (int, bool) {
+	byLabel, _ := funcParamLabels(v.Fn, v.Types)
+	i, ok := byLabel[label]
+	return i, ok && i >= 0
 }
 
 // anonParamLabel returns the label of the synthetic canonical-frame slot that
@@ -393,21 +555,22 @@ func kindOnlyConstraint(x Expr) (Kind, bool) {
 
 // CheckBuiltinTightening verifies that builtin b may be tightened by the
 // function type typ. It is exported for use by internal/core/subsume, which
-// applies the same static check to decide whether a function type subsumes a
-// builtin.
+// uses the same static compatibility check as the first step of proving
+// whether a function type subsumes a builtin.
 //
-// A builtin takes its arguments positionally, so a type's parameters match
-// the builtin's raw slots by position. Naming them is allowed and encouraged:
-// a plain parameter such as `list: [..._]` is both named and positional, so
-// its name supplies the otherwise unnamed slot's contract label without
-// changing the positional ABI. Only a parameter that can *only* be passed by
-// label — one marked required (a!) or optional (a?) — cannot be satisfied
-// positionally. The static checks are limited to what is decidable from the
-// compiled signature and the builtin's shape:
+// A builtin takes its arguments positionally, so a type's parameters align
+// with the builtin's raw slots by position. A plain parameter such as
+// `list: [..._]` is both named and positional, so its name supplies a contract
+// label without changing the raw ABI slot. Compatible attached signatures
+// must agree on that label. Only a parameter that can *only* be passed by label —
+// one marked required (a!) or optional (a?) — cannot itself supply a
+// positional match. The static checks are limited to what is decidable from
+// the compiled signature and the builtin's shape:
 //
 //   - a name-only parameter of the type is rejected, unless it is optional
-//     (a?): an optional parameter can never be bound by a call through the
-//     builtin, but no call needs it either;
+//     (a?): an unmatched optional parameter contributes no slot or label, but
+//     no call needs it either. If a sibling positional signature supplies the
+//     same label, its constraint follows that sibling's slot;
 //   - a type parameter beyond the builtin's parameter count is rejected;
 //   - unless the type is open, a defaultless builtin parameter beyond the
 //     type's parameter count is rejected, as calls through the type could
@@ -426,8 +589,9 @@ func CheckBuiltinTightening(c *OpContext, typ *Function, b *Builtin) *Bottom {
 		if !p.Positional {
 			if p.ArcType == ArcOptional {
 				// An extra parameter is admitted against a closed signature
-				// iff it is optional; a name-only parameter is never bound
-				// through a builtin, so nothing needs to bind it.
+				// iff it is optional. It contributes no position itself; a
+				// sibling positional signature may nevertheless expose the same
+				// label and carry this parameter's constraint to that slot.
 				continue
 			}
 			return c.NewErrf("parameter %s of function type not allowed by builtin %s: it can only be passed by label, and a builtin takes its arguments positionally",
@@ -462,6 +626,102 @@ func CheckBuiltinTightening(c *OpContext, typ *Function, b *Builtin) *Bottom {
 	return nil
 }
 
+// builtinParamLabels returns the parameter labels contributed by all attached
+// builtin signatures. Labels name raw builtin positions. A label attached to
+// more than one position is ambiguous and maps to -1; compatibility checks
+// ensure that each position has at most one contract label.
+func builtinParamLabels(types []FuncType) (map[Feature]int, Feature) {
+	byLabel := make(map[Feature]int)
+	ambiguous := InvalidLabel
+	for _, t := range types {
+		pos := 0
+		for _, p := range t.Fn.Params {
+			if !p.Positional {
+				continue
+			}
+			if p.Label != InvalidLabel {
+				if prev, ok := byLabel[p.Label]; ok && prev != pos {
+					byLabel[p.Label] = -1
+					if ambiguous == InvalidLabel {
+						ambiguous = p.Label
+					}
+				} else if !ok {
+					byLabel[p.Label] = pos
+				}
+			}
+			pos++
+		}
+	}
+	return byLabel, ambiguous
+}
+
+// matchBuiltinParams maps a signature's parameters to raw builtin positions.
+// Positional parameters map by ordinal. A name-only parameter maps only when
+// another attached positional signature exposes the same contract label for a
+// raw position. One source signature cannot map two declarations to one raw
+// position.
+func matchBuiltinParams(x *Function, b *Builtin) []int {
+	byLabel, _ := builtinParamLabels(b.Types)
+	matches := make([]int, len(x.Params))
+	for i := range matches {
+		matches[i] = -1
+	}
+	used := make([]bool, len(b.Params))
+	pos := 0
+	for i, p := range x.Params {
+		j := -1
+		if p.Positional {
+			j = pos
+			pos++
+		} else if p.Label != InvalidLabel {
+			var ok bool
+			j, ok = byLabel[p.Label]
+			if !ok {
+				j = -1
+			}
+		}
+		if j < 0 || j >= len(b.Params) || used[j] {
+			continue
+		}
+		matches[i] = j
+		used[j] = true
+	}
+	return matches
+}
+
+// MatchBuiltinParams maps every parameter of x to the raw parameter position
+// it selects on b, including name-only parameters resolved through contract
+// labels contributed by b's attached signatures. It is exported for
+// structural subsumption checks.
+func MatchBuiltinParams(x *Function, b *Builtin) []int {
+	return matchBuiltinParams(x, b)
+}
+
+func checkBuiltinParamLabels(c *OpContext, types []FuncType) *Bottom {
+	if len(types) > 0 {
+		a, b, pos := funcPositionalLabelConflict(types[0].Fn, types[1:])
+		if b != InvalidLabel {
+			return c.NewErrf("conflicting parameter labels %s and %s for positional parameter %d",
+				a.SelectorString(c), b.SelectorString(c), pos+1)
+		}
+	}
+	_, ambiguous := builtinParamLabels(types)
+	if ambiguous == InvalidLabel {
+		return nil
+	}
+	return c.NewErrf("ambiguous parameter label %s refers to multiple positions",
+		ambiguous.SelectorString(c))
+}
+
+// BuiltinParamLabelIndex reports the raw parameter position selected by label
+// on b's attached signatures. It is exported for structural subsumption
+// checks.
+func BuiltinParamLabelIndex(b *Builtin, label Feature) (int, bool) {
+	byLabel, _ := builtinParamLabels(b.Types)
+	i, ok := byLabel[label]
+	return i, ok && i >= 0
+}
+
 // bindBuiltinArgs resolves a call's labeled arguments against the
 // function types attached to a builtin, returning the call's arguments
 // in positional order. A builtin takes its arguments by position; its
@@ -472,9 +732,9 @@ func CheckBuiltinTightening(c *OpContext, typ *Function, b *Builtin) *Bottom {
 //
 // A builtin may carry several attached types. Compatible signatures agree on
 // at most one contract label per raw position. A label no type names does not
-// bind; placing one label at different positions makes the signatures
-// incompatible. The negative map entry below is a defensive call-boundary
-// check.
+// bind. A label placed at different positions makes the attached signatures
+// incompatible; the negative map entry remains a defensive check at the call
+// boundary.
 // A builtin with no attached types supports no labels at all — its
 // parameters have no names — which keeps hand-registered packages such
 // as path at the pre-existing error.
@@ -485,25 +745,7 @@ func bindBuiltinArgs(c *OpContext, b *Builtin, call *CallExpr) ([]Expr, bool) {
 		return nil, false
 	}
 
-	// byLabel maps each contract label to its raw position; ambiguous names
-	// map to -1 defensively.
-	byLabel := map[Feature]int{}
-	for _, t := range b.Types {
-		pos := 0
-		for _, p := range t.Fn.Params {
-			if !p.Positional {
-				continue // never bound through a builtin
-			}
-			if p.Label != InvalidLabel {
-				if prev, ok := byLabel[p.Label]; ok && prev != pos {
-					byLabel[p.Label] = -1
-				} else if !ok {
-					byLabel[p.Label] = pos
-				}
-			}
-			pos++
-		}
-	}
+	byLabel, _ := builtinParamLabels(b.Types)
 
 	bound := make([]Expr, len(b.Params))
 	labeled := make([]bool, len(b.Params))
@@ -569,7 +811,8 @@ func bindBuiltinArgs(c *OpContext, b *Builtin, call *CallExpr) ([]Expr, bool) {
 // mergeBuiltinFunc unifies builtin b with the function value or type f. A
 // builtin unifies with a compatible function type, yielding the builtin
 // carrying the type as an extra [FuncType] constraint that is additionally
-// enforced on every call. A Bottom return describes an incompatible
+// enforced on every ordinary full call. The legacy validator-constructor path
+// remains separate. A Bottom return describes an incompatible
 // signature. A nil, nil return indicates that b and f are conflicting
 // values, to be reported like any other conflicting scalars: a builtin
 // never unifies with a proper function value.
@@ -668,8 +911,14 @@ func mergeFuncValues(c *OpContext, a, b *FuncValue) (*FuncValue, *Bottom) {
 		if a.Fn != b.Fn || !a.Env.Equal(c, b.Env) || !equalFuncArgs(a.args, b.args) {
 			return nil, nil
 		}
+		if err := checkFuncTypeSetsMeet(c, a.Types, b.Types); err != nil {
+			return nil, err
+		}
 		merged := *a
 		merged.Types = mergeFuncTypes(a.Types, b.Types)
+		if err := checkFuncParamLabels(c, merged.Fn, merged.Types); err != nil {
+			return nil, err
+		}
 		return &merged, nil
 	}
 
@@ -678,6 +927,13 @@ func mergeFuncValues(c *OpContext, a, b *FuncValue) (*FuncValue, *Bottom) {
 	prim, sec := a, b
 	if IsFuncType(a) && !IsFuncType(b) {
 		prim, sec = b, a
+	}
+	if !IsFuncType(prim) && prim.IsPartial() {
+		// A partial application is callable over only its unbound
+		// parameters, while prim.Fn still describes the original function.
+		// Reject tightening until partial values carry a specialized
+		// signature which can be matched soundly.
+		return nil, c.NewErrf("cannot tighten a partially applied function")
 	}
 
 	head := FuncType{Fn: prim.Fn, Env: prim.Env}
@@ -716,9 +972,30 @@ func mergeFuncValues(c *OpContext, a, b *FuncValue) (*FuncValue, *Bottom) {
 	if !added {
 		return prim, nil
 	}
+	if b := checkFuncParamLabels(c, prim.Fn, types); b != nil {
+		return nil, b
+	}
 	merged := *prim
 	merged.Types = types
 	return &merged, nil
+}
+
+// checkFuncTypeSetsMeet verifies the cross-product needed when two already
+// tightened values of the same identity are unified. Each side was checked
+// while it was built, but constraints originating on opposite sides have not
+// necessarily met before.
+func checkFuncTypeSetsMeet(c *OpContext, a, b []FuncType) *Bottom {
+	for _, x := range a {
+		for _, y := range b {
+			if x == y {
+				continue
+			}
+			if err := checkFuncTypeMeet(c, x.Fn, y.Fn); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // equalFuncTypes reports whether a and b record the same set of function
@@ -764,6 +1041,18 @@ func (x *FuncValue) EqualArgs(y *FuncValue) bool {
 	return equalFuncArgs(x.args, y.args)
 }
 
+// IsPartial reports whether x carries any arguments bound by partial
+// application. It is exported for structural subsumption: a partially applied
+// value has a different callable interface from its original function type.
+func (x *FuncValue) IsPartial() bool {
+	for _, a := range x.args {
+		if a.expr != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // mergeFuncTypes returns the union of two lists of function type
 // constraints, preserving the order of a.
 func mergeFuncTypes(a, b []FuncType) []FuncType {
@@ -780,31 +1069,4 @@ func mergeFuncTypes(a, b []FuncType) []FuncType {
 		}
 	}
 	return types
-}
-
-// checkBuiltinParamLabels verifies that attached builtin signatures form a
-// one-to-one relation between positional ordinals and contract labels.
-func checkBuiltinParamLabels(c *OpContext, types []FuncType) *Bottom {
-	if len(types) == 0 {
-		return nil
-	}
-	return checkFuncParamLabels(c, types[0].Fn, types[1:])
-}
-
-// checkFuncTypeSetsMeet verifies the cross-product needed when two already
-// tightened values of the same identity are unified. Each side was checked
-// while it was built, but constraints originating on opposite sides have not
-// necessarily met before.
-func checkFuncTypeSetsMeet(c *OpContext, a, b []FuncType) *Bottom {
-	for _, x := range a {
-		for _, y := range b {
-			if x == y {
-				continue
-			}
-			if err := checkFuncTypeMeet(c, x.Fn, y.Fn); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }

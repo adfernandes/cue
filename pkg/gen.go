@@ -820,12 +820,13 @@ func paramHasDefault(funcName string, param *types.Var) bool {
 }
 
 // defParam returns the declaration of a function parameter for use in
-// a signature. A plain name assigns the contract label of its positional
-// builtin slot; an unnamed Go parameter is rendered as its bare type. A
-// parameter the builtin
-// reads as a schema — typed pkg.Schema in Go, so deliberately
-// accepting a non-concrete value — carries the @schema() attribute,
-// which the definition files declare as well.
+// a signature. A plain named parameter is positional as well, so the
+// name is the raw builtin slot's contract label and, through the attached
+// function type, lets a labeled call select that slot. An unnamed Go parameter is
+// rendered as its bare type. A parameter the builtin reads as a schema —
+// typed pkg.Schema in Go, so deliberately accepting a non-concrete value —
+// carries the @schema() attribute, which the definition files declare as
+// well.
 func defParam(funcName string, param *types.Var) string {
 	name := param.Name()
 	typ := cueType(param.Type())

@@ -1,4 +1,4 @@
-# Tests unification of native function values with function types (bodyless
+# Tests unification of CUE function values with function types (bodyless
 # signatures, possibly partial/open) and of function types with each other.
 # Static checks at unification time cover only what is decidable from the
 # compiled signatures: parameter names, positions, requiredness flags, and
@@ -39,9 +39,11 @@ closed: {
 	g:  U & (func(a: int) -> int: a)
 	gx: g(1) @test(eq, 1)
 
-	// A named type may constrain an otherwise unnamed positional slot.
-	gN:  U & (func(_~v: int) -> int: v)
-	gNx: gN(1) @test(eq, 1)
+	// A named type may add its contract label to an otherwise unnamed
+	// positional implementation slot.
+	gN:       U & (func(_~v: int) -> int: v)
+	gNx:      gN(1) @test(eq, 1)
+	gNByName: gN(a: 2) @test(eq, 2)
 
 	// Two different contract labels for the same positional slot conflict.
 	badName: U & (func(b: int) -> int: b) @test(err, code=eval, contains="conflicting parameter labels")
@@ -77,7 +79,7 @@ anonymous: {
 
 	// A type constraint matched to an anonymous positional parameter of
 	// the value is enforced per call: the argument is bound to a synthetic
-	// activation arc even though the body cannot reference it.
+	// canonical-frame slot even though the body cannot reference it.
 	D:    func(<10, ...) -> int
 	d:    D & (func(int) -> int: 1)
 	dOk:  d(5) @test(eq, 1)
@@ -93,6 +95,43 @@ anonymous: {
 	// anonymous parameters are still reported as such.
 	few:  f() @test(err, code=eval, contains="not enough arguments in function call")
 	many: f(1, 2) @test(err, code=eval, contains="too many positional arguments in function call")
+}
+
+contractLabels: {
+	// An attached signature supplies the contract label of the
+	// implementation's otherwise unnamed positional slot. The implementation
+	// may keep a separate body-local name.
+	add1: func(_~x: int) -> int: x + 1
+	add1: func(x: int) -> int
+	byLabel: add1(x: 2) @test(eq, 3)
+	byPosition: add1(2) @test(eq, 3)
+
+	// Another compatible signature may repeat the same contract label.
+	add1: func(x: <10) -> int
+	byRepeatedName: add1(x: 3) @test(eq, 4)
+
+	// Named and unnamed bodyless signatures compose in either order. Once a
+	// concrete implementation is attached, the single contract label names
+	// their shared slot.
+	Named:       func(x: int) -> int
+	Unnamed:     func(int) -> int
+	identity:    func(_~v: int) -> int: v
+	namedFirst:  Named & Unnamed & identity
+	unnamedFirst: Unnamed & Named & identity
+	namedCall:   namedFirst(x: 6) @test(eq, 6)
+	reverseCall: unnamedFirst(x: 7) @test(eq, 7)
+
+	// A constraint from a named signature attached to an unnamed slot follows
+	// the same positional match as its contract label.
+	limited: func(_~n: int) -> int: n
+	limited: func(input: <10) -> int
+	limitedOK: limited(input: 5) @test(eq, 5)
+
+	// A contributed contract label also binds partial applications.
+	sum: func(_~a: int, _~b: int) -> int: a + b
+	sum: func(x: int, y: int) -> int
+	addLeft: sum(x: 1, ...)
+	partial: addLeft(y: 2) @test(eq, 3)
 }
 
 meet: {
@@ -113,16 +152,10 @@ meet: {
 	wx:  w("x") @test(err, code=eval, contains="conflicting values")
 	wx2: w(0.5) @test(err, code=eval, contains="conflicting values")
 
-	// A contract label may name an unnamed positional slot, but two different
-	// labels for one slot conflict in either operand order.
-	okUnnamed: (func(x: int) -> int) & (func(int) -> int)
-	okUnnamedV: okUnnamed & (func(int) -> int: 1)
-	okUnnamedX: okUnnamedV(3) @test(eq, 1)
-	badName:    (func(a: int) -> int) & (func(b: int) -> int) @test(err, code=eval, contains="conflicting parameter labels")
+	// Positional parameters align by ordinal, but two different contract
+	// labels for the same slot are incompatible.
+	badName: (func(a: int) -> int) & (func(b: int) -> int) @test(err, code=eval, contains="conflicting parameter labels")
 	badNameRev: (func(b: int) -> int) & (func(a: int) -> int) @test(err, code=eval, contains="conflicting parameter labels")
-
-	// One contract label cannot identify different positional slots.
-	badLabelPos: (func(a: int, ...) -> int) & (func(int, a: int, ...) -> int) @test(err, code=eval, contains="ambiguous parameter label")
 
 	// Requiredness must agree between signatures.
 	badReq: (func(a!: int) -> int) & (func(a: int, ...) -> int) @test(err, code=eval, contains="parameter a must be required in both")
@@ -135,11 +168,11 @@ meet: {
 }
 
 // An extra parameter is admitted against a closed signature iff it is
-// optional (?): it can never be bound by a call through the closed
-// signature, but no call needs it either. One rule governs function
-// tightening (both directions), function type meets, and subsumption
-// (see internal/core/subsume); builtins have no optional markers (see
-// builtins.txtar).
+// optional (?): while unmatched it contributes no parameter, but no call
+// needs it either. A sibling positional signature may expose the same label
+// and carry its constraint to a slot. One rule governs function tightening
+// (both directions), function type meets, and subsumption (see
+// internal/core/subsume); builtins have no optional markers (see builtins.txtar).
 optionalExtra: {
 	// Tightening: an extra optional parameter of the value against a
 	// closed type (also covered by closed.ok3).
@@ -283,94 +316,91 @@ narrow: {
 [eval] a: conflicting values 1 and string (mismatched types int and string):
     ./in.cue:24:21
     ./in.cue:25:10
-[eval] closed.badName: conflicting parameter labels b and a for positional parameter 1:
+[eval] closed.badName: conflicting parameter labels a and b for positional parameter 1 in function type and function:
     ./in.cue:29:5
-    ./in.cue:40:16
+    ./in.cue:42:16
 [eval] closed.bad2: parameter b of function not allowed by closed function type:
     ./in.cue:29:5
-    ./in.cue:44:13
+    ./in.cue:46:13
 [eval] n: conflicting values "x" and int (mismatched types string and int):
-    ./in.cue:55:19
-    ./in.cue:57:8
+    ./in.cue:57:19
+    ./in.cue:59:8
 [eval] arg0: invalid value 15 (out of bound <10):
-    ./in.cue:74:13
-    ./in.cue:77:10
+    ./in.cue:76:13
+    ./in.cue:79:10
 [eval] arg0: conflicting values "x" and int (mismatched types string and int):
-    ./in.cue:81:13
-    ./in.cue:83:10
+    ./in.cue:83:13
+    ./in.cue:85:10
 [eval] anonymous.few: not enough arguments in function call:
-    ./in.cue:87:8
+    ./in.cue:89:8
 [eval] anonymous.many: too many positional arguments in function call:
-    ./in.cue:88:8
+    ./in.cue:90:8
 [eval] meet.nc: cannot call function without implementation:
-    ./in.cue:97:6
+    ./in.cue:136:6
 [eval] conflicting values int and "x" (mismatched types int and string):
-    ./in.cue:94:62
-    ./in.cue:105:29
-    ./in.cue:106:9
+    ./in.cue:133:62
+    ./in.cue:144:29
+    ./in.cue:145:9
 [eval] conflicting values int and 0.5 (mismatched types int and float):
-    ./in.cue:94:62
-    ./in.cue:105:29
-    ./in.cue:107:9
-[eval] meet.badName: conflicting parameter labels b and a for positional parameter 1:
-    ./in.cue:114:39
-    ./in.cue:114:15
-[eval] meet.badNameRev: conflicting parameter labels a and b for positional parameter 1:
-    ./in.cue:115:39
-    ./in.cue:115:15
-[eval] meet.badLabelPos: ambiguous parameter label a refers to multiple positions:
-    ./in.cue:118:45
-    ./in.cue:118:16
+    ./in.cue:133:62
+    ./in.cue:144:29
+    ./in.cue:146:9
+[eval] meet.badName: conflicting parameter labels b and a for positional parameter 1 in function type and function type:
+    ./in.cue:150:36
+    ./in.cue:150:12
+[eval] meet.badNameRev: conflicting parameter labels a and b for positional parameter 1 in function type and function type:
+    ./in.cue:151:39
+    ./in.cue:151:15
 [eval] meet.badReq: parameter a must be required in both function type and function type:
-    ./in.cue:121:36
-    ./in.cue:121:11
+    ./in.cue:154:36
+    ./in.cue:154:11
 [eval] optionalExtra.badT: parameter b of function type not allowed by closed function:
-    ./in.cue:151:44
-    ./in.cue:151:9
+    ./in.cue:184:44
+    ./in.cue:184:9
 [eval] optionalExtra.badV: parameter b of function not allowed by closed function type:
-    ./in.cue:152:36
-    ./in.cue:152:9
+    ./in.cue:185:36
+    ./in.cue:185:9
 [eval] optionalExtra.badR: parameter b of function not allowed by closed function type:
-    ./in.cue:153:36
-    ./in.cue:153:9
+    ./in.cue:186:36
+    ./in.cue:186:9
 [eval] optionalExtra.mBad: parameter b of function type not allowed by closed function type:
-    ./in.cue:159:36
-    ./in.cue:159:9
+    ./in.cue:192:36
+    ./in.cue:192:9
 [eval] values.conflict: conflicting values func(a: int) -> int: ... and func(a: int) -> int: ...:
-    ./in.cue:177:5
-    ./in.cue:178:5
-    ./in.cue:181:12
-    ./in.cue:181:16
+    ./in.cue:210:5
+    ./in.cue:211:5
+    ./in.cue:214:12
+    ./in.cue:214:16
 [structural_cycle] structural cycle:
-    ./in.cue:219:34
+    ./in.cue:252:34
 [eval] n: invalid value 15 (out of bound <10):
-    ./in.cue:238:15
-    ./in.cue:242:9
+    ./in.cue:271:15
+    ./in.cue:275:9
 [eval] invalid value 400 (out of bound <100):
-    ./in.cue:246:27
-    ./in.cue:247:32
+    ./in.cue:279:27
+    ./in.cue:280:32
 [eval] conflicting values string and 42 (mismatched types string and int):
-    ./in.cue:254:61
-    ./in.cue:255:41
-    ./in.cue:258:23
+    ./in.cue:287:61
+    ./in.cue:288:41
+    ./in.cue:291:23
 [eval] cfg.port: invalid value 0 (out of bound >0):
-    ./in.cue:254:39
-    ./in.cue:259:35
+    ./in.cue:287:39
+    ./in.cue:292:35
 [eval] invalid value -1 (out of bound >=0):
-    ./in.cue:262:14
-    ./in.cue:267:9
+    ./in.cue:295:14
+    ./in.cue:300:9
 [eval] invalid value 11 (out of bound <10):
-    ./in.cue:263:14
-    ./in.cue:268:9
+    ./in.cue:296:14
+    ./in.cue:301:9
 -- out/eval/stats --
 Leaks:  2
-Freed:  322
-Reused: 285
-Allocs: 39
+Freed:  358
+Reused: 320
+Allocs: 40
 Retain: 0
 
-Unifications: 320
-Conjuncts:    1480
+Unifications: 356
+Conjuncts:    1685
 Disjuncts:    4
 
-NumCloseIDs: 176
+NumCloseIDs: 196

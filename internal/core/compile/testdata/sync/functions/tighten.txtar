@@ -1,4 +1,4 @@
-# Tests unification of native function values with function types (bodyless
+# Tests unification of CUE function values with function types (bodyless
 # signatures, possibly partial/open) and of function types with each other.
 # Static checks at unification time cover only what is decidable from the
 # compiled signatures: parameter names, positions, requiredness flags, and
@@ -39,9 +39,11 @@ closed: {
 	g:  U & (func(a: int) -> int: a)
 	gx: g(1)
 
-	// A named type may constrain an otherwise unnamed positional slot.
-	gN:  U & (func(_~v: int) -> int: v)
-	gNx: gN(1)
+	// A named type may add its contract label to an otherwise unnamed
+	// positional implementation slot.
+	gN:       U & (func(_~v: int) -> int: v)
+	gNx:      gN(1)
+	gNByName: gN(a: 2)
 
 	// Two different contract labels for the same positional slot conflict.
 	badName: U & (func(b: int) -> int: b)
@@ -77,7 +79,7 @@ anonymous: {
 
 	// A type constraint matched to an anonymous positional parameter of
 	// the value is enforced per call: the argument is bound to a synthetic
-	// activation arc even though the body cannot reference it.
+	// canonical-frame slot even though the body cannot reference it.
 	D:    func(<10, ...) -> int
 	d:    D & (func(int) -> int: 1)
 	dOk:  d(5)
@@ -93,6 +95,43 @@ anonymous: {
 	// anonymous parameters are still reported as such.
 	few:  f()
 	many: f(1, 2)
+}
+
+contractLabels: {
+	// An attached signature supplies the contract label of the
+	// implementation's otherwise unnamed positional slot. The implementation
+	// may keep a separate body-local name.
+	add1: func(_~x: int) -> int: x + 1
+	add1: func(x: int) -> int
+	byLabel: add1(x: 2)
+	byPosition: add1(2)
+
+	// Another compatible signature may repeat the same contract label.
+	add1: func(x: <10) -> int
+	byRepeatedName: add1(x: 3)
+
+	// Named and unnamed bodyless signatures compose in either order. Once a
+	// concrete implementation is attached, the single contract label names
+	// their shared slot.
+	Named:       func(x: int) -> int
+	Unnamed:     func(int) -> int
+	identity:    func(_~v: int) -> int: v
+	namedFirst:  Named & Unnamed & identity
+	unnamedFirst: Unnamed & Named & identity
+	namedCall:   namedFirst(x: 6)
+	reverseCall: unnamedFirst(x: 7)
+
+	// A constraint from a named signature attached to an unnamed slot follows
+	// the same positional match as its contract label.
+	limited: func(_~n: int) -> int: n
+	limited: func(input: <10) -> int
+	limitedOK: limited(input: 5)
+
+	// A contributed contract label also binds partial applications.
+	sum: func(_~a: int, _~b: int) -> int: a + b
+	sum: func(x: int, y: int) -> int
+	addLeft: sum(x: 1, ...)
+	partial: addLeft(y: 2)
 }
 
 meet: {
@@ -113,16 +152,10 @@ meet: {
 	wx:  w("x")
 	wx2: w(0.5)
 
-	// A contract label may name an unnamed positional slot, but two different
-	// labels for one slot conflict in either operand order.
-	okUnnamed: (func(x: int) -> int) & (func(int) -> int)
-	okUnnamedV: okUnnamed & (func(int) -> int: 1)
-	okUnnamedX: okUnnamedV(3)
-	badName:    (func(a: int) -> int) & (func(b: int) -> int)
+	// Positional parameters align by ordinal, but two different contract
+	// labels for the same slot are incompatible.
+	badName: (func(a: int) -> int) & (func(b: int) -> int)
 	badNameRev: (func(b: int) -> int) & (func(a: int) -> int)
-
-	// One contract label cannot identify different positional slots.
-	badLabelPos: (func(a: int, ...) -> int) & (func(int, a: int, ...) -> int)
 
 	// Requiredness must agree between signatures.
 	badReq: (func(a!: int) -> int) & (func(a: int, ...) -> int)
@@ -135,11 +168,11 @@ meet: {
 }
 
 // An extra parameter is admitted against a closed signature iff it is
-// optional (?): it can never be bound by a call through the closed
-// signature, but no call needs it either. One rule governs function
-// tightening (both directions), function type meets, and subsumption
-// (see internal/core/subsume); builtins have no optional markers (see
-// builtins.txtar).
+// optional (?): while unmatched it contributes no parameter, but no call
+// needs it either. A sibling positional signature may expose the same label
+// and carry its constraint to a slot. One rule governs function tightening
+// (both directions), function type meets, and subsumption (see
+// internal/core/subsume); builtins have no optional markers (see builtins.txtar).
 optionalExtra: {
 	// Tightening: an extra optional parameter of the value against a
 	// closed type (also covered by closed.ok3).
@@ -295,6 +328,7 @@ narrow: {
     gx: 〈0;g〉(1)
     gN: (〈0;U〉 & func(int) -> int: 〈0;v〉)
     gNx: 〈0;gN〉(1)
+    gNByName: 〈0;gN〉(a: 2)
     badName: (〈0;U〉 & func(b: int) -> int: 〈0;b〉)
     bad2: (〈0;U〉 & func(a: int, b: int) -> int: (〈0;a〉 + 〈0;b〉))
     ok3: (〈0;U〉 & func(a: int, b?: int) -> int: 〈0;a〉)
@@ -321,6 +355,28 @@ narrow: {
     few: 〈0;f〉()
     many: 〈0;f〉(1, 2)
   }
+  contractLabels: {
+    add1: func(int) -> int: (〈0;x〉 + 1)
+    add1: func(x: int) -> int
+    byLabel: 〈0;add1〉(x: 2)
+    byPosition: 〈0;add1〉(2)
+    add1: func(x: <10) -> int
+    byRepeatedName: 〈0;add1〉(x: 3)
+    Named: func(x: int) -> int
+    Unnamed: func(int) -> int
+    identity: func(int) -> int: 〈0;v〉
+    namedFirst: ((〈0;Named〉 & 〈0;Unnamed〉) & 〈0;identity〉)
+    unnamedFirst: ((〈0;Unnamed〉 & 〈0;Named〉) & 〈0;identity〉)
+    namedCall: 〈0;namedFirst〉(x: 6)
+    reverseCall: 〈0;unnamedFirst〉(x: 7)
+    limited: func(int) -> int: 〈0;n〉
+    limited: func(input: <10) -> int
+    limitedOK: 〈0;limited〉(input: 5)
+    sum: func(int, int) -> int: (〈0;a〉 + 〈0;b〉)
+    sum: func(x: int, y: int) -> int
+    addLeft: 〈0;sum〉(x: 1)
+    partial: 〈0;addLeft〉(y: 2)
+  }
   meet: {
     n: (func(a: number, ...) -> number & func(a: int, ...) -> int)
     nc: 〈0;n〉(1)
@@ -329,12 +385,8 @@ narrow: {
     w: (〈0;n〉 & func(a: _) -> _: 〈0;a〉)
     wx: 〈0;w〉("x")
     wx2: 〈0;w〉(0.5)
-    okUnnamed: (func(x: int) -> int & func(int) -> int)
-    okUnnamedV: (〈0;okUnnamed〉 & func(int) -> int: 1)
-    okUnnamedX: 〈0;okUnnamedV〉(3)
     badName: (func(a: int) -> int & func(b: int) -> int)
     badNameRev: (func(b: int) -> int & func(a: int) -> int)
-    badLabelPos: (func(a: int, ...) -> int & func(int, a: int, ...) -> int)
     badReq: (func(a!: int) -> int & func(a: int, ...) -> int)
     wider: (func(a: int, ...) -> int & func(a: int, b: int, ...) -> int)
     widerV: (〈0;wider〉 & func(a: int, b: int, c?: int) -> int: (〈0;a〉 + 〈0;b〉))

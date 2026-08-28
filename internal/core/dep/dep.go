@@ -329,8 +329,9 @@ func (c *visitor) markExpr(env *adt.Environment, expr adt.Elem) {
 	case nil:
 	case *adt.ConjunctGroup:
 		// A group may pin each conjunct to a different environment. Function
-		// call arguments use this to retain the caller's scope when their
-		// canonical parameter slot is later traversed from the callee's frame.
+		// call arguments use this to retain the caller (or an earlier partial
+		// application's) scope when their canonical parameter slot is later
+		// traversed from the callee's frame.
 		for _, conjunct := range *x {
 			c.markExpr(conjunct.Env, conjunct.Elem())
 		}

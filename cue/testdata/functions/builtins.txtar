@@ -1,12 +1,13 @@
 # Tests that builtins satisfy function types: unifying a builtin with a
 # compatible function type succeeds and yields the builtin, with the type's
-# parameter and result constraints additionally enforced on every call.
-# A builtin binds its arguments by position, so a type's parameters match the
-# builtin's by position. Naming them is allowed: a plain parameter is both
-# named and positional, so it gives the otherwise unnamed raw slot a contract
-# label without changing the builtin's positional ABI. Only a parameter that
-# can be passed by label alone —
-# marked required (a!) or optional (a?) — cannot be satisfied by a builtin.
+# parameter and result constraints additionally enforced on every ordinary
+# full call. The legacy validator-constructor form remains a separate path.
+# A builtin binds its raw arguments by position. Positional type parameters
+# align with those raw slots by ordinal; a plain name supplies a contract label
+# only when the slot does not already have a different one. A required
+# name-only parameter cannot be satisfied by a builtin; an unmatched optional
+# one contributes no slot or label, though its constraint follows that slot if
+# a sibling positional signature supplies the label.
 # Statically checked at unification time are parameter matching, arity, and
 # kind-level compatibility where the constraint is literally a basic type;
 # all other constraints surface when the tightened builtin is called.
@@ -32,10 +33,11 @@ tighten: {
 	o:  O & strings.ToUpper
 	ox: o("hi") @test(eq, "HI")
 
-	// A named parameter is positional as well, so it matches the builtin's
-	// raw parameter by position and supplies its contract label.
+	// The generated signature names this raw positional slot s; the same
+	// contract label may be repeated by a compatible type.
 	named: (func(s: string) -> string) & strings.ToUpper
 	nx:    named("hi") @test(eq, "HI")
+	nxLabel: named(s: "bye") @test(eq, "BYE")
 }
 
 static: {
@@ -56,7 +58,7 @@ static: {
 }
 
 // Constraints that are not decidable from the signatures alone are enforced
-// dynamically, on every call through the tightened builtin.
+// dynamically, on every ordinary full call through the tightened builtin.
 dynamic: {
 	// The type narrows the parameter to a bound.
 	P:  func(<="m", ...) -> string
@@ -82,20 +84,25 @@ dynamic: {
 }
 
 // An extra parameter is admitted against a closed signature iff it is
-// optional. For builtins this cuts both ways: an extra optional named
-// parameter of the type can never be bound by a call through the builtin,
-// but no call needs it either; the builtin's own parameters carry no
-// optional markers, so only a parameter with a default may exceed a closed
-// type's count (defaults of builtins are static metadata, unlike function
-// value defaults, which are dynamic and never probed).
+// optional. An unmatched optional name-only parameter contributes no slot or
+// label, but no call needs it either; if a sibling positional signature
+// exposes the same label, its constraint follows that slot. The builtin's own
+// parameters carry no optional markers, so only a parameter with a default
+// may exceed a closed type's count (defaults of builtins are static metadata,
+// unlike function value defaults, which are dynamic and never probed).
 optionalExtra: {
 	O:  func(string, sep?: string) -> string
 	up: O & strings.ToUpper
 	x:  up("hi") @test(eq, "HI")
 
+	// An unmatched optional name-only constraint contributes no raw slot.
+	OnlyExtra: func(extra?: int, ...) -> string
+	upExtra:   OnlyExtra & strings.ToUpper
+	y:         upExtra("hi") @test(eq, "HI")
+
 	// A required parameter is rejected: unlike a plain named parameter
-	// (see tighten.named), it can only be passed by label, which a call
-	// through a builtin cannot do.
+	// (see tighten.named), it declares no positional slot of its own and is
+	// rejected by the static builtin-attachment check.
 	bad: (func(string, sep!: string) -> string) & strings.ToUpper @test(err, code=eval, contains="parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally")
 }
 
@@ -140,8 +147,8 @@ polymorphic: {
 
 // A labeled argument binds through the contract labels of the builtin's
 // declared signature; the call proceeds with the arguments in positional
-// order. The standard library's builtins carry their declared signatures,
-// so their contract labels are callable.
+// order. Generated, signature-bearing standard-library functions ordinarily
+// carry attached labels which are callable.
 labeled: {
 	import1: {
 		named:   list.Drop(x: [1, 2, 3], n: 1) @test(eq, [2, 3])
@@ -150,7 +157,7 @@ labeled: {
 	}
 
 	errors: {
-		// A label no attached signature names does not bind.
+		// A label no attached signature declares does not bind.
 		unknown: list.Drop(lst: [1], n: 0) @test(err, code=eval, contains="unknown argument lst in call to list.Drop")
 
 		// A parameter cannot be given both positionally and by label.
@@ -160,93 +167,86 @@ labeled: {
 		hole: list.Slice([1, 2, 3], j: 2) @test(err, code=eval, contains="missing argument 2 in call to list.Slice")
 	}
 
-	// A user signature may supply the contract label of an unnamed raw
-	// builtin slot. Once a generated signature has supplied a label, an
-	// attached signature must either leave the slot unnamed or use the same
-	// label; a different label conflicts.
+	// An anonymous user type remains compatible with the builtin's named
+	// declaration. The declaration's contract label stays callable.
 	user: {
 		T: func(s: string, sep: string) -> [...string]
 		f: T & strings.SplitN @test(err, code=eval, contains="builtin strings.SplitN has more parameters than closed function type")
 
-		Unnamed: func(string, ...) -> string
-		unnamed: Unnamed & strings.ToUpper
-		unnamedResult: unnamed(s: "hi") @test(eq, "HI")
+		U:  func(string, ...) -> string
+		up: U & strings.ToUpper
+		x:  up(s: "hi") @test(eq, "HI")
 
-		Same: func(s: string, ...) -> string
-		same: Same & strings.ToUpper
-		sameResult: same(s: "hi") @test(eq, "HI")
-
-		Different: func(text: string, ...) -> string
-		different: Different & strings.ToUpper @test(err, code=eval, contains="conflicting parameter labels %s and %s for positional parameter %d", args=[s, text, 1], pos=[strings:28:15])
+		// A second contract name for the already named slot conflicts.
+		badName: (func(text: string, ...) -> string) & strings.ToUpper @test(err, code=eval, contains="conflicting parameter labels")
 	}
 }
-
 -- out/errors.txt --
 [eval] static.tooMany: function type has more positional parameters than builtin strings.ToUpper:
-    ./in.cue:32:51
-    ./in.cue:32:12
+    ./in.cue:33:51
+    ./in.cue:33:12
 static.tooMany: function type has more positional parameters than closed function type:
     strings:28:15
-    ./in.cue:32:12
-[eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
-    ./in.cue:33:32
     ./in.cue:33:12
+[eval] static.tooFew: builtin strings.ToUpper has more parameters than closed function type:
+    ./in.cue:34:32
+    ./in.cue:34:12
 static.tooFew: parameter s of function type not allowed by closed function type:
     strings:28:15
-    ./in.cue:33:12
+    ./in.cue:34:12
 [eval] static.badParam: parameter 1 of function type has kind int, conflicting with kind string of builtin strings.ToUpper:
-    ./in.cue:37:42
-    ./in.cue:37:14
-[eval] static.badResult: result of function type has kind int, conflicting with result kind string of builtin strings.ToUpper:
     ./in.cue:38:42
     ./in.cue:38:14
+[eval] static.badResult: result of function type has kind int, conflicting with result kind string of builtin strings.ToUpper:
+    ./in.cue:39:42
+    ./in.cue:39:14
 [eval] static.conflict: conflicting values func(a: string) -> string: ... and strings.ToUpper:
-    ./in.cue:41:12
     ./in.cue:42:12
-    ./in.cue:42:16
+    ./in.cue:43:12
+    ./in.cue:43:16
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:49:11
-    ./in.cue:53:10
+    ./in.cue:50:11
+    ./in.cue:54:10
 [eval] conflicting values "HI" and "NO":
-    ./in.cue:56:28
-    ./in.cue:60:8
+    ./in.cue:57:28
+    ./in.cue:61:8
 [eval] invalid value "zz" (out of bound <="m"):
-    ./in.cue:64:12
-    ./in.cue:68:11
+    ./in.cue:65:12
+    ./in.cue:69:11
 [eval] optionalExtra.bad: parameter sep of function type not allowed by builtin strings.ToUpper: it can only be passed by label, and a builtin takes its arguments positionally:
-    ./in.cue:86:48
-    ./in.cue:86:8
+    ./in.cue:92:48
+    ./in.cue:92:8
 optionalExtra.bad: parameter sep of function type not allowed by closed function type:
     strings:28:15
-    ./in.cue:86:8
+    ./in.cue:92:8
 [eval] partial.contains: partial application of builtin strings.Contains is not supported:
-    ./in.cue:104:12
+    ./in.cue:110:12
 [eval] partial.length: partial application of builtin len is not supported:
-    ./in.cue:105:12
+    ./in.cue:111:12
 [eval] conflicting values string and [1,2] (mismatched types string and list):
-    ./in.cue:119:13
-    ./in.cue:122:11
+    ./in.cue:125:13
+    ./in.cue:128:11
 [eval] polymorphic.bad: result of function type has kind string, conflicting with result kind int of builtin len:
-    ./in.cue:125:8
+    ./in.cue:131:8
 [eval] labeled.errors.unknown: unknown argument lst in call to list.Drop:
-    ./in.cue:141:12
+    ./in.cue:147:12
 [eval] labeled.errors.dup: argument s provided by position and label in call to strings.Repeat:
-    ./in.cue:144:8
+    ./in.cue:150:8
 [eval] labeled.errors.hole: missing argument 2 in call to list.Slice:
-    ./in.cue:147:9
+    ./in.cue:153:9
 [eval] labeled.user.f: builtin strings.SplitN has more parameters than closed function type:
-    ./in.cue:155:6
-[eval] labeled.user.different: conflicting parameter labels s and text for positional parameter 1:
+    ./in.cue:159:6
+[eval] labeled.user.badName: conflicting parameter labels s and text for positional parameter 1 in function type and function type:
     strings:28:15
 -- out/eval/stats --
-Leaks:  2
-Freed:  133
-Reused: 109
-Allocs: 26
+Leaks:  1
+Freed:  85
+Reused: 64
+Allocs: 22
 Retain: 0
 
-Unifications: 109
-Conjuncts:    262
-Disjuncts:    20
+Unifications: 78
+Conjuncts:    186
+Disjuncts:    2
 
-NumCloseIDs: 66
+NumCloseIDs: 46
