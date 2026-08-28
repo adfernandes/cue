@@ -1252,6 +1252,18 @@ func (v *Vertex) Accept(ctx *OpContext, f Feature) bool {
 	//     #a: b     // this node is currently not shared, but could be.
 	//     b: {c: 1}
 	v = v.DerefValue()
+	// While v still has unexpanded disjunctions, its final field set is not
+	// yet known: allow f if any pending disjunct may declare it, mirroring
+	// the expanded case below.
+	if s := v.state; s != nil {
+		for _, d := range s.disjunctions {
+			for _, x := range d.disjuncts {
+				if mayDeclare(x.expr, f) {
+					return true
+				}
+			}
+		}
+	}
 	if x, ok := v.BaseValue.(*Disjunction); ok {
 		for _, v := range x.Values {
 			if x, ok := v.(*Vertex); ok && x.Accept(ctx, f) {
@@ -1634,4 +1646,20 @@ func ToExpr(n Node) Expr {
 			panic("unreachable")
 		}
 	}
+}
+
+// mayDeclare reports whether evaluating the unexpanded disjunct x may allow
+// field f. Only a struct literal made of plain fields that do not name f
+// rules it out; anything else is conservatively allowed.
+func mayDeclare(x Expr, f Feature) bool {
+	s, ok := x.(*StructLit)
+	if !ok {
+		return true
+	}
+	for _, d := range s.Decls {
+		if fd, ok := d.(*Field); !ok || fd.Label == f {
+			return true
+		}
+	}
+	return false
 }

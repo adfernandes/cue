@@ -14,9 +14,8 @@
 #    whole disjunction at every level of the recursion, so cost grows
 #    exponentially in the number of disjuncts. The stats guard this.
 #
-# TODO: the golden output below records the broken behavior: wrapped.#T
-# and undeclared.#T keep only their first disjunct, and the stats are
-# ~150x the unwrapped, declared-after-use form of the same disjunction.
+# TODO: the stats below still record the blowup: ~150x the unwrapped,
+# declared-after-use form of the same disjunction.
 #
 # https://cuelang.org/issue/4475
 #inlinetest:exclude skip — perf regression guarded by out/eval/stats
@@ -67,13 +66,13 @@ undeclared: {
 	out: (#T & {t: "r1"}).out
 }
 -- out/eval/stats --
-Leaks:  19637
-Freed:  188209
-Reused: 188181
-Allocs: 19665
+Leaks:  19638
+Freed:  188219
+Reused: 188191
+Allocs: 19666
 Retain: 0
 
-Unifications: 101999
+Unifications: 102010
 Conjuncts:    217704
 Disjuncts:    35295
 
@@ -85,11 +84,51 @@ NumCloseIDs: 15748
       next: (#struct){
       }
     }
-    #T: (#struct){
-      t!: (string){ "leaf" }
-      out: (#struct){
-      }
-    }
+    #T: (#struct){ |((#struct){
+        t!: (string){ "leaf" }
+        out: (#struct){
+        }
+      }, (#struct){
+        t!: (string){ "r1" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] wrapped.#T.out.next: undefined field: out:
+            //     ./in.cue:6:44
+          }
+        }
+      }, (#struct){
+        t!: (string){ "r2" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] wrapped.#T.out.next: undefined field: out:
+            //     ./in.cue:7:44
+          }
+        }
+      }, (#struct){
+        t!: (string){ "r3" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] wrapped.#T.out.next: undefined field: out:
+            //     ./in.cue:8:44
+          }
+        }
+      }, (#struct){
+        t!: (string){ "r4" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] wrapped.#T.out.next: undefined field: out:
+            //     ./in.cue:9:44
+          }
+        }
+      }, (#struct){
+        t!: (string){ "r5" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] wrapped.#T.out.next: undefined field: out:
+            //     ./in.cue:10:44
+          }
+        }
+      }) }
   }
   declaredFirst: (struct){
     #T: (#struct){ |((#struct){
@@ -147,19 +186,72 @@ NumCloseIDs: 15748
       next: (#struct){
       }
     }
-    #T: (#struct){
-      x: (int){ 1 }
-      t!: (string){ "leaf" }
-      out: (#struct){
-      }
-    }
+    #T: (#struct){ |((#struct){
+        x: (int){ 1 }
+        t!: (string){ "leaf" }
+        out: (#struct){
+        }
+      }, (#struct){
+        x: (int){ 1 }
+        t!: (string){ "r1" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] unified.#T.out.next: undefined field: out:
+            //     ./in.cue:31:44
+          }
+        }
+      }, (#struct){
+        x: (int){ 1 }
+        t!: (string){ "r2" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] unified.#T.out.next: undefined field: out:
+            //     ./in.cue:32:44
+          }
+        }
+      }, (#struct){
+        x: (int){ 1 }
+        t!: (string){ "r3" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] unified.#T.out.next: undefined field: out:
+            //     ./in.cue:33:44
+          }
+        }
+      }, (#struct){
+        x: (int){ 1 }
+        t!: (string){ "r4" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] unified.#T.out.next: undefined field: out:
+            //     ./in.cue:34:44
+          }
+        }
+      }, (#struct){
+        x: (int){ 1 }
+        t!: (string){ "r5" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] unified.#T.out.next: undefined field: out:
+            //     ./in.cue:35:44
+          }
+        }
+      }) }
   }
   undeclared: (struct){
-    #T: (#struct){
-      t!: (string){ "leaf" }
-      out: (#struct){
-      }
-    }
+    #T: (#struct){ |((#struct){
+        t!: (string){ "leaf" }
+        out: (#struct){
+        }
+      }, (#struct){
+        t!: (string){ "r1" }
+        out: (#struct){
+          next: (_|_){
+            // [incomplete] undeclared.#T.out.next: undefined field: out:
+            //     ./in.cue:41:44
+          }
+        }
+      }) }
     out: (#struct){
       next: (#struct){
       }

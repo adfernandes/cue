@@ -44,13 +44,13 @@ fields: {
 	l2: type: ["list", "string"]
 }
 -- out/eval/stats --
-Leaks:  60
-Freed:  542829
-Reused: 542746
+Leaks:  59
+Freed:  542835
+Reused: 542751
 Allocs: 143
 Retain: 0
 
-Unifications: 292257
+Unifications: 292262
 Conjuncts:    511607
 Disjuncts:    83512
 
@@ -75,14 +75,84 @@ NumCloseIDs: 31403
       }
     }
   }
-  #fieldTransform: (#struct){
-    let F#1 = (_|_){
-      // [structural_cycle] #fieldTransform.F: structural cycle
-    }
-    #type!: (string){ |((string){ "string" }, (string){ "bool" }) }
-    out: (#struct){
-    }
-  }
+  #fieldTransform: (#struct){ |((#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (string){ |((string){ "string" }, (string){ "bool" }) }
+      out: (#struct){
+      }
+    }, (#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (#list){
+        0: (string){ "list" }
+        1: (_){ _ }
+      }
+      out: (#struct){
+        items: (_|_){
+          // [incomplete] #fieldTransform.out.items: undefined field: out:
+          //     ./in.cue:14:55
+        }
+      }
+    }, (#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (#list){
+        0: (string){ "a" }
+        1: (_){ _ }
+      }
+      out: (#struct){
+        items: (_|_){
+          // [incomplete] #fieldTransform.out.items: undefined field: out:
+          //     ./in.cue:17:55
+        }
+      }
+    }, (#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (#list){
+        0: (string){ "b" }
+        1: (_){ _ }
+      }
+      out: (#struct){
+        items: (_|_){
+          // [incomplete] #fieldTransform.out.items: undefined field: out:
+          //     ./in.cue:20:55
+        }
+      }
+    }, (#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (#list){
+        0: (string){ "c" }
+        1: (_){ _ }
+      }
+      out: (#struct){
+        items: (_|_){
+          // [incomplete] #fieldTransform.out.items: undefined field: out:
+          //     ./in.cue:23:55
+        }
+      }
+    }, (#struct){
+      let F#1 = (_|_){
+        // [structural_cycle] #fieldTransform.F: structural cycle
+      }
+      #type!: (#list){
+        0: (string){ "d" }
+        1: (_){ _ }
+      }
+      out: (#struct){
+        items: (_|_){
+          // [incomplete] #fieldTransform.out.items: undefined field: out:
+          //     ./in.cue:26:55
+        }
+      }
+    }) }
   fields: (struct){
     s1: (struct){
       type: (string){ "string" }

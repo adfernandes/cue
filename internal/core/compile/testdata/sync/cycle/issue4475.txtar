@@ -14,9 +14,8 @@
 #    whole disjunction at every level of the recursion, so cost grows
 #    exponentially in the number of disjuncts. The stats guard this.
 #
-# TODO: the golden output below records the broken behavior: wrapped.#T
-# and undeclared.#T keep only their first disjunct, and the stats are
-# ~150x the unwrapped, declared-after-use form of the same disjunction.
+# TODO: the stats below still record the blowup: ~150x the unwrapped,
+# declared-after-use form of the same disjunction.
 #
 # https://cuelang.org/issue/4475
 #inlinetest:exclude skip — perf regression guarded by out/eval/stats
