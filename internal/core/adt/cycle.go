@@ -464,9 +464,36 @@ const (
 // either as an unevaluated DisjunctionExpr or an already-built Disjunction.
 func hasDisjunctConjunct(v *Vertex) bool {
 	for c := range v.LeafConjuncts() {
-		switch c.Expr().(type) {
-		case *DisjunctionExpr, *Disjunction:
+		if exprHasDisjunct(c.Expr()) {
 			return true
+		}
+	}
+	return false
+}
+
+// exprHasDisjunct reports whether x is a disjunction, or wraps one in a way
+// that preserves its value: an embedding in a struct literal, an & operand,
+// or an element of a Conjunction. These are the wrappers that
+// [nodeContext.scheduleConjunct] flattens eagerly, without a task.
+func exprHasDisjunct(x Expr) bool {
+	switch x := x.(type) {
+	case *DisjunctionExpr, *Disjunction:
+		return true
+	case *StructLit:
+		for _, d := range x.Decls {
+			if e, ok := d.(Expr); ok && exprHasDisjunct(e) {
+				return true
+			}
+		}
+	case *BinaryExpr:
+		if x.Op == AndOp {
+			return exprHasDisjunct(x.X) || exprHasDisjunct(x.Y)
+		}
+	case *Conjunction:
+		for _, e := range x.Values {
+			if exprHasDisjunct(e) {
+				return true
+			}
 		}
 	}
 	return false
@@ -566,12 +593,12 @@ func (n *nodeContext) detectCycle(arc *Vertex, env *Environment, x Resolver, ci 
 			// r.Ref == x case.
 			//
 			// The skip must not fire, though, when a dynamic node re-enters a
-			// not-yet-finalized disjunction: that is self-feeding recursion
-			// reoccurring through a different reference per disjunct at the same
-			// depth, so the skip would let every disjunct re-expand the whole
-			// disjunction. markCyclicPath bounds it instead.
-			selfFeeding := n.node.IsDynamic && arc.Status() != finalized && hasDisjunctConjunct(arc)
-			if r.Ref != x && n.hasNonCycle && n.hasNonCyclic && !selfFeeding {
+			// disjunction: that is self-feeding recursion reoccurring through
+			// a different reference per disjunct at the same depth, so the
+			// skip would let every disjunct re-expand the whole disjunction,
+			// finalized or not. markCyclicPath bounds it instead.
+			if r.Ref != x && n.hasNonCycle && n.hasNonCyclic &&
+				!(n.node.IsDynamic && hasDisjunctConjunct(arc)) {
 				continue
 			}
 

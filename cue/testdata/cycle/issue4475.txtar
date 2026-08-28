@@ -1,21 +1,19 @@
 # A recursive disjunction reached through a value-preserving wrapper —
 # #T: { A | B } or #T: X & (A | B) rather than #T: A | B — must behave
-# exactly like the unwrapped form. Two independent triggers make it
+# exactly like the unwrapped form. Two independent triggers made it
 # diverge:
 #
-#  - The struct wrapper makes #T's own value silently drop every disjunct
-#    whose inline self-reference cannot resolve yet: the lookup fails as a
+#  - The struct wrapper made #T's own value silently drop every disjunct
+#    whose inline self-reference cannot resolve yet: the lookup failed as a
 #    permanent "undefined field" error rather than an incomplete one, and
-#    the disjunct is discarded. A disjunct whose lookup names a field no
+#    the disjunct was discarded. A disjunct whose lookup names a field no
 #    disjunct declares can never resolve, though, and must still be
 #    eliminated rather than kept with an incomplete error (undeclared).
-#  - The wrappers, and declaring #T before its first use, reintroduce the
-#    cycle-detection blowup of issue 4377: every disjunct re-expands the
-#    whole disjunction at every level of the recursion, so cost grows
-#    exponentially in the number of disjuncts. The stats guard this.
-#
-# TODO: the stats below still record the blowup: ~150x the unwrapped,
-# declared-after-use form of the same disjunction.
+#  - The wrappers, and declaring #T before its first use, reintroduced the
+#    cycle-detection blowup of issue 4377: every disjunct re-expanded the
+#    whole disjunction at every level of the recursion, so cost grew
+#    exponentially in the number of disjuncts. The stats guard against a
+#    regression.
 #
 # https://cuelang.org/issue/4475
 #inlinetest:exclude skip — perf regression guarded by out/eval/stats
@@ -66,17 +64,17 @@ undeclared: {
 	out: (#T & {t: "r1"}).out
 }
 -- out/eval/stats --
-Leaks:  19638
-Freed:  188219
-Reused: 188191
-Allocs: 19666
+Leaks:  158
+Freed:  1379
+Reused: 1357
+Allocs: 180
 Retain: 0
 
-Unifications: 102010
-Conjuncts:    217704
-Disjuncts:    35295
+Unifications: 790
+Conjuncts:    1624
+Disjuncts:    255
 
-NumCloseIDs: 15748
+NumCloseIDs: 153
 -- out/evalalpha --
 (struct){
   wrapped: (struct){

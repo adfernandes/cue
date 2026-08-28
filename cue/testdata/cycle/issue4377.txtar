@@ -45,16 +45,16 @@ fields: {
 }
 -- out/eval/stats --
 Leaks:  59
-Freed:  542835
-Reused: 542751
-Allocs: 143
+Freed:  2555
+Reused: 2494
+Allocs: 120
 Retain: 0
 
-Unifications: 292262
-Conjuncts:    511607
-Disjuncts:    83512
+Unifications: 1342
+Conjuncts:    2497
+Disjuncts:    392
 
-NumCloseIDs: 31403
+NumCloseIDs: 233
 -- out/evalalpha --
 (struct){
   out: (struct){
