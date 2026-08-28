@@ -52,6 +52,19 @@ uintIndexed?: {
 	[uint]: int
 }
 
+// Only the first element is guaranteed to be present
+requiredPrefix?: {
+	[string, ...]
+	[1]:   int
+	[>=2]: bool
+}
+
+// Guaranteed prefix with a bounded length
+boundedRequiredPrefix?: {
+	[string, ...]
+	[1]: int
+} & list.MaxItems(2)
+
 // Partial tuple with a bounded length
 boundedPartialTuple?: {
 	[...]
@@ -79,6 +92,8 @@ ok3: data: {
 	partialTuple: []
 	partialTupleTail: ["a"]
 	boundedPartialTuple: ["a"]
+	requiredPrefix: ["a"]
+	boundedRequiredPrefix: ["a"]
 }
 
 ok4: data: {
@@ -88,6 +103,8 @@ ok4: data: {
 	partialTuple: ["a", 1]
 	partialTupleTail: ["a", 1, 2]
 	boundedPartialTuple: ["a", 1]
+	requiredPrefix: ["a", 1, true, false]
+	boundedRequiredPrefix: ["a", 1]
 }
 
 badIntIndexed: {
@@ -115,6 +132,21 @@ badBoundedPartialTuple: {
 	error: true
 }
 
+badRequiredPrefixTooShort: {
+	data: requiredPrefix: []
+	error: true
+}
+
+badRequiredPrefixTail: {
+	data: requiredPrefix: ["a", 1, 2]
+	error: true
+}
+
+badBoundedRequiredPrefix: {
+	data: boundedRequiredPrefix: ["a", 1, 2]
+	error: true
+}
+
 badStringList: {
 	data: stringList: [1, 2, 3]
 	error: true
@@ -139,6 +171,17 @@ badTupleType: {
 			description: "Partial tuple with a bounded length"
 			prefixItems: [{type: "string"}, {type: "integer"}]
 			maxItems:    2
+		}
+		boundedRequiredPrefix: {
+			description: "Guaranteed prefix with a bounded length"
+			allOf: [{
+				prefixItems: [true, {type: "integer"}]
+			}, {
+				type:        "array"
+				prefixItems: [{type: "string"}]
+				maxItems:    2
+				minItems:    1
+			}]
 		}
 		emptyList: {
 			description: "Empty list"
@@ -182,6 +225,17 @@ badTupleType: {
 			items: type: "integer"
 			prefixItems: [{type: "string"}]
 		}
+		requiredPrefix: {
+			description: "Only the first element is guaranteed to be present"
+			allOf: [{
+				items: type: "boolean"
+				prefixItems: [true, {type: "integer"}]
+			}, {
+				type:        "array"
+				prefixItems: [{type: "string"}]
+				minItems:    1
+			}]
+		}
 		stringList: {
 			type:        "array"
 			description: "Open list with element type"
@@ -202,41 +256,76 @@ badTupleType: {
 }
 -- out/generate-v3/badStringList --
 badStringList.data.stringList.0: conflicting values 1 and string (mismatched types int and string):
-    ./datatest/tests.cue:57:21
+    ./datatest/tests.cue:76:21
 badStringList.data.stringList.1: conflicting values 2 and string (mismatched types int and string):
-    ./datatest/tests.cue:57:24
+    ./datatest/tests.cue:76:24
 badStringList.data.stringList.2: conflicting values 3 and string (mismatched types int and string):
-    ./datatest/tests.cue:57:27
+    ./datatest/tests.cue:76:27
 -- out/generate-v3/badTupleLength --
 badTupleLength.data.tuple: incompatible list lengths (1 and 2):
-    1:1386
+    1:1826
 -- out/generate-v3/badTupleType --
 badTupleType.data.tuple.0: conflicting values 1 and string (mismatched types int and string):
-    ./datatest/tests.cue:67:16
+    ./datatest/tests.cue:86:16
 -- out/generate-v3/ok1 --
 -- out/generate-v3/ok2 --
 -- out/generate-v3/badBoundedPartialTuple --
 badBoundedPartialTuple.data.boundedPartialTuple: invalid value ["a",1,2] (does not satisfy list.MaxItems(2)): len(list) > MaxItems(2) (3 > 2):
     1:232
-    ./datatest/tests.cue:52:29
+    ./datatest/tests.cue:56:29
 -- out/generate-v3/badPartialTuple --
 badPartialTuple.data.partialTuple.1: conflicting values "b" and int (mismatched types string and int):
-    ./datatest/tests.cue:42:28
-    1:1021
-    1:1055
+    ./datatest/tests.cue:46:28
+    1:1232
+    1:1266
 -- out/generate-v3/badPartialTupleTail --
 badPartialTupleTail.data.partialTupleTail.1: conflicting values "b" and int (mismatched types string and int):
-    ./datatest/tests.cue:47:32
-    1:1173
-    1:1191
+    ./datatest/tests.cue:51:32
+    1:1384
+    1:1402
 -- out/generate-v3/ok3 --
 -- out/generate-v3/ok4 --
 -- out/generate-v3/badGappyTuple --
 badGappyTuple.data.gappyTuple.2: conflicting values "c" and int (mismatched types string and int):
-    ./datatest/tests.cue:37:39
-    1:472
-    1:490
+    ./datatest/tests.cue:41:39
+    1:683
+    1:701
 -- out/generate-v3/badIntIndexed --
 badIntIndexed.data.intIndexed.1: conflicting values "x" and int (mismatched types string and int):
-    ./datatest/tests.cue:32:24
-    1:637
+    ./datatest/tests.cue:36:24
+    1:848
+-- out/generate-v3/badBoundedRequiredPrefix --
+badBoundedRequiredPrefix.data.boundedRequiredPrefix: invalid value ["a",1,2] (does not satisfy matchN): 1 matched, expected 2:
+    1:327
+    ./datatest/tests.cue:71:31
+badBoundedRequiredPrefix.data.boundedRequiredPrefix: invalid value ["a",1,2] (does not satisfy list.MaxItems(2)): len(list) > MaxItems(2) (3 > 2):
+    1:428
+    ./datatest/tests.cue:71:31
+    1:327
+-- out/generate-v3/badRequiredPrefixTail --
+badRequiredPrefixTail.data.requiredPrefix: conflicting values 2 and bool (mismatched types int and bool):
+    ./datatest/tests.cue:66:33
+    1:1559
+badRequiredPrefixTail.data.requiredPrefix: conflicting values ["a",1,2] and bool (mismatched types list and bool):
+    ./datatest/tests.cue:66:24
+    1:1522
+badRequiredPrefixTail.data.requiredPrefix: conflicting values ["a",1,2] and null (mismatched types list and null):
+    ./datatest/tests.cue:66:24
+    1:1522
+badRequiredPrefixTail.data.requiredPrefix: conflicting values ["a",1,2] and number (mismatched types list and number):
+    ./datatest/tests.cue:66:24
+    1:1522
+badRequiredPrefixTail.data.requiredPrefix: conflicting values ["a",1,2] and {...} (mismatched types list and struct):
+    ./datatest/tests.cue:66:24
+    1:1522
+badRequiredPrefixTail.data.requiredPrefix: 5 errors in empty disjunction::
+    1:1522
+badRequiredPrefixTail.data.requiredPrefix: invalid value ["a",1,2] (does not satisfy matchN): 1 matched, expected 2:
+    1:1522
+    ./datatest/tests.cue:66:24
+-- out/generate-v3/badRequiredPrefixTooShort --
+badRequiredPrefixTooShort.data.requiredPrefix: invalid value [] (does not satisfy matchN): 1 matched, expected 2:
+    1:1522
+    ./datatest/tests.cue:61:24
+badRequiredPrefixTooShort.data.requiredPrefix: incompatible list lengths (0 and 1):
+    1:1616

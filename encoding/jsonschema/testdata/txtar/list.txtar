@@ -74,6 +74,25 @@ properties:
       - type: integer
       - type: integer
 
+  # The elements beyond the guaranteed ones are constrained too.
+  partialTupleTail:
+    type: array
+    minItems: 1
+    items:
+      - type: integer
+      - type: integer
+    additionalItems:
+      type: string
+
+  # The tuple is closed, but only its first element is guaranteed.
+  closedPartialTuple:
+    type: array
+    minItems: 1
+    items:
+      - type: integer
+      - type: integer
+    additionalItems: false
+
   # A large minItems must not expand into a list of that many elements.
   bigMinItems:
     type: array
@@ -116,6 +135,17 @@ close({
 		[1]: int
 		[2]: int
 	}
+	partialTupleTail?: list.MinItems(1) & {
+		[...]
+		[0]:   int
+		[1]:   int
+		[>=2]: string
+	}
+	closedPartialTuple?: list.MinItems(1) & {
+		[...]
+		[0]: int
+		[1]: int
+	} & list.MaxItems(2)
 	bigMinItems?: list.MinItems(10000)
 })
 -- out/decode/testerr/err-foo-not-string --
@@ -145,7 +175,9 @@ diff old new
 	"tuple": [],
 	"additional": [1],
 	"closedTuple": [1],
-	"partialTuple": [1]
+	"partialTuple": [1],
+	"partialTupleTail": [1],
+	"closedPartialTuple": [1]
 }
 -- test/full-tuples.json --
 {
@@ -153,7 +185,9 @@ diff old new
 	"additional": [1, 2, "y", "z"],
 	"closedTuple": [1, 2],
 	"requiredTuple": [1, 2],
-	"partialTuple": [1, 2, 3]
+	"partialTuple": [1, 2, 3],
+	"partialTupleTail": [1, 2, "y", "z"],
+	"closedPartialTuple": [1, 2]
 }
 -- test/err-tuple-elem.json --
 {
@@ -170,6 +204,18 @@ diff old new
 -- test/err-partial-tuple-too-short.json --
 {
 	"partialTuple": []
+}
+-- test/err-partial-tuple-tail-elem.json --
+{
+	"partialTupleTail": [1, 2, 3]
+}
+-- test/err-closed-partial-tuple-too-short.json --
+{
+	"closedPartialTuple": []
+}
+-- test/err-closed-partial-tuple-too-long.json --
+{
+	"closedPartialTuple": [1, 2, 3]
 }
 -- test/foo-items.json --
 {
@@ -199,3 +245,20 @@ tuple.0: conflicting values 1 and string (mismatched types int and string):
     generated.cue:8:3
     generated.cue:9:8
     test/err-tuple-elem.json:2:12
+-- out/decode/testerr/err-closed-partial-tuple-too-long --
+closedPartialTuple: invalid value [1,2,3] (does not satisfy list.MaxItems(2)): len(list) > MaxItems(2) (3 > 2):
+    generated.cue:45:6
+    generated.cue:41:23
+    generated.cue:45:20
+    test/err-closed-partial-tuple-too-long.json:2:24
+-- out/decode/testerr/err-closed-partial-tuple-too-short --
+closedPartialTuple: invalid value [] (does not satisfy list.MinItems(1)): len(list) < MinItems(1) (0 < 1):
+    generated.cue:41:23
+    generated.cue:41:37
+    test/err-closed-partial-tuple-too-short.json:2:24
+-- out/decode/testerr/err-partial-tuple-tail-elem --
+partialTupleTail.2: conflicting values 3 and string (mismatched types int and string):
+    generated.cue:5:1
+    generated.cue:36:3
+    generated.cue:39:10
+    test/err-partial-tuple-tail-elem.json:2:29
