@@ -170,6 +170,47 @@ package x
 	fetch(nil)
 }
 
+func TestFetchMemoized(t *testing.T) {
+	// Once a module version has been fetched, fetching it again through
+	// the same Cache should not inspect the module cache on disk again.
+	// See https://cuelang.org/issue/3413.
+	dir := t.TempDir()
+	t.Cleanup(func() {
+		RemoveAll(dir)
+	})
+	ctx := context.Background()
+	registryFS, err := txtar.FS(txtar.Parse([]byte(`
+-- example.com_foo_v0.0.1/cue.mod/module.cue --
+module: "example.com/foo@v0"
+language: version: "v0.8.0"
+-- example.com_foo_v0.0.1/example.cue --
+package example
+`)))
+	qt.Assert(t, qt.IsNil(err))
+	r := newRegistry(t, registryFS)
+	cr, err := New(modregistry.NewClient(r), dir)
+	qt.Assert(t, qt.IsNil(err))
+	mv := module.MustNewVersion("example.com/foo", "v0.0.1")
+	loc1, err := cr.Fetch(ctx, mv)
+	qt.Assert(t, qt.IsNil(err))
+
+	// Recreate the .partial file removed by the extraction above;
+	// a memoized Fetch would not even look at it.
+	partialPath, err := cr.cachePath(mv, "partial")
+	qt.Assert(t, qt.IsNil(err))
+	err = os.WriteFile(partialPath, nil, 0o666)
+	qt.Assert(t, qt.IsNil(err))
+
+	loc2, err := cr.Fetch(ctx, mv)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(loc2, loc1))
+	_, err = os.Stat(partialPath)
+	// TODO: the second Fetch re-checked the directory and re-extracted
+	// the module, removing the .partial file; it should return the
+	// memoized result without touching the disk at all.
+	qt.Assert(t, qt.ErrorIs(err, fs.ErrNotExist))
+}
+
 func fsSub(fsys fs.FS, sub string) fs.FS {
 	fsys, err := fs.Sub(fsys, sub)
 	if err != nil {
