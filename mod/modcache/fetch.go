@@ -51,6 +51,7 @@ type Cache struct {
 	reg              *modregistry.Client
 	downloadZipCache par.ErrCache[module.Version, string]
 	modFileCache     par.ErrCache[module.Version, *modfile.File]
+	fetchCache       par.ErrCache[module.Version, module.SourceLoc]
 }
 
 // Deprecated: use [Cache.ModFile] instead.
@@ -82,6 +83,10 @@ func (c *Cache) ModFile(ctx context.Context, mv module.Version) (*modfile.File, 
 
 // FetchFromCache implements [cuelang.org/go/mod/modconfig.CachedRegistry].
 func (c *Cache) FetchFromCache(mv module.Version) (module.SourceLoc, error) {
+	// A location memoized by Fetch is necessarily in the cache already.
+	if loc, err := c.fetchCache.Get(mv); err == nil {
+		return loc, nil
+	}
 	dir, err := c.downloadDir(mv)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -95,6 +100,17 @@ func (c *Cache) FetchFromCache(mv module.Version) (module.SourceLoc, error) {
 // Fetch returns the location of the contents for the given module
 // version, downloading it if necessary.
 func (c *Cache) Fetch(ctx context.Context, mv module.Version) (module.SourceLoc, error) {
+	// Perform the on-disk work for each module version at most once per
+	// process, mirroring the download cache in Go's cmd/go/internal/modfetch.
+	// This also keeps repeated fetches away from the transient stat errors
+	// described in downloadDir (https://cuelang.org/issue/3413).
+	return c.fetchCache.Do(mv, func() (module.SourceLoc, error) {
+		return c.fetch(ctx, mv)
+	})
+}
+
+// fetch performs the work of [Cache.Fetch], without memoization.
+func (c *Cache) fetch(ctx context.Context, mv module.Version) (module.SourceLoc, error) {
 	dir, err := c.downloadDir(mv)
 	if err == nil {
 		// The directory has already been completely extracted (no .partial file exists).

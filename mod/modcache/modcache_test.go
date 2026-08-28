@@ -195,7 +195,7 @@ package example
 	qt.Assert(t, qt.IsNil(err))
 
 	// Recreate the .partial file removed by the extraction above;
-	// a memoized Fetch would not even look at it.
+	// the memoized Fetch does not even look at it.
 	partialPath, err := cr.cachePath(mv, "partial")
 	qt.Assert(t, qt.IsNil(err))
 	err = os.WriteFile(partialPath, nil, 0o666)
@@ -205,10 +205,7 @@ package example
 	qt.Assert(t, qt.IsNil(err))
 	qt.Assert(t, qt.Equals(loc2, loc1))
 	_, err = os.Stat(partialPath)
-	// TODO: the second Fetch re-checked the directory and re-extracted
-	// the module, removing the .partial file; it should return the
-	// memoized result without touching the disk at all.
-	qt.Assert(t, qt.ErrorIs(err, fs.ErrNotExist))
+	qt.Assert(t, qt.IsNil(err))
 }
 
 func fsSub(fsys fs.FS, sub string) fs.FS {
