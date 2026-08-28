@@ -97,3 +97,14 @@ func writeFile(filename string, data []byte, perm os.FileMode) error {
 		return err, isEphemeralError(err)
 	})
 }
+
+// stat is like os.Stat, but retries ephemeral errors.
+// As in readFile, errFileNotFound is not retried: the file may genuinely
+// not exist, and callers routinely probe for files that are absent.
+func stat(name string) (fi os.FileInfo, err error) {
+	err = retry(func() (err error, mayRetry bool) {
+		fi, err = os.Stat(name)
+		return err, isEphemeralError(err) && !errors.Is(err, errFileNotFound)
+	})
+	return fi, err
+}

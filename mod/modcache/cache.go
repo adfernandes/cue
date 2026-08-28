@@ -120,11 +120,16 @@ func (c *Cache) downloadDir(m module.Version) (string, error) {
 
 	// Check if a .partial file exists. This is created at the beginning of
 	// a download and removed after the zip is extracted.
+	//
+	// Stat via robustio: on Windows, statting a just-removed .partial file
+	// can transiently fail with ERROR_ACCESS_DENIED while an antivirus
+	// scanner holds the delete-pending file open.
+	// See https://cuelang.org/issue/3413.
 	partialPath, err := c.cachePath(m, "partial")
 	if err != nil {
 		return dir, err
 	}
-	if _, err := os.Stat(partialPath); err == nil {
+	if _, err := robustio.Stat(partialPath); err == nil {
 		return dir, &downloadDirPartialError{dir, errors.New("not completely extracted")}
 	} else if !os.IsNotExist(err) {
 		return dir, err

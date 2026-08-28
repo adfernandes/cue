@@ -50,6 +50,15 @@ func WriteFile(filename string, data []byte, perm os.FileMode) error {
 	return writeFile(filename, data, perm)
 }
 
+// Stat is like os.Stat, but on Windows retries errors that may occur if the
+// file is briefly inaccessible, such as a recently removed file lingering in
+// a delete-pending state while an antivirus scanner holds it open.
+// NotExist errors are never retried, since Stat is routinely used to probe
+// for files that are expected to be absent.
+func Stat(name string) (os.FileInfo, error) {
+	return stat(name)
+}
+
 // IsEphemeralError reports whether err is one of the errors that the functions
 // in this package attempt to mitigate.
 //
