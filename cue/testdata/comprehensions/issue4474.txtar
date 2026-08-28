@@ -2,9 +2,9 @@
 # field of it in an if clause, and embeds the let in that clause's body.
 # Embedding prev copies the previous element's struct literal, including
 # its let, into the current element. That second instance of the same let
-# declaration is unified into the existing let arc, which the embedding
-# has already taken directly, so the previous iteration's value leaks into
-# the current element.
+# declaration used to be unified into the existing let arc, which the
+# embedding had already taken directly, so the previous iteration's value
+# leaked into the current element.
 # https://cuelang.org/issue/4474
 
 -- in.cue --
@@ -15,7 +15,7 @@ list: [
 		if prev.st == "B" {prev}
 		st: "B"
 	},
-] @test(err, code=eval, contains="conflicting values", incorrect) @test(eq:todo, p=1, [{st: "A"}, {st: "B"}, {st: "B"}])
+] @test(eq, [{st: "A"}, {st: "B"}, {st: "B"}])
 
 struct: {
 	a: {st: "A"}
@@ -26,8 +26,7 @@ struct: {
 			st: "B"
 		}
 	}
-	@test(err, code=eval, contains="conflicting values", incorrect)
-	@test(eq:todo, p=1, {
+	@test(eq, {
 		a: {st: "A"}
 		ax: {st: "B"}
 		bx: {st: "B"}
@@ -50,8 +49,7 @@ pattern: {
 			st: "B"
 		}
 	}
-	@test(err, code=eval, contains="conflicting values", incorrect)
-	@test(eq:todo, p=1, {
+	@test(eq, {
 		prevKey: {x: "base", y: "x"}
 		chain: {
 			base: {st: "A"}
@@ -65,8 +63,8 @@ pattern: {
 	})
 }
 
-// Any use of prev in the element is affected once prev is also embedded,
-// as the embedded instance of the let is unified into the same arc.
+// Any use of prev in the element was affected once prev was also embedded,
+// as the embedded instance of the let was unified into the same arc.
 combined: [
 	{st: "A"},
 	for i in [0, 1] {
@@ -75,7 +73,7 @@ combined: [
 		if combined[i].st == "B" {prev}
 		st: "B"
 	},
-] @test(err, code=eval, contains="conflicting values", incorrect) @test(eq:todo, p=1, [{st: "A"}, {st: "B"}, {p: {st: "B"}, st: "B"}])
+] @test(eq, [{st: "A"}, {st: "B"}, {p: {st: "B"}, st: "B"}])
 
 // These variants always worked: the let is not embedded, or the condition
 // and the embedding do not both go through the let.
@@ -105,28 +103,6 @@ controls: {
 		},
 	] @test(eq, [{st: "A"}, {st: "B"}, {st: "B"}])
 }
--- out/errors.txt --
-[eval] list.2.st: conflicting values "A" and "B":
-    ./in.cue:2:7
-    ./in.cue:4:14
-    ./in.cue:5:22
-    ./in.cue:6:7
-[eval] struct.bx.st: conflicting values "A" and "B":
-    ./in.cue:11:10
-    ./in.cue:12:18
-    ./in.cue:14:15
-    ./in.cue:15:23
-    ./in.cue:16:8
-[eval] pattern.pc.y.st: conflicting values "A" and "B":
-    ./in.cue:30:14
-    ./in.cue:38:15
-    ./in.cue:39:23
-    ./in.cue:40:8
-[eval] combined.2.st: conflicting values "A" and "B":
-    ./in.cue:61:7
-    ./in.cue:63:14
-    ./in.cue:65:29
-    ./in.cue:66:7
 -- out/eval/stats --
 Leaks:  20
 Freed:  92

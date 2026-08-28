@@ -2,9 +2,9 @@
 # field of it in an if clause, and embeds the let in that clause's body.
 # Embedding prev copies the previous element's struct literal, including
 # its let, into the current element. That second instance of the same let
-# declaration is unified into the existing let arc, which the embedding
-# has already taken directly, so the previous iteration's value leaks into
-# the current element.
+# declaration used to be unified into the existing let arc, which the
+# embedding had already taken directly, so the previous iteration's value
+# leaked into the current element.
 # https://cuelang.org/issue/4474
 
 -- in.cue --
@@ -46,8 +46,8 @@ pattern: {
 	}
 }
 
-// Any use of prev in the element is affected once prev is also embedded,
-// as the embedded instance of the let is unified into the same arc.
+// Any use of prev in the element was affected once prev was also embedded,
+// as the embedded instance of the let was unified into the same arc.
 combined: [
 	{st: "A"},
 	for i in [0, 1] {

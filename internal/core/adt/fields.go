@@ -196,8 +196,9 @@ func (n *nodeContext) getArc(f Feature, mode ArcType) (arc *Vertex, isNew bool) 
 	v := n.node
 	if a := v.lookupArc(f); a != nil {
 		if f.IsLet() {
+			// See insertArc for why a further instance of the
+			// same let declaration adds no conjunct to the arc.
 			a.MultiLet = true
-			// TODO: add return here?
 		}
 		a.updateArcType(mode)
 		return a, false
@@ -315,6 +316,35 @@ func (n *nodeContext) insertArc(f Feature, mode ArcType, c Conjunct, id CloseInf
 	}
 
 	v, insertedArc := n.getArc(f, mode)
+
+	if !insertedArc && f.IsLet() {
+		// Let labels are unique per declaration, so an existing let arc
+		// means the same declaration is instantiated again, in a different
+		// Environment: for instance when a struct literal from a
+		// comprehension is copied into a node by embedding one of its
+		// earlier results. Such instances may evaluate to different values,
+		// so unifying them in the arc would be wrong.
+		//
+		// The arc keeps the conjunct of its first instance only. No
+		// instance is inherently more correct than another: they all share
+		// the same expression and differ only in their Environment. But the
+		// arc's own value is only ever observed through the first instance:
+		// LetReference.resolve returns the arc directly only while MultiLet
+		// is unset, that is, while the first instance is the sole one, and
+		// anything that used the arc then, such as a node that embedded it
+		// and subscribed to its conjuncts, expects it to keep that value.
+		// Once getArc has marked the arc MultiLet, LetReference.resolve
+		// evaluates the let expression per Environment instead and never
+		// consults the arc's value again, only its expression, which is the
+		// same for every instance.
+		//
+		// TODO: consider associating lets with their Environment directly
+		// instead of storing them as arcs of the enclosing node. Now that
+		// comprehensions are implemented more simply, this should be more
+		// feasible, and it would remove the need for MultiLet and for the
+		// per-Environment let cache.
+		return v
+	}
 
 	defer n.ctx.PopArc(n.ctx.PushArc(v))
 
