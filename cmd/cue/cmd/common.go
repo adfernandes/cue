@@ -512,6 +512,31 @@ func (p *buildPlan) importFiles(b *build.Instance) error {
 	return p.placeOrphans(b, append(schemas, values...))
 }
 
+// parseExprFlags parses the flags holding CUE expressions at the language
+// version of the module the loaded instances belong to, so that the same
+// language experiments apply to them as to the module's own files; outside a
+// module, the current version applies.
+func (b *buildPlan) parseExprFlags() error {
+	version := parser.Version(b.encConfig.TargetLanguageVersion)
+	if b.cfg.mode != filetypes.Input {
+		for _, e := range flagExpression.StringArray(b.cmd) {
+			expr, err := parser.ParseExpr("--expression", e, version)
+			if err != nil {
+				return err
+			}
+			b.expressions = append(b.expressions, expr)
+		}
+	}
+	for _, s := range flagSchema.StringArray(b.cmd) {
+		expr, err := parser.ParseExpr("--schema", s, version)
+		if err != nil {
+			return err
+		}
+		b.schemaExprs = append(b.schemaExprs, expr)
+	}
+	return nil
+}
+
 func parseArgs(cmd *Command, args []string, cfg *config) (p *buildPlan, err error) {
 	p, err = newBuildPlan(cmd, cfg)
 	if err != nil {
@@ -532,6 +557,9 @@ func parseArgs(cmd *Command, args []string, cfg *config) (p *buildPlan, err erro
 		}
 	}
 
+	if err := p.parseExprFlags(); err != nil {
+		return nil, err
+	}
 	if err := p.parsePlacementFlags(); err != nil {
 		return nil, err
 	}
@@ -715,24 +743,9 @@ func (b *buildPlan) parseFlags() (err error) {
 		if err != nil {
 			return err
 		}
-
-		for _, e := range flagExpression.StringArray(b.cmd) {
-			expr, err := parser.ParseExpr("--expression", e)
-			if err != nil {
-				return err
-			}
-			b.expressions = append(b.expressions, expr)
-		}
 		b.encConfig.Force = flagForce.Bool(b.cmd)
 	}
 
-	for _, s := range flagSchema.StringArray(b.cmd) {
-		expr, err := parser.ParseExpr("--schema", s)
-		if err != nil {
-			return err
-		}
-		b.schemaExprs = append(b.schemaExprs, expr)
-	}
 	if s := flagGlob.String(b.cmd); s != "" {
 		// Set a default file filter to only include json and yaml files
 		b.cfg.fileFilter = s

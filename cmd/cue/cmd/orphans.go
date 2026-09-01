@@ -47,10 +47,11 @@ func (b *buildPlan) parsePlacementFlags() error {
 	b.useList = flagList.Bool(cmd)
 	b.useContext = flagWithContext.Bool(cmd)
 
+	version := parser.Version(b.encConfig.TargetLanguageVersion)
 	for _, str := range flagPath.StringArray(cmd) {
-		l, err := parser.ParseExpr("--path", str)
+		l, err := parser.ParseExpr("--path", str, version)
 		if err != nil {
-			labels, err := parseFullPath(str)
+			labels, err := parseFullPath(str, version)
 			if err != nil {
 				return fmt.Errorf(
 					`labels must be expressions (-l foo -l 'strings.ToLower(bar)') or full paths (-l '"foo": "\(strings.ToLower(bar))":) : %v`, err)
@@ -385,8 +386,8 @@ objsLoop:
 	return f, astutil.Sanitize(f)
 }
 
-func parseFullPath(exprs string) (p []ast.Label, err error) {
-	f, err := parser.ParseFile("--path", exprs+"_")
+func parseFullPath(exprs string, version parser.Option) (p []ast.Label, err error) {
+	f, err := parser.ParseFile("--path", exprs+"_", version)
 	if err != nil {
 		return p, fmt.Errorf("parser error in path %q: %v", exprs, err)
 	}

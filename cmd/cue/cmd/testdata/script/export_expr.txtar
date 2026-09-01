@@ -29,6 +29,19 @@ exec cue export input.cue -e 'self."foo-bar"'
 cmp stdout expect-stdout
 cd ..
 
+# Expressions are parsed at the language version of the module the command
+# runs in, like the module's own files: below v0.18.0, where aliasv2 becomes
+# stable, 'self' is not yet available. Outside a module, the current version
+# applies, as in the cases above.
+cd oldmodule
+! exec cue export input.cue -e 'self.x'
+cmp stderr expect-stderr
+cd ..
+cd newmodule
+exec cue export input.cue -e 'self.x'
+cmp stdout expect-stdout
+cd ..
+
 -- simple/expect-stdout --
 4
 ---
@@ -78,3 +91,18 @@ old-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix
 {
     "two": 2
 }
+-- oldmodule/cue.mod/module.cue --
+module: "mod.test/old"
+language: version: "v0.17.0"
+-- oldmodule/input.cue --
+x: 1
+-- oldmodule/expect-stderr --
+predeclared identifier "self" requires @experiment(aliasv2):
+    --expression:1:1
+-- newmodule/cue.mod/module.cue --
+module: "mod.test/new"
+language: version: "v0.18.0"
+-- newmodule/input.cue --
+x: 1
+-- newmodule/expect-stdout --
+1
