@@ -272,6 +272,11 @@ type scheduler struct {
 	// new evaluator is complete.
 	isFrozen bool
 
+	// frozenBy is the node that referenced this node's field set, freezing
+	// it. It is used to point at the source of the freeze in errors about
+	// fields added after the fact.
+	frozenBy Node
+
 	// counters keeps track of the number of uncompleted tasks that are
 	// outstanding for each of the possible conditions. A state is
 	// considered completed if the corresponding counter reaches zero.
@@ -586,7 +591,7 @@ unblockTasks:
 	// the same errors, regardless of the order in which tasks are unblocked.
 	for _, t := range c.blocking {
 		if t.blockedOn != nil {
-			t.blockedOn.freeze(t.blockCondition)
+			t.blockedOn.freeze(t.blockCondition, t.x)
 			t.unblocked = true
 		}
 	}
@@ -678,9 +683,14 @@ func (s *scheduler) signal(completed condition) {
 }
 
 // freeze indicates no more tasks satisfying the given condition may be added.
-// It is also used to freeze certain elements of the task.
-func (s *scheduler) freeze(c condition) {
+// It is also used to freeze certain elements of the task. by, if non-nil, is
+// the node whose evaluation required the field set to be frozen, recorded for
+// use in error messages.
+func (s *scheduler) freeze(c condition, by Node) {
 	s.frozen |= s.deferFieldSetKnown(c)
+	if c&fieldSetKnown != 0 && s.frozen&fieldSetKnown != 0 && s.frozenBy == nil && by != nil {
+		s.frozenBy = by
+	}
 	s.completed |= c
 	s.ctx.complete(s)
 	s.isFrozen = true

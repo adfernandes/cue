@@ -3197,7 +3197,7 @@ func (x *ForClause) yield(s *compState) {
 	n := c.forSource(x.Src)
 
 	if s := n.getState(c); s != nil {
-		s.freeze(fieldSetKnown)
+		s.freeze(fieldSetKnown, x)
 	}
 
 	for _, a := range n.Arcs {

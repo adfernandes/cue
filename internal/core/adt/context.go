@@ -911,7 +911,7 @@ func (c *OpContext) evalStateCI(v Expr, state Flags) (result Value, ci CloseInfo
 			switch runMode {
 			case finalize:
 				arc.unify(c, Flags{condition: needs, mode: attemptOnly, checkTypos: true}) // to set scalar
-				s.freeze(needs)
+				s.freeze(needs, x)
 			case attemptOnly:
 				arc.unify(c, Flags{condition: needs, mode: attemptOnly, checkTypos: true}) // to set scalar
 

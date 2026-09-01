@@ -226,7 +226,16 @@ func (n *nodeContext) getArc(f Feature, mode ArcType) (arc *Vertex, isNew bool) 
 	// Lets inside comprehension bodies are inserted when the body yields,
 	// after the source of a self-referencing comprehension has been frozen.
 	if n.scheduler.frozen&fieldSetKnown != 0 && !f.IsLet() {
-		b := n.ctx.NewErrf("adding field %v not allowed as field set was already referenced", f)
+		by := n.scheduler.frozenBy
+		p := n.ctx.markPositions()
+		n.ctx.AddPosition(by)
+		var b *Bottom
+		if _, ok := by.(*ForClause); ok {
+			b = n.ctx.NewErrf("adding field %v not allowed as field set was already iterated over by comprehension", f)
+		} else {
+			b = n.ctx.NewErrf("adding field %v not allowed as field set was already referenced", f)
+		}
+		n.ctx.releasePositions(p)
 		n.ctx.AddBottom(b)
 		// This may panic for list arithmetic. Safer to leave out for now.
 		arc.ArcType = ArcNotPresent

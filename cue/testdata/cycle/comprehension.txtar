@@ -158,7 +158,7 @@ selfReferential: insertionError: {
 			// defined.
 			("foo3"): 1
 		}
-		@test(err, code=eval, contains="adding field foo3 not allowed as field set was already referenced", pos=[6:14])
+		@test(err, code=eval, contains="adding field foo3 not allowed as field set was already iterated over by comprehension", pos=[6:14, 2:3])
 	}
 }
 
@@ -797,8 +797,9 @@ NumCloseIDs: 314
 -- out/errors.txt --
 [incomplete] B.a.children: cannot range over v.children (incomplete type list):
     ./in.cue:24:40
-[eval] selfReferential.insertionError.A: adding field foo3 not allowed as field set was already referenced:
+[eval] selfReferential.insertionError.A: adding field foo3 not allowed as field set was already iterated over by comprehension:
     ./in.cue:158:14
+    ./in.cue:154:3
 [incomplete] selfReferential.fail.b: undefined field: x:
     ./in.cue:470:7
 [incomplete] issue2310.original.#s: error in call to strings.Replace: non-concrete value string:

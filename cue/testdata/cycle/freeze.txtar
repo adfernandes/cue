@@ -34,7 +34,7 @@ comprehension: t2: err: {
 		for k, v in a {
 			(k+"q"): v // This increases the set of fields in a.
 		}
-		@test(err, code=eval, contains="adding field %v not allowed as field set was already referenced", args=[xq], pos=[3:13])
+		@test(err, code=eval, contains="adding field %v not allowed as field set was already iterated over by comprehension", args=[xq], pos=[3:13, 2:3])
 	}
 }
 
@@ -47,8 +47,8 @@ comprehension: t3: err: {
 			(k+"q"): v
 		}
 		@test(err, code=eval,
-			suberr=(code=eval, contains="adding field %v not allowed as field set was already referenced", args=[yq], pos=[2:13]),
-			suberr=(code=eval, contains="adding field %v not allowed as field set was already referenced", args=[xq], pos=[2:13]))
+			suberr=(code=eval, contains="adding field %v not allowed as field set was already iterated over by comprehension", args=[yq], pos=[2:13, 9:3]),
+			suberr=(code=eval, contains="adding field %v not allowed as field set was already iterated over by comprehension", args=[xq], pos=[2:13, 9:3]))
 	}
 	b: {
 		for k, v in a {
@@ -101,7 +101,7 @@ comprehension: moreSpecific: err: {
 			(k): {z: 1}
 		}
 		@test(err, code=eval, path=x,
-			contains="adding field %v not allowed as field set was already referenced", args=[z], pos=[4:9])
+			contains="adding field %v not allowed as field set was already referenced", args=[z], pos=[4:9, 3:3])
 	}
 }
 -- issue3178.cue --
@@ -135,22 +135,25 @@ issue2615: {
 	for n, r in repos if r.trybot {
 		repos: "\(n)-trybot": trybot: false
 	}
-	@test(err, at=repos, code=eval, incorrect,
-		contains="adding field %v not allowed as field set was already referenced", pos=[6:25])
-	@test(err:todo, at=repos, code=eval, p=1,
-		contains="adding field %v not allowed as field set was already iterated over by comprehension")
+	@test(err, at=repos, code=eval,
+		contains="adding field %v not allowed as field set was already iterated over by comprehension", pos=[6:25, 5:2])
 }
 -- out/errors.txt --
-[eval] comprehension.t2.err.a: adding field xq not allowed as field set was already referenced:
+[eval] comprehension.t2.err.a: adding field xq not allowed as field set was already iterated over by comprehension:
     ./comprehension.cue:23:13
-[eval] comprehension.t3.err.a: adding field xq not allowed as field set was already referenced:
+    ./comprehension.cue:22:3
+[eval] comprehension.t3.err.a: adding field xq not allowed as field set was already iterated over by comprehension:
     ./comprehension.cue:35:13
-comprehension.t3.err.a: adding field yq not allowed as field set was already referenced:
+    ./comprehension.cue:42:3
+comprehension.t3.err.a: adding field yq not allowed as field set was already iterated over by comprehension:
     ./comprehension.cue:35:13
+    ./comprehension.cue:42:3
 [eval] comprehension.moreSpecific.err.a.x: adding field z not allowed as field set was already referenced:
     ./comprehension.cue:89:9
-[eval] issue2615.repos: adding field "cue-trybot" not allowed as field set was already referenced:
+    ./comprehension.cue:88:3
+[eval] issue2615.repos: adding field "cue-trybot" not allowed as field set was already iterated over by comprehension:
     ./issue2615.cue:11:25
+    ./issue2615.cue:10:2
 -- out/eval/stats --
 Leaks:  7
 Freed:  49
