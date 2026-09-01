@@ -20,7 +20,9 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 
+	"cuelang.org/go/internal/cueversion"
 	"cuelang.org/go/internal/mod/semver"
 )
 
@@ -142,6 +144,22 @@ func NewFile(version string, experiments ...string) (*File, error) {
 	}
 	return f, nil
 }
+
+// Default returns the experiment configuration of the current language
+// version with no experiments named: what applies to source that carries no
+// version of its own.
+func Default() File {
+	return defaultFile()
+}
+
+var defaultFile = sync.OnceValue(func() File {
+	f, err := NewFile(cueversion.LanguageVersion())
+	if err != nil {
+		// The current version naming no experiments cannot be rejected.
+		panic(err)
+	}
+	return *f
+})
 
 // IsPreview returns true if the experiment exists and can be used
 // for the given version.

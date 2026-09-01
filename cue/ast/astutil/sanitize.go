@@ -19,7 +19,6 @@ import (
 	"math/rand/v2"
 	"slices"
 	"strings"
-	"sync"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
@@ -53,16 +52,6 @@ func SanitizeFiles(files []*ast.File) error {
 	return nil
 }
 
-// currentExperiments are those of the current language version.
-var currentExperiments = sync.OnceValue(func() cueexperiment.File {
-	exp, err := cueexperiment.NewFile("")
-	if err != nil {
-		// An empty version naming no experiments cannot be rejected.
-		panic(err)
-	}
-	return *exp
-})
-
 // requiresPostfixAliases reports whether an alias introduced into f must be
 // written in the postfix form (a~X) rather than the prefix form (X=a). This
 // is determined by f's experiments, aliasv2 being what enables the postfix
@@ -75,7 +64,7 @@ var currentExperiments = sync.OnceValue(func() cueexperiment.File {
 func requiresPostfixAliases(f *ast.File) bool {
 	exp := f.Experiment()
 	if exp.LanguageVersion() == "" {
-		exp = currentExperiments()
+		exp = cueexperiment.Default()
 	}
 	return exp.AliasV2
 }
