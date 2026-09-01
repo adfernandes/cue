@@ -79,7 +79,7 @@ anonymous: {
 
 	// A type constraint matched to an anonymous positional parameter of
 	// the value is enforced per call: the argument is bound to a synthetic
-	// canonical-frame slot even though the body cannot reference it.
+	// parameter slot even though the body cannot reference it.
 	D:    func(<10, ...) -> int
 	d:    D & (func(int) -> int: 1)
 	dOk:  d(5)

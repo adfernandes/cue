@@ -282,7 +282,7 @@ func ExtraFuncParam(typ, val *Function) (FuncParam, bool) {
 	return FuncParam{}, false
 }
 
-// funcParamLabels returns the callable labels of a CUE function value.
+// funcParamLabels returns the callable labels of a native function value.
 // The value's own plain and name-only labels bind directly. A plain label of
 // an attached signature names the otherwise unnamed value parameter that the
 // signature matched, without changing the implementation's parameter list or
@@ -452,11 +452,11 @@ func FuncParamLabelIndex(v *FuncValue, label Feature) (int, bool) {
 	return i, ok && i >= 0
 }
 
-// anonParamLabel returns the label of the synthetic canonical-frame slot that
+// anonParamLabel returns the label of the synthetic activation arc that
 // binds the argument of the anonymous positional parameter at index i of a
 // function's parameter list. Anonymous parameters are not referenceable
 // from the function body — no compiled reference carries this label — so
-// the label only needs to be unique within one call frame: it is a string
+// the label only needs to be unique within one activation: it is a string
 // label, which no identifier reference can produce. The arc exists so that
 // the parameter's own constraint and any type constraints matched to the
 // parameter are enforced on the argument of every call; its name surfaces

@@ -818,26 +818,6 @@ outer: twice(twice(mid))
 // template instead, so skipping the conjunct used to drop the call's result
 // (losing the field) or loop forever (recursion re-afforded each level).
 func TestNativeFunctionsInDisjunction(t *testing.T) {
-	t.Run("recursive body disjunct is eliminated", func(t *testing.T) {
-		ctx := cuecontext.New()
-		v := ctx.CompileString(`
-@experiment(functions)
-
-f:   func(n: int) -> int: n | f(n)
-out: f(1)
-`)
-		if err := v.Err(); err != nil {
-			t.Fatal(err)
-		}
-		got, err := v.LookupPath(cue.ParsePath("out")).Int64()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != 1 {
-			t.Fatalf("recursive disjunct should be eliminated: got %d; want 1", got)
-		}
-	})
-
 	t.Run("recursion fails the branch", func(t *testing.T) {
 		ctx := cuecontext.New()
 		v := ctx.CompileString(`

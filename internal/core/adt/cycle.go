@@ -382,7 +382,7 @@ type CycleInfo struct {
 	// a cycle is detected and of which type.
 	CycleType CyclicType
 
-	// IsFuncArg marks a conjunct created as an argument of a CUE function
+	// IsFuncArg marks a conjunct created as an argument of a native function
 	// call. Argument conjuncts are created with the caller's CloseInfo and
 	// must never inherit the callee's cycle references: an argument that
 	// calls the same function (twice(twice(2))) is nesting, not recursion.

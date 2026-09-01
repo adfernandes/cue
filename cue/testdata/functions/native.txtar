@@ -497,17 +497,17 @@ structural cycle:
     ./in.cue:360:7
     ./in.cue:412:17
 -- out/eval/stats --
-Leaks:  27
-Freed:  761
-Reused: 710
-Allocs: 78
+Leaks:  50
+Freed:  669
+Reused: 627
+Allocs: 92
 Retain: 0
 
-Unifications: 671
-Conjuncts:    3011
+Unifications: 601
+Conjuncts:    1833
 Disjuncts:    99
 
-NumCloseIDs: 379
+NumCloseIDs: 327
 
-ConjunctInfos:       976
+ConjunctInfos:       734
 MaxConjunctInfos:    8

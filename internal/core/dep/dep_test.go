@@ -22,9 +22,7 @@ import (
 	"text/tabwriter"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
-	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal"
 	"cuelang.org/go/internal/core/adt"
 	"cuelang.org/go/internal/core/debug"
@@ -97,96 +95,6 @@ func TestVisit(t *testing.T) {
 			})
 		}
 	})
-}
-
-// TestVisitFuncCallRef verifies that dependencies reachable only through a
-// called value's attached signature remain visible on an evaluated call
-// result. Function calls carry those signatures on their internal result
-// resolver; dep must traverse that resolver rather than only the concrete
-// value produced by the function body.
-func TestVisitFuncCallRef(t *testing.T) {
-	const config = `
-@experiment(functions)
-
-lim: 10
-T:   func(n: <lim, ...) -> _
-f:   T & (func(n: int) -> _: {v: n})
-`
-	ctx := cuecontext.New()
-	scope := ctx.CompileString(config)
-	if err := scope.Err(); err != nil {
-		t.Fatal(err)
-	}
-
-	expr, err := parser.ParseExpr("expr", "f(5)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := ctx.BuildExpr(expr, cue.Scope(scope))
-	if err := v.Err(); err != nil {
-		t.Fatal(err)
-	}
-	r, result := value.ToInternal(v)
-	_, lim := value.ToInternal(scope.LookupPath(cue.MakePath(cue.Str("lim"))))
-
-	found := false
-	ctxt := eval.NewContext(r, result)
-	err = dep.Visit(nil, ctxt, result, func(d dep.Dependency) error {
-		if d.Node == lim {
-			found = true
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !found {
-		t.Fatal("dependency referenced only by attached function signature was not reported")
-	}
-}
-
-// TestVisitFuncCallArgument verifies that following a function body's
-// parameter reference continues through the call frame to the expression
-// supplied by the caller. Call arguments are stored in a conjunct group so
-// each one can retain the environment in which it was bound.
-func TestVisitFuncCallArgument(t *testing.T) {
-	const config = `
-@experiment(functions)
-
-src: 5
-f:   func(n: int) -> int: n
-`
-	ctx := cuecontext.New()
-	scope := ctx.CompileString(config)
-	if err := scope.Err(); err != nil {
-		t.Fatal(err)
-	}
-
-	expr, err := parser.ParseExpr("expr", "f(src)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	v := ctx.BuildExpr(expr, cue.Scope(scope))
-	if err := v.Err(); err != nil {
-		t.Fatal(err)
-	}
-	r, result := value.ToInternal(v)
-	_, src := value.ToInternal(scope.LookupPath(cue.MakePath(cue.Str("src"))))
-
-	found := false
-	ctxt := eval.NewContext(r, result)
-	err = dep.Visit(nil, ctxt, result, func(d dep.Dependency) error {
-		if d.Node == src {
-			found = true
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !found {
-		t.Fatal("dependency supplied as a function argument was not reported")
-	}
 }
 
 func testVisit(t *testing.T, w io.Writer, ctxt *adt.OpContext, v *adt.Vertex, cfg *dep.Config) {

@@ -327,14 +327,6 @@ func (c *visitor) markExpr(env *adt.Environment, expr adt.Elem) {
 
 	switch x := expr.(type) {
 	case nil:
-	case *adt.ConjunctGroup:
-		// A group may pin each conjunct to a different environment. Function
-		// call arguments use this to retain the caller (or an earlier partial
-		// application's) scope when their canonical parameter slot is later
-		// traversed from the callee's frame.
-		for _, conjunct := range *x {
-			c.markExpr(conjunct.Env, conjunct.Elem())
-		}
 	case *adt.Vertex:
 		// A vertex appears as a conjunct when the value being analyzed was
 		// composed through the API, such as by cue.Value.Unify, rather than
@@ -678,7 +670,7 @@ func (c *visitor) feature(env *adt.Environment, r adt.Resolver) adt.Feature {
 // markFunction marks dependencies in the expressions of a function literal.
 // env is the function's closure environment: parameter constraints and the
 // return type are compiled in that scope, while the body assumes one
-// additional scope level for the parameter frame (see the compilation
+// additional scope level for the parameter activation (see the compilation
 // of ast.Func in internal/core/compile). Parameter references in the body
 // point into that extra level and simply do not resolve against the empty
 // vertex; only references to outer features yield dependencies.

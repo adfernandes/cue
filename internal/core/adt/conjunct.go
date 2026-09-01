@@ -368,10 +368,15 @@ loop1:
 // scheduleVertexConjuncts injects the conjuncst of src n. If src was not fully
 // evaluated, it subscribes dst for future updates.
 func (n *nodeContext) scheduleVertexConjuncts(c Conjunct, arc *Vertex, closeInfo CloseInfo) {
-	// A function result resolves through a conjunct-less stable anchor so cycle
-	// detection runs before the body and result constraints are scheduled.
-	// Parameter slots and arguments already coexist on the surrounding struct
-	// frame; scheduleFuncCall adds their anchored constraints there as well.
+	// A function call reference carries its payload on the reference itself:
+	// the anchor arc it resolves to exists only to give the structural cycle
+	// detector a stable identity per function and deliberately has no
+	// conjuncts. Dispatching here, rather than at the call sites of this
+	// function, guarantees that every path consuming a scheduled or parked
+	// (resolver, arc) pair — task processing as well as cyclic-conjunct
+	// revival — schedules the call payload consistently. None of the
+	// struct-oriented logic below (sharing, closedness, arc dedup,
+	// notifications) applies to the conjunct-less anchor.
 	if ref, ok := c.Elem().(*FuncCallRef); ok {
 		n.scheduleFuncCall(ref, c.Env, closeInfo)
 		return

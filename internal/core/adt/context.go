@@ -164,15 +164,13 @@ type OpContext struct {
 	e  *Environment
 	ci CloseInfo
 
-	// funcTemplates caches the canonical slot layout for each CUE function
-	// literal and closure environment. See [OpContext.funcTemplate].
-	funcTemplates map[funcTemplateKey]*StructLit
-
-	// funcAnchors caches the stable conjunct-less cycle anchor for each
-	// function literal and closure environment. See [OpContext.funcAnchor].
+	// funcAnchors caches the stable anchor vertex for each native CUE
+	// function literal, keyed by literal and closure environment. Reusing it
+	// across (recursive) calls lets the regular structural cycle detector
+	// observe recursion. See [OpContext.funcAnchor].
 	funcAnchors map[funcAnchorKey]*Vertex
 
-	// funcCallRefs caches the stable result-field reference for each
+	// funcCallRefs caches the stable reference to an anchor vertex for each
 	// call site, keyed by call expression and closure environment. A
 	// per-call-site reference keeps the (vertex, source-reference) distinction
 	// the structural cycle detector relies on, so that recursion (same call
@@ -182,12 +180,12 @@ type OpContext struct {
 	funcCallRefs map[funcCallRefKey][]*FuncCallRef
 
 	// funcCallResults memoizes the finalized, error-free result vertices of
-	// CUE function calls, keyed by call site and the caller
+	// native CUE function calls, keyed by call site and the caller
 	// environment in which its arguments resolve. A call's result is fully
 	// determined by that pair and the callee, so a parameter used N times in
 	// a body — or a call nested as an argument and consumed once per use of
 	// the enclosing parameter — re-dispatches the same call instead of
-	// rebuilding the struct frame and re-finalizing the body each time.
+	// rebuilding the activation and re-finalizing the body each time.
 	// Without this the work of deeply nested calls (e.g. twice(twice(...)))
 	// grows exponentially in the nesting depth.
 	//
@@ -202,15 +200,15 @@ type OpContext struct {
 	// See [FuncValue.call] and [funcCallResult].
 	funcCallResults map[funcCallResultKey][]funcCallResult
 
-	// anonParamLabels caches the labels of synthetic struct-frame fields
+	// anonParamLabels caches the labels of the synthetic activation arcs
 	// that bind the arguments of anonymous positional function parameters,
 	// indexed by parameter position. See [anonParamLabel].
 	anonParamLabels []Feature
 
-	// probingDefaults tracks the CUE function literals whose parameter
+	// probingDefaults tracks the native CUE function literals whose parameter
 	// defaults are currently being probed for arity checking. Unlike a call
 	// body (which the structural cycle detector handles through the shared
-	// template), the default probe runs outside any vertex, so a recursive or
+	// anchor), the default probe runs outside any vertex, so a recursive or
 	// mutually recursive default would loop forever. Re-entering the probe for
 	// a function already on this set is treated as "no single default", which
 	// surfaces as a missing-argument error.

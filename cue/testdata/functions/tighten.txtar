@@ -79,7 +79,7 @@ anonymous: {
 
 	// A type constraint matched to an anonymous positional parameter of
 	// the value is enforced per call: the argument is bound to a synthetic
-	// canonical-frame slot even though the body cannot reference it.
+	// parameter slot even though the body cannot reference it.
 	D:    func(<10, ...) -> int
 	d:    D & (func(int) -> int: 1)
 	dOk:  d(5) @test(eq, 1)
@@ -393,14 +393,14 @@ narrow: {
     ./in.cue:296:14
     ./in.cue:301:9
 -- out/eval/stats --
-Leaks:  2
-Freed:  358
-Reused: 320
-Allocs: 40
+Leaks:  7
+Freed:  346
+Reused: 311
+Allocs: 42
 Retain: 0
 
-Unifications: 356
-Conjuncts:    1685
+Unifications: 342
+Conjuncts:    1252
 Disjuncts:    4
 
-NumCloseIDs: 196
+NumCloseIDs: 193
