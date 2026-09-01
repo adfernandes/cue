@@ -257,6 +257,7 @@ func ParseExpr(filename string, src any, mode ...Option) (_ ast.Expr, err error)
 		return nil, errors.Newf(token.NoPos, "parsing experiments: %v", expErr)
 	}
 	p.experiments = exp
+	p.file.SetExperiments(exp)
 	p.scanner.SetExperiments(p.scannerExperiments(false))
 	// Set up pkg-level scopes to avoid nil-pointer errors.
 	// This is not needed for a correct expression x as the

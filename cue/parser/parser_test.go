@@ -2066,6 +2066,35 @@ a: b: 1
 	checkAll(f, cueversion.LanguageVersion())
 }
 
+func TestParseExprExperiments(t *testing.T) {
+	// ParseExpr records the experiments implied by the configured language
+	// version on the returned positions, as ParseFile does, so that
+	// consumers can resolve which experiments apply to the expression.
+	x, err := ParseExpr("input", "self")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp := x.Pos().Experiment()
+	if got, want := exp.LanguageVersion(), cueversion.LanguageVersion(); got != want {
+		t.Errorf("default version = %q; want %q", got, want)
+	}
+	if !exp.AliasV2 {
+		t.Errorf("aliasv2 not enabled at the default version, where it is stable")
+	}
+
+	x, err = ParseExpr("input", "self", Version("v0.17.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exp = x.Pos().Experiment()
+	if got, want := exp.LanguageVersion(), "v0.17.0"; got != want {
+		t.Errorf("pinned version = %q; want %q", got, want)
+	}
+	if exp.AliasV2 {
+		t.Errorf("aliasv2 enabled at v0.17.0, where it is not yet stable")
+	}
+}
+
 func TestVersionOption(t *testing.T) {
 	// An empty version selects the current one, so that a caller whose
 	// version may be unset can pass it on rather than guarding the call.
