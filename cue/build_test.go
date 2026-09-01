@@ -85,38 +85,57 @@ func TestFromExpr(t *testing.T) {
 }
 
 // TestBuildExprExperiments checks which language experiments apply to an
-// expression compiled on its own via [cue.Context.BuildExpr].
+// expression compiled on its own via [cue.Context.BuildExpr]: those of the
+// expression's language version, defaulting to the current version whether
+// the expression was parsed or assembled programmatically.
 //
-// TODO(cuelang.org/issue/4297): an expression should get the default
-// experiments of its language version, like a file does. The aliasv2 'self'
-// identifier, stable as of v0.18.0, is currently rejected in all
-// expressions.
+// See https://cuelang.org/issue/4297.
 func TestBuildExprExperiments(t *testing.T) {
 	ctx := cuecontext.New()
 	scope := ctx.CompileString("x: 1")
 
-	build := func(expr ast.Expr) error {
-		return ctx.BuildExpr(expr, cue.Scope(scope)).Err()
+	build := func(expr ast.Expr) (string, error) {
+		v := ctx.BuildExpr(expr, cue.Scope(scope))
+		if err := v.Err(); err != nil {
+			return "", err
+		}
+		return fmt.Sprint(v), nil
 	}
-
-	requiresAliasV2 := `predeclared identifier "self" requires @experiment\(aliasv2\)`
 
 	// A parsed expression defaults to the current language version, where
 	// aliasv2 and its 'self' identifier are stable.
 	expr, err := parser.ParseExpr("test", "self & {y: 2}")
 	qt.Assert(t, qt.IsNil(err))
-	qt.Assert(t, qt.ErrorMatches(build(expr), requiresAliasV2))
+	got, err := build(expr)
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(got, `{
+	x: 1
+	y: 2
+}`))
 
 	// An expression assembled programmatically has no position to resolve a
-	// language version from and should get the default experiments of the
-	// current version, like one parsed at the default version.
-	qt.Assert(t, qt.ErrorMatches(build(ast.NewIdent("self")), requiresAliasV2))
+	// language version from and gets the default experiments of the current
+	// version, like one parsed at the default version.
+	got, err = build(ast.NewIdent("self"))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.Equals(got, `{x: 1}`))
 
-	// At a language version where aliasv2 is not yet stable, 'self' must be
-	// rejected either way.
+	// At a language version where aliasv2 is not yet stable, 'self' is
+	// rejected.
 	expr, err = parser.ParseExpr("test", "self & {y: 2}", parser.Version("v0.17.0"))
 	qt.Assert(t, qt.IsNil(err))
-	qt.Assert(t, qt.ErrorMatches(build(expr), requiresAliasV2))
+	_, err = build(expr)
+	qt.Assert(t, qt.ErrorMatches(err, `predeclared identifier "self" requires @experiment\(aliasv2\)`))
+}
+
+func TestBuildExprSelfWithoutScope(t *testing.T) {
+	// Without a scope there is no enclosing struct for self to refer to,
+	// which must be an error rather than a panic.
+	ctx := cuecontext.New()
+	expr, err := parser.ParseExpr("test", "self & {y: 2}")
+	qt.Assert(t, qt.IsNil(err))
+	err = ctx.BuildExpr(expr).Err()
+	qt.Assert(t, qt.ErrorMatches(err, `self has no enclosing struct`))
 }
 
 func TestBuildExprClose(t *testing.T) {

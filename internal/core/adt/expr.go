@@ -635,8 +635,14 @@ func (x *ValueReference) resolve(c *OpContext, state Flags) *Vertex {
 	if x.UpCount == 0 {
 		return c.vertex
 	}
-	n := c.relNode(x.UpCount - 1)
-	return n
+	// A standalone expression evaluated without a scope has no enclosing
+	// struct for self to refer to.
+	e := c.Env(x.UpCount - 1)
+	if e.DerefVertex(c) == nil {
+		c.addErrf(0, Pos(x), "self has no enclosing struct")
+		return nil
+	}
+	return c.derefNode(e)
 }
 
 // A LabelReference refers to the string or integer value of a label.

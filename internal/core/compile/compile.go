@@ -331,7 +331,7 @@ func (c *compiler) compileFiles(a []*ast.File) *adt.Vertex { // Or value?
 		// Ask the file rather than its position: a file a generator
 		// assembled carries experiments of its own, which the positions of
 		// its declarations know nothing about.
-		c.experiments = file.Experiment()
+		c.setExperiments(file.Experiment())
 
 		c.pushScope(nil, 0, file) // File scope
 		v := &adt.StructLit{Src: file}
@@ -344,6 +344,10 @@ func (c *compiler) compileFiles(a []*ast.File) *adt.Vertex { // Or value?
 }
 
 func (c *compiler) compileExpr(x ast.Expr) adt.Conjunct {
+	// A standalone expression carries no experiments itself; its positions
+	// report those of the source it was parsed from, if any.
+	c.setExperiments(x.Pos().Experiment())
+
 	expr := c.expr(x)
 
 	env := &adt.Environment{}
@@ -369,6 +373,17 @@ func (c *compiler) requireVersion(n ast.Node, minVersion, feature string) *adt.B
 		return c.errf(n, "%s requires language version %s or later; current version is %s", feature, minVersion, v)
 	}
 	return nil
+}
+
+// setExperiments records the experiments to compile with, assuming the
+// defaults of the current language version for source that carries none.
+// This covers the compiler's gates only; evaluation-time gates that resolve
+// experiments from positions on their own still see none for such source.
+func (c *compiler) setExperiments(exp cueexperiment.File) {
+	if exp.LanguageVersion() == "" {
+		exp = cueexperiment.Default()
+	}
+	c.experiments = exp
 }
 
 // verifyVersion checks whether n is a Builtin and then checks whether the

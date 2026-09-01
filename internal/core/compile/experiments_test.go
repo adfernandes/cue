@@ -54,8 +54,17 @@ func TestBuiltFileExperiments(t *testing.T) {
 		return err
 	}
 
-	// Saying nothing leaves the compiler to assume no experiments at all.
-	qt.Assert(t, qt.ErrorMatches(compileFile(build()),
+	// Saying nothing leaves the compiler to assume the defaults of the
+	// current language version, where aliasv2 is stable.
+	qt.Assert(t, qt.IsNil(compileFile(build())))
+
+	// Experiments the file carries win over that assumption: at a version
+	// where aliasv2 is not yet stable, "self" is rejected.
+	old := build()
+	oldExp, err := cueexperiment.NewFile("v0.17.0")
+	qt.Assert(t, qt.IsNil(err))
+	old.SetExperiments(oldExp)
+	qt.Assert(t, qt.ErrorMatches(compileFile(old),
 		`.*predeclared identifier "self" requires @experiment\(aliasv2\).*`))
 
 	// Carrying the current language version's experiments is enough.
