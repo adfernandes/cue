@@ -18,10 +18,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/go-quicktest/qt"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal/core/debug"
 	"cuelang.org/go/internal/value"
@@ -79,6 +82,41 @@ func TestFromExpr(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuildExprExperiments checks which language experiments apply to an
+// expression compiled on its own via [cue.Context.BuildExpr].
+//
+// TODO(cuelang.org/issue/4297): an expression should get the default
+// experiments of its language version, like a file does. The aliasv2 'self'
+// identifier, stable as of v0.18.0, is currently rejected in all
+// expressions.
+func TestBuildExprExperiments(t *testing.T) {
+	ctx := cuecontext.New()
+	scope := ctx.CompileString("x: 1")
+
+	build := func(expr ast.Expr) error {
+		return ctx.BuildExpr(expr, cue.Scope(scope)).Err()
+	}
+
+	requiresAliasV2 := `predeclared identifier "self" requires @experiment\(aliasv2\)`
+
+	// A parsed expression defaults to the current language version, where
+	// aliasv2 and its 'self' identifier are stable.
+	expr, err := parser.ParseExpr("test", "self & {y: 2}")
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.ErrorMatches(build(expr), requiresAliasV2))
+
+	// An expression assembled programmatically has no position to resolve a
+	// language version from and should get the default experiments of the
+	// current version, like one parsed at the default version.
+	qt.Assert(t, qt.ErrorMatches(build(ast.NewIdent("self")), requiresAliasV2))
+
+	// At a language version where aliasv2 is not yet stable, 'self' must be
+	// rejected either way.
+	expr, err = parser.ParseExpr("test", "self & {y: 2}", parser.Version("v0.17.0"))
+	qt.Assert(t, qt.IsNil(err))
+	qt.Assert(t, qt.ErrorMatches(build(expr), requiresAliasV2))
 }
 
 func TestBuildExprClose(t *testing.T) {

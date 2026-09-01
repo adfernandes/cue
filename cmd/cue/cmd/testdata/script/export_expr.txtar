@@ -16,6 +16,21 @@ cd simple
 cmp stderr ../issue4442/expect-stderr
 cd ..
 
+# Issues 358 and 4297: language experiments never apply to the compilation of
+# --expression flags. The parser applies the default experiments of the
+# current language version (see the issue4442 case above), but the compiler
+# applies none at all, so the aliasv2 'self' identifier, stable as of
+# v0.18.0, is rejected.
+# TODO(cuelang.org/issue/4297): both commands should succeed.
+cd simple
+! exec cue export data.cue -e 'self & {e: 5}'
+cmp stderr ../issue4297/expect-stderr
+cd ..
+cd issue358
+! exec cue export input.cue -e 'self."foo-bar"'
+cmp stderr expect-stderr
+cd ..
+
 -- simple/expect-stdout --
 4
 ---
@@ -48,3 +63,11 @@ obj2: obj
 -- issue4442/expect-stderr --
 old-style alias syntax (=) is not allowed with @experiment(aliasv2); use postfix syntax (~X or ~(K,V)):
     --expression:1:3
+-- issue4297/expect-stderr --
+predeclared identifier "self" requires @experiment(aliasv2):
+    --expression:1:1
+-- issue358/input.cue --
+"foo-bar": two: 2
+-- issue358/expect-stderr --
+predeclared identifier "self" requires @experiment(aliasv2):
+    --expression:1:1
