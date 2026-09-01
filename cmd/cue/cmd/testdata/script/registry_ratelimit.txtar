@@ -1,7 +1,6 @@
 # Module operations against a registry that is rate limiting requests
 # should report the rate limit clearly, with the HTTP status and the
-# message sent by the server. Note how the current errors repeat the
-# OCI error code redundantly alongside the equivalent HTTP status.
+# message sent by the server.
 
 memregistry -error=TOOMANYREQUESTS:'you have reached your request limit; retry in 10 minutes' MEMREGISTRY
 env CUE_REGISTRY=$MEMREGISTRY+insecure
@@ -23,11 +22,11 @@ cmpenv stderr ../want-stderr-get-version
 cmpenv stderr ../want-stderr-get-latest
 
 -- want-stderr-publish --
-cannot put module "example.com@v0.0.1" to registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+cannot put module "example.com@v0.0.1" to registry "$MEMREGISTRY": 429 Too Many Requests: you have reached your request limit; retry in 10 minutes
 -- want-stderr-get-version --
-cannot determine new module graph: module foo.example/bar@v0.1.0 in registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+cannot determine new module graph: module foo.example/bar@v0.1.0 in registry "$MEMREGISTRY": 429 Too Many Requests: you have reached your request limit; retry in 10 minutes
 -- want-stderr-get-latest --
-module foo.example/bar in registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+module foo.example/bar in registry "$MEMREGISTRY": 429 Too Many Requests: you have reached your request limit; retry in 10 minutes
 -- dockerconfig/config.json --
 {}
 -- example/cue.mod/module.cue --

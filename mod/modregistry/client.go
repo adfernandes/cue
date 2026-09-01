@@ -162,11 +162,11 @@ func mirrorBlob(ctx context.Context, srcLoc, dstLoc RegistryLocation, desc ocisp
 	}
 	r, err := srcLoc.Registry.GetBlob(ctx, srcLoc.Repository, desc.Digest)
 	if err != nil {
-		return err
+		return registryError(err)
 	}
 	defer r.Close()
 	if _, err := dstLoc.Registry.PushBlob(ctx, dstLoc.Repository, desc, r); err != nil {
-		return err
+		return registryError(err)
 	}
 	return nil
 }
@@ -178,7 +178,7 @@ func (src *Client) mirrorReferrers(ctx context.Context, dst *Client, srcLoc, dst
 	// Iterate through all referrers that point to this manifest
 	for referrerDesc, err := range srcLoc.Registry.Referrers(ctx, srcLoc.Repository, manifestDigest, "") {
 		if err != nil {
-			return fmt.Errorf("failed to get referrers: %w", err)
+			return fmt.Errorf("failed to get referrers: %w", registryError(err))
 		}
 
 		g.Go(func() error {
@@ -200,7 +200,7 @@ func (src *Client) mirrorReferrer(ctx context.Context, dst *Client, srcLoc, dstL
 	// Get the referrer manifest from source
 	r, err := srcLoc.Registry.GetManifest(ctx, srcLoc.Repository, referrerDesc.Digest)
 	if err != nil {
-		return fmt.Errorf("failed to get referrer manifest %s: %w", referrerDesc.Digest, err)
+		return fmt.Errorf("failed to get referrer manifest %s: %w", referrerDesc.Digest, registryError(err))
 	}
 	defer r.Close()
 
@@ -231,7 +231,7 @@ func (src *Client) mirrorReferrer(ctx context.Context, dst *Client, srcLoc, dstL
 
 	// Push the referrer manifest itself (without a tag, just by content)
 	if _, err := dstLoc.Registry.PushManifest(ctx, dstLoc.Repository, "", manifestData, r.Descriptor().MediaType); err != nil {
-		return fmt.Errorf("failed to push referrer manifest %s: %w", referrerDesc.Digest, err)
+		return fmt.Errorf("failed to push referrer manifest %s: %w", referrerDesc.Digest, registryError(err))
 	}
 
 	return nil
@@ -253,7 +253,7 @@ func (c *Client) GetModule(ctx context.Context, m module.Version) (*Module, erro
 		if isNotExist(err) {
 			return nil, &ModuleError{Module: m.String(), Err: ErrNotFound}
 		}
-		return nil, &ModuleError{Module: m.String(), Host: loc.Host, Err: err}
+		return nil, &ModuleError{Module: m.String(), Host: loc.Host, Err: registryError(err)}
 	}
 	defer rd.Close()
 	data, err := io.ReadAll(rd)
@@ -327,7 +327,7 @@ func (c *Client) ModuleVersions(ctx context.Context, m string) (_req []string, _
 	for tag, err := range loc.Registry.Tags(ctx, loc.Repository, "") {
 		if err != nil {
 			if !isNotExist(err) {
-				return nil, &ModuleError{Module: m, Host: loc.Host, Err: err}
+				return nil, &ModuleError{Module: m, Host: loc.Host, Err: registryError(err)}
 			}
 			continue
 		}
@@ -410,7 +410,7 @@ func (c *Client) putCheckedModule(ctx context.Context, loc RegistryLocation, m *
 		return fmt.Errorf("cannot marshal manifest: %v", err)
 	}
 	if _, err := loc.Registry.PushManifest(ctx, loc.Repository, loc.Tag, manifestData, ocispec.MediaTypeImageManifest); err != nil {
-		return fmt.Errorf("cannot tag %v: %v", m.mv, err)
+		return fmt.Errorf("cannot tag %v: %v", m.mv, registryError(err))
 	}
 	return nil
 }
@@ -523,7 +523,7 @@ func (m *Module) Version() module.Version {
 func (m *Module) ModuleFile(ctx context.Context) ([]byte, error) {
 	r, err := m.loc.Registry.GetBlob(ctx, m.loc.Repository, m.manifest.Layers[1].Digest)
 	if err != nil {
-		return nil, err
+		return nil, registryError(err)
 	}
 	defer r.Close()
 	return io.ReadAll(r)
@@ -540,7 +540,11 @@ func (m *Module) Metadata() (*Metadata, error) {
 // and the contents should not be assumed to be correct until the close
 // error has been checked.
 func (m *Module) GetZip(ctx context.Context) (io.ReadCloser, error) {
-	return m.loc.Registry.GetBlob(ctx, m.loc.Repository, m.manifest.Layers[0].Digest)
+	r, err := m.loc.Registry.GetBlob(ctx, m.loc.Repository, m.manifest.Layers[0].Digest)
+	if err != nil {
+		return nil, registryError(err)
+	}
+	return r, nil
 }
 
 // ManifestDigest returns the digest of the manifest representing
@@ -680,7 +684,7 @@ func pushBlob(ctx context.Context, loc RegistryLocation, desc ocispec.Descriptor
 		return nil
 	}
 	_, err := loc.Registry.PushBlob(ctx, loc.Repository, desc, r)
-	return err
+	return registryError(err)
 }
 
 // singleResolver implements Resolver by always returning R,

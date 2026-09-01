@@ -622,10 +622,9 @@ x: 42
 
 func TestHTTPErrorMessages(t *testing.T) {
 	// Errors from a registry, such as rate limits, should be reported
-	// with the HTTP status and the server's message. Note how the
-	// current messages instead bury that behind raw HTTP details such
-	// as content types, markup, and quoted response bodies, and ignore
-	// the Retry-After header entirely.
+	// with the HTTP status and the server's message, leaving out raw
+	// HTTP details such as content types and markup or binary response
+	// bodies, and including the Retry-After header when present.
 	// See https://cuelang.org/issue/3696.
 	var writeResponse func(w http.ResponseWriter)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -650,7 +649,7 @@ func TestHTTPErrorMessages(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte(`{"errors":[{"code":"TOOMANYREQUESTS","message":"you have reached your pull rate limit"}]}`))
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: toomanyrequests: you have reached your pull rate limit`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: you have reached your pull rate limit`,
 	}, {
 		name: "OCIErrorRestatingStatus",
 		writeResp: func(w http.ResponseWriter) {
@@ -658,7 +657,7 @@ func TestHTTPErrorMessages(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte(`{"errors":[{"code":"TOOMANYREQUESTS","message":"too many requests"}]}`))
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: toomanyrequests: too many requests`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests`,
 	}, {
 		name: "OCIErrorWithInformativeCodeOnly",
 		writeResp: func(w http.ResponseWriter) {
@@ -672,21 +671,21 @@ func TestHTTPErrorMessages(t *testing.T) {
 		writeResp: func(w http.ResponseWriter) {
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/plain; charset=utf-8"; body "rate limit exceeded\n"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: rate limit exceeded`,
 	}, {
 		name: "PlainTextBodyWithRetryAfterSeconds",
 		writeResp: func(w http.ResponseWriter) {
 			w.Header().Set("Retry-After", "600")
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/plain; charset=utf-8"; body "rate limit exceeded\n"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: rate limit exceeded (retry after 10m0s)`,
 	}, {
 		name: "RetryAfterHTTPDate",
 		writeResp: func(w http.ResponseWriter) {
 			w.Header().Set("Retry-After", "Wed, 21 Oct 2026 07:28:00 GMT")
 			http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/plain; charset=utf-8"; body "rate limit exceeded\n"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: rate limit exceeded (retry after 2026-10-21T07:28:00Z)`,
 	}, {
 		name: "HTMLBody",
 		writeResp: func(w http.ResponseWriter) {
@@ -694,32 +693,32 @@ func TestHTTPErrorMessages(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte("<html><head><title>429 Too Many Requests</title></head>\n<body><center><h1>429 Too Many Requests</h1></center>\n<hr><center>nginx</center></body></html>"))
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/html"; body "<html><head><title>429 Too Many Requests</title></head>\n<body><center><h1>429 Too Many Requests</h1></center>\n<hr><center>nginx</center></body></html>"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests`,
 	}, {
 		name: "EmptyBody",
 		writeResp: func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 503 Service Unavailable: non-JSON error response ""; body ""`,
+		wantErr: `module foo.com/bar@v1.2.3: 503 Service Unavailable`,
 	}, {
 		name: "BodyRestatingStatus",
 		writeResp: func(w http.ResponseWriter) {
 			http.Error(w, "429 Too Many Requests", http.StatusTooManyRequests)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/plain; charset=utf-8"; body "429 Too Many Requests\n"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests`,
 	}, {
 		name: "MultiLineTextBody",
 		writeResp: func(w http.ResponseWriter) {
 			http.Error(w, "rate limit exceeded;\nsee https://registry.example/limits", http.StatusTooManyRequests)
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: non-JSON error response "text/plain; charset=utf-8"; body "rate limit exceeded;\nsee https://registry.example/limits\n"`,
+		wantErr: `module foo.com/bar@v1.2.3: 429 Too Many Requests: rate limit exceeded; see https://registry.example/limits`,
 	}, {
 		name: "BinaryBody",
 		writeResp: func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			w.Write([]byte{0xff, 0xfe, 0x00, 0x01})
 		},
-		wantErr: `module foo.com/bar@v1.2.3: 503 Service Unavailable: non-JSON error response "text/plain; charset=utf-16le"; body "\xff\xfe\x00\x01"`,
+		wantErr: `module foo.com/bar@v1.2.3: 503 Service Unavailable`,
 	}} {
 		t.Run(test.name, func(t *testing.T) {
 			writeResponse = test.writeResp
