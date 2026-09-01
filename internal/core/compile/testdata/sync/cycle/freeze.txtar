@@ -108,6 +108,20 @@ issue3178: {
 	for name, v in output {
 	}
 }
+-- issue2615.cue --
+// Growing the field set of a struct that a comprehension already iterated
+// over is not allowed. The error message should make the cause clear and
+// point at the comprehension.
+// https://cuelang.org/issue/2615
+issue2615: {
+	repos?: [string]: {
+		trybot: *false | bool
+	}
+	repos: cue: trybot: true
+	for n, r in repos if r.trybot {
+		repos: "\(n)-trybot": trybot: false
+	}
+}
 -- out/compile --
 --- comprehension.cue
 {
@@ -255,6 +269,28 @@ issue3178: {
           x: "a"
         }
         len(〈0;#a〉)
+      }
+    }
+  }
+}
+--- issue2615.cue
+{
+  issue2615: {
+    repos?: {
+      [string]: {
+        trybot: (*false|bool)
+      }
+    }
+    repos: {
+      cue: {
+        trybot: true
+      }
+    }
+    for n, r in 〈0;repos〉 if 〈0;r〉.trybot {
+      repos: {
+        "\(〈2;n〉)-trybot": {
+          trybot: false
+        }
       }
     }
   }
