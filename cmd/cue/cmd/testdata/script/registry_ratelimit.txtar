@@ -1,0 +1,42 @@
+# Module operations against a registry that is rate limiting requests
+# should report the rate limit clearly, with the HTTP status and the
+# message sent by the server. Note how the current errors repeat the
+# OCI error code redundantly alongside the equivalent HTTP status.
+
+memregistry -error=TOOMANYREQUESTS:'you have reached your request limit; retry in 10 minutes' MEMREGISTRY
+env CUE_REGISTRY=$MEMREGISTRY+insecure
+env DOCKER_CONFIG=$WORK/dockerconfig
+
+cd example
+
+# Publishing a module version.
+! exec cue mod publish v0.0.1
+cmpenv stderr ../want-stderr-publish
+
+# Fetching a specific module version.
+! exec cue mod get foo.example/bar@v0.1.0
+cmpenv stderr ../want-stderr-get-version
+
+# Fetching the latest version of a module, which lists the versions
+# available in the registry.
+! exec cue mod get foo.example/bar@latest
+cmpenv stderr ../want-stderr-get-latest
+
+-- want-stderr-publish --
+cannot put module "example.com@v0.0.1" to registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+-- want-stderr-get-version --
+cannot determine new module graph: module foo.example/bar@v0.1.0 in registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+-- want-stderr-get-latest --
+module foo.example/bar in registry "$MEMREGISTRY": 429 Too Many Requests: toomanyrequests: you have reached your request limit; retry in 10 minutes
+-- dockerconfig/config.json --
+{}
+-- example/cue.mod/module.cue --
+module: "example.com@v0"
+language: version: "v0.9.0"
+
+source: kind: "self"
+
+-- example/top.cue --
+package main
+
+"example.com@v0": "v0.0.1"

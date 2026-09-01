@@ -23,6 +23,7 @@ import (
 	"os"
 	"strings"
 
+	"cuelabs.dev/go/oci/ociregistry"
 	"cuelabs.dev/go/oci/ociregistry/ociclient"
 	"cuelabs.dev/go/oci/ociregistry/ocimem"
 	"cuelabs.dev/go/oci/ociregistry/ociref"
@@ -63,7 +64,7 @@ func Cmds() map[string]Cmd {
 
 var cmds = map[string]Cmd{
 	"memregistry": {
-		Usage: "memregistry [-auth=username:password] <envvar-name>",
+		Usage: "memregistry [-auth=username:password] [-error=CODE[:message]] <envvar-name>",
 		Run:   cmdMemRegistry,
 	},
 	"get-manifest": {
@@ -75,27 +76,47 @@ var cmds = map[string]Cmd{
 // cmdMemRegistry starts an in-memory OCI registry and sets the named
 // environment variable to its host. The variable name must be one that the
 // environment may set; see [ResultEnv].
+//
+// With -error, the registry instead fails every request with the given
+// OCI error code, such as TOOMANYREQUESTS, and optional message.
 func cmdMemRegistry(e CmdEnv, args []string) error {
 	var auth *modregistrytest.AuthConfig
-	if len(args) > 0 && strings.HasPrefix(args[0], "-") {
-		userPass, ok := strings.CutPrefix(args[0], "-auth=")
-		if !ok {
+	var failWith ociregistry.Error
+	for len(args) > 0 && strings.HasPrefix(args[0], "-") {
+		switch {
+		case strings.HasPrefix(args[0], "-auth="):
+			userPass := strings.TrimPrefix(args[0], "-auth=")
+			user, pass, ok := strings.Cut(userPass, ":")
+			if !ok {
+				return ErrUsage
+			}
+			auth = &modregistrytest.AuthConfig{
+				Username: user,
+				Password: pass,
+			}
+		case strings.HasPrefix(args[0], "-error="):
+			code, msg, _ := strings.Cut(strings.TrimPrefix(args[0], "-error="), ":")
+			if code == "" {
+				return ErrUsage
+			}
+			failWith = ociregistry.NewError(msg, code, nil)
+		default:
 			return ErrUsage
-		}
-		user, pass, ok := strings.Cut(userPass, ":")
-		if !ok {
-			return ErrUsage
-		}
-		auth = &modregistrytest.AuthConfig{
-			Username: user,
-			Password: pass,
 		}
 		args = args[1:]
 	}
 	if len(args) != 1 {
 		return ErrUsage
 	}
-	srv, err := modregistrytest.NewServer(ocimem.NewWithConfig(&ocimem.Config{ImmutableTags: true}), auth)
+	var registry ociregistry.Interface = ocimem.NewWithConfig(&ocimem.Config{ImmutableTags: true})
+	if failWith != nil {
+		registry = &ociregistry.Funcs{
+			NewError: func(ctx context.Context, methodName, repo string) error {
+				return failWith
+			},
+		}
+	}
+	srv, err := modregistrytest.NewServer(registry, auth)
 	if err != nil {
 		return fmt.Errorf("cannot start registrytest server: %v", err)
 	}
