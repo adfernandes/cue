@@ -1,0 +1,263 @@
+# The postfix ... spread operator and the two hidden closing builtins
+# __closeAll and __reclose are stable at v0.18.0, so every emitter must
+# preserve them. cue def prints CUE which parses, vets, and evaluates to
+# the same values in a second v0.18.0 module; cue export --out cue prints
+# CUE which parses back to the same data; and cue fmt leaves every spread
+# form untouched.
+
+cd m
+exec cue vet -c ./...
+exec cue eval .
+cmp stdout $WORK/eval.golden
+exec cue def .
+cmp stdout $WORK/def.golden
+exec cue export --out cue .
+cmp stdout $WORK/export.golden
+exec cue fmt --check ./...
+
+# The cue def output is itself a valid v0.18.0 package with the same
+# definitions and the same values.
+cp $WORK/def.golden $WORK/rt/x.cue
+cd $WORK/rt
+exec cue vet -c ./...
+exec cue eval .
+cmp stdout $WORK/eval.golden
+exec cue def .
+cmp stdout $WORK/def.golden
+exec cue export --out cue .
+cmp stdout $WORK/export.golden
+exec cue fmt --check ./...
+
+# The cue export --out cue output parses back to the same data. It carries
+# no package clause, so it is named as a file rather than as a package.
+cp $WORK/export.golden $WORK/rt2/x.cue
+cd $WORK/rt2
+exec cue vet -c x.cue
+exec cue export --out cue x.cue
+cmp stdout $WORK/export.golden
+exec cue fmt --check --files x.cue
+
+-- m/cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.18.0"
+-- m/pkg/p.cue --
+package pkg
+
+#T: t: 4
+-- m/x.cue --
+package x
+
+import (
+	"mod.test/pkg"
+	"struct"
+)
+
+#A: a: 1
+#B: b: 2
+
+// A spread on an identifier, with a sibling field.
+s1: {
+	#A...
+	extra: 1
+}
+
+// The hidden builtins, in the shape cue fix emits them.
+s2: __closeAll({
+	#B...
+	x: 1
+})
+r: close({rr: 3})
+s3: __reclose({
+	r...
+	y: 2
+})
+
+// A spread on a parenthesized disjunction.
+s4: {
+	(#A | *#B)...
+	other: 2
+}
+
+// A spread on a selector.
+s5: {
+	pkg.#T...
+	more: 3
+}
+
+// A spread on a call.
+s6: {
+	struct.MinFields(0)...
+	yet:  4
+	also: 6
+}
+
+// A spread on an index expression.
+s7: {
+	[#A, #B][0]...
+	idx: 5
+}
+
+// A spread as a comprehension's field value.
+c: true
+s8: {
+	if c {
+		f: #A...
+		g: 7
+	}
+}
+-- rt/cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.18.0"
+-- rt/pkg/p.cue --
+package pkg
+
+#T: t: 4
+-- rt2/cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.18.0"
+-- eval.golden --
+#A: a: 1
+#B: b: 2
+s1: {
+    a:     1
+    extra: 1
+}
+s2: {
+    b: 2
+    x: 1
+}
+r: rr: 3
+s3: {
+    rr: 3
+    y:  2
+}
+s4: {
+    b:     2
+    other: 2
+}
+s5: {
+    t:    4
+    more: 3
+}
+s6: {
+    yet:  4
+    also: 6
+}
+s7: {
+    a:   1
+    idx: 5
+}
+c: true
+s8: {
+    f: a: 1
+    g: 7
+}
+-- def.golden --
+package x
+
+import (
+	"mod.test/pkg"
+	"struct"
+)
+
+#A: a: 1
+#B: b: 2
+
+// A spread on an identifier, with a sibling field.
+s1: {
+	#A...
+	extra: 1
+}
+
+// The hidden builtins, in the shape cue fix emits them.
+s2: __closeAll({
+	#B...
+	x: 1
+})
+r: close({rr: 3})
+s3: __reclose({
+	r...
+	y: 2
+})
+
+// A spread on a parenthesized disjunction.
+s4: {
+	(#A | *#B)...
+	other: 2
+}
+
+// A spread on a selector.
+s5: {
+	pkg.#T...
+	more: 3
+}
+
+// A spread on a call.
+s6: {
+	struct.MinFields(0)...
+	yet:  4
+	also: 6
+}
+
+// A spread on an index expression.
+s7: {
+	[#A, #B][0]...
+	idx: 5
+}
+
+// A spread as a comprehension's field value.
+c: true
+s8: {
+	if c {
+		f: #A...
+		g: 7
+	}
+}
+-- export.golden --
+// A spread on an identifier, with a sibling field.
+s1: {
+	a:     1
+	extra: 1
+}
+
+// The hidden builtins, in the shape cue fix emits them.
+s2: {
+	b: 2
+	x: 1
+}
+r: rr: 3
+s3: {
+	rr: 3
+	y:  2
+}
+
+// A spread on a parenthesized disjunction.
+s4: {
+	b:     2
+	other: 2
+}
+
+// A spread on a selector.
+s5: {
+	t:    4
+	more: 3
+}
+
+// A spread on a call.
+s6: {
+	yet:  4
+	also: 6
+}
+
+// A spread on an index expression.
+s7: {
+	a:   1
+	idx: 5
+}
+
+// A spread as a comprehension's field value.
+c: true
+s8: {
+	f: a: 1
+	g: 7
+}

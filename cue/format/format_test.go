@@ -69,10 +69,56 @@ func TestFiles(t *testing.T) {
 			goldenFile := strings.TrimSuffix(f.Name, ".input") + ".golden"
 			t.Writer(goldenFile).Write(res)
 
-			// TODO(mvdan): check that all files format in an idempotent way,
-			// i.e. that formatting a golden file results in no changes.
+			// Formatting is idempotent: re-formatting the golden output
+			// leaves it unchanged.
+			again, err := format.Source(res, opts...)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Check(t, qt.Equals(string(again), string(res)),
+				qt.Commentf("%s is not formatted idempotently", goldenFile))
 		}
 	})
+}
+
+// TestPostfixSpread checks that both formatters keep the postfix ...
+// operator after every primary expression form the parser accepts, and
+// that a comment beside the operator survives. The archive
+// testdata/spread.txtar covers the same forms in context, but only for the
+// formatter which the formatv2 experiment selects.
+func TestPostfixSpread(t *testing.T) {
+	// Each source is already in canonical form, so formatting it must be a
+	// no-op for either formatter.
+	sources := []string{
+		"a: {b...}\n",
+		"a: {b.c...}\n",
+		"a: {b[0]...}\n",
+		"a: {b[1:2]...}\n",
+		"a: {f()...}\n",
+		"a: {(b & c)...}\n",
+		"a: {(b | c)...}\n",
+		"a: {{x: 1}...}\n",
+		"a: {[1, 2]...}\n",
+		"a: {\"\\(b)\"...}\n",
+		"a: {b......}\n",
+		"a: {b... // note\n}\n",
+	}
+
+	qt.Assert(t, qt.IsNil(cueexperiment.Init()))
+	// Init is guarded by sync.Once, so overriding Flags directly here is not
+	// undone by the format functions calling cueexperiment.Init again.
+	defer func(orig bool) { cueexperiment.Flags.FormatV2 = orig }(cueexperiment.Flags.FormatV2)
+
+	for _, v2 := range []bool{false, true} {
+		t.Run(fmt.Sprintf("formatv2=%v", v2), func(t *testing.T) {
+			cueexperiment.Flags.FormatV2 = v2
+			for _, src := range sources {
+				t.Run(strings.TrimSuffix(src, "\n"), func(t *testing.T) {
+					got, err := format.Source([]byte(src))
+					qt.Assert(t, qt.IsNil(err))
+					qt.Check(t, qt.Equals(string(got), src))
+				})
+			}
+		})
+	}
 }
 
 // Verify that the printer can be invoked during initialization.

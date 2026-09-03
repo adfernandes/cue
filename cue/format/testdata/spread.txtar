@@ -1,0 +1,92 @@
+#version: v0.18.0
+
+# The postfix ... operator binds to a primary expression, so it may follow
+# any of the operand, selector, index, slice and call forms the parser
+# accepts, as well as a parenthesized expression of lower precedence. Every
+# form must keep its operator, and any comment around it, across formatting.
+
+-- spread.input --
+package spread
+
+ident: {a...}
+selector: {a.b...}
+index: {a[0]...}
+slice: {a[1:2]...}
+call: {f()...}
+paren: {(a&b)...}
+parenDisjunction: {(a|b)...}
+structLit: {{x: 1}...}
+listLit: {[1,2]...}
+interpolation: {"\(a)"...}
+chained: {a......}
+
+// A spread embedding keeps its comments on both sides.
+embedded: {
+	#A... // trailing note
+	// a doc comment
+	#B...
+	x: 1
+}
+
+// A spread whose operand itself contains one.
+nested: {
+	{
+		inner...
+		y: 2
+	}...
+	z: 3
+}
+
+// A spread as a comprehension's field value.
+comprehension: {
+	if c {
+		f: #A...
+	}
+}
+
+// The hidden closing builtins wrap a struct literal holding a spread.
+closed: __closeAll({#A..., x: 1})
+reclosed: __reclose({a..., y: 2})
+-- out/format/spread.golden --
+package spread
+
+ident:            {a...}
+selector:         {a.b...}
+index:            {a[0]...}
+slice:            {a[1:2]...}
+call:             {f()...}
+paren:            {(a & b)...}
+parenDisjunction: {(a | b)...}
+structLit:        {{x: 1}...}
+listLit:          {[1, 2]...}
+interpolation:    {"\(a)"...}
+chained:          {a......}
+
+// A spread embedding keeps its comments on both sides.
+embedded: {
+	#A... // trailing note
+
+	// a doc comment
+	#B...
+	x: 1
+}
+
+// A spread whose operand itself contains one.
+nested: {
+	{
+		inner...
+		y: 2
+	}...
+	z: 3
+}
+
+// A spread as a comprehension's field value.
+comprehension: {
+	if c {
+		f: #A...
+	}
+}
+
+// The hidden closing builtins wrap a struct literal holding a spread.
+closed:   __closeAll({#A..., x: 1})
+reclosed: __reclose({a..., y: 2})

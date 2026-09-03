@@ -4,6 +4,12 @@ spread: {
 	b: a...
 	c: {a...}
 	d: close({})...
+	e: n: 2
+	f: e.n...
+	g: [e][0]...
+	h: (e | *close({m: 3}))...
+	i: __closeAll({e..., q: 4})
+	j: __reclose({close({r: 5})..., s: 6})
 }
 -- out/doc-v3 --
 []
@@ -12,6 +18,18 @@ spread: {
 [spread b]
 [spread c]
 [spread d]
+[spread e]
+[spread e n]
+[spread f]
+[spread g]
+[spread g n]
+[spread h]
+[spread i]
+[spread i q]
+[spread i n]
+[spread j]
+[spread j s]
+[spread j r]
 -- out/value-v3 --
 == Simplified
 {
@@ -20,6 +38,18 @@ spread: {
 		b: 1
 		c: 1
 		d: {}
+		e: n: 2
+		f: 2
+		g: n: 2
+		h: *{m: 3} | {n: 2}
+		i: {
+			n: 2
+			q: 4
+		}
+		j: {
+			r: 5
+			s: 6
+		}
 	}
 }
 == Raw
@@ -29,6 +59,18 @@ spread: {
 		b: 1
 		c: 1
 		d: {}
+		e: n: 2
+		f: 2
+		g: n: 2
+		h: *{m: 3} | {n: 2}
+		i: {
+			n: 2
+			q: 4
+		}
+		j: {
+			r: 5
+			s: 6
+		}
 	}
 }
 == Final
@@ -38,6 +80,18 @@ spread: {
 		b: 1
 		c: 1
 		d: {}
+		e: n: 2
+		f: 2
+		g: n: 2
+		h: m: 3
+		i: {
+			n: 2
+			q: 4
+		}
+		j: {
+			r: 5
+			s: 6
+		}
 	}
 }
 == All
@@ -47,6 +101,18 @@ spread: {
 		b: 1
 		c: 1
 		d: {}
+		e: n: 2
+		f: 2
+		g: n: 2
+		h: *{m: 3} | {n: 2}
+		i: {
+			n: 2
+			q: 4
+		}
+		j: {
+			r: 5
+			s: 6
+		}
 	}
 }
 == Eval
@@ -56,6 +122,18 @@ spread: {
 		b: 1
 		c: 1
 		d: {}
+		e: n: 2
+		f: 2
+		g: n: 2
+		h: m: 3
+		i: {
+			n: 2
+			q: 4
+		}
+		j: {
+			r: 5
+			s: 6
+		}
 	}
 }
 -- out/definition-v3 --
@@ -64,6 +142,18 @@ spread: {
 	b: a...
 	c: a...
 	d: close({})...
+	e: n: 2
+	f: e.n...
+	g: [e][0]...
+	h: (e | *close({m: 3}))...
+	i: __closeAll({
+		e...
+		q: 4
+	})
+	j: __reclose({
+		close({r: 5})...
+		s: 6
+	})
 }
 -- out/definition-v3-noshare --
 spread: {
@@ -71,4 +161,16 @@ spread: {
 	b: a...
 	c: a...
 	d: close({})...
+	e: n: 2
+	f: e.n...
+	g: [e][0]...
+	h: (e | *close({m: 3}))...
+	i: __closeAll({
+		e...
+		q: 4
+	})
+	j: __reclose({
+		close({r: 5})...
+		s: 6
+	})
 }
