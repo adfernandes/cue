@@ -1,6 +1,11 @@
 // Treat fields of different files as belonging to the same struct.
 // This means that a closed embedding in one file should not restrict the
 // fields of another.
+# Pinned to v0.17.0: the subject is how a closed embedding in one file
+# constrains another file before explicitopen is stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 package foo
 

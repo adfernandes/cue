@@ -1,3 +1,9 @@
+# Pinned to v0.17.0: root-embedding series with close(), covering how a
+# closed embedding constrains its siblings before explicitopen is
+# stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 c: "foo"
 a: b: int

@@ -1,6 +1,11 @@
 # Tests that embedding a definition (#C1) inside another definition (#C2) and
 # then unifying with a concrete struct correctly validates all fields.
 # https://cuelang.org/issue/370
+# Pinned to v0.17.0: the subject is a definition embedded in a
+# definition and then unified, before explicitopen is stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- x.cue --
 package x
 

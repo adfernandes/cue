@@ -1,4 +1,10 @@
 // Issue #852
+# Pinned to v0.17.0: the patterns group covers how several embeddings
+# union the fields a closed struct allows, which explicitopen changes from
+# v0.18.0 on; the new semantics are covered by definitions/explicitopen.txtar.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 #E: {
 	c: int
@@ -71,7 +77,7 @@ issue4180: {
 // causing validation errors that shouldn't occur when structs are reordered.
 // https://cuelang.org/issue/3325
 issue3325: ok: {
-	#Items: [string]~(Name,_): {
+	#Items: [Name=string]: { // prefix form: the archive parses at v0.17.0
 		name: Name
 	}
 

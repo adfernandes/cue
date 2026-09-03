@@ -1,3 +1,8 @@
+# Pinned to v0.17.0: the subject is how a closed embedding at the root
+# of a file constrains its siblings before explicitopen is stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 // Test embedding at root of file
 root1: 1

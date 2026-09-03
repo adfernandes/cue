@@ -1,3 +1,9 @@
+# Pinned to v0.17.0: the subject is typo checking against the closedness
+# an embedding has before explicitopen is stable; the new semantics are
+# covered by explicitopen.txtar and explicitopen_cycle.txtar.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 embed: simple: {
 	#A: b: 1
@@ -581,7 +587,7 @@ full: {
 	}
 
 	#Main: {
-		namespace~(NS): string
+		NS=namespace: string // prefix form: the archive parses at v0.17.0
 
 		output: jsonPatch.output
 

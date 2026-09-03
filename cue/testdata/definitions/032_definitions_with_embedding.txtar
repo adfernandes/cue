@@ -1,3 +1,8 @@
+# Pinned to v0.17.0: the archive is named for, and entirely about,
+# definitions with embedding before explicitopen is stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 #E: {
 	a: {b: int}

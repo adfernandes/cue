@@ -101,9 +101,16 @@ func TestIsStable(t *testing.T) {
 			want:       false,
 		},
 		{
+			// try is still in preview, so no version makes it stable.
 			name:       "empty version",
-			experiment: "explicitopen",
+			experiment: "try",
 			version:    "",
+			want:       false,
+		},
+		{
+			name:       "experiment still in preview at version",
+			experiment: "explicitopen",
+			version:    "v0.17.0",
 			want:       false,
 		},
 	}

@@ -36,6 +36,11 @@ import (
 // stable.
 const oldAliasVersion = "v0.17.0"
 
+// oldEmbedVersion is the last language version with the pre-explicitopen
+// embedding semantics, where the postfix ... operator still needs
+// @experiment(explicitopen).
+const oldEmbedVersion = "v0.17.0"
+
 func TestParse(t *testing.T) {
 	type testCase struct {
 		desc    string
@@ -1572,7 +1577,8 @@ bar: 2
 			out: "@experiment(explicitopen), x: y..., a: foo.bar..., b: (c&d)..., e: fn()...",
 		},
 		{
-			desc: "postfix ... operator with experiment missing",
+			desc:    "postfix ... operator with experiment missing",
+			version: oldEmbedVersion,
 			in: `
 		x: y...
 		`,

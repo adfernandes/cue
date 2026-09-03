@@ -23,6 +23,10 @@ import (
 	"cuelang.org/go/cue/token"
 )
 
+// oldEmbedVersion is the last language version with the pre-explicitopen
+// embedding semantics, for inputs that the fixer rewrites to the new ones.
+const oldEmbedVersion = "v0.17.0"
+
 func TestFile(t *testing.T) {
 	testCases := []struct {
 		name     string
@@ -105,6 +109,9 @@ g: (list.Repeat([9], 5)) + (list.Repeat([10], 6))
 		{
 			name: "add ellipsis to embeddings (fixExplicitOpen)",
 			exps: []string{"explicitopen"},
+			// The fix only has work to do below v0.18.0, where explicitopen
+			// becomes stable and embedding is strict without an opt-in.
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: a: int
@@ -138,8 +145,9 @@ X: __closeAll({
 		{
 			// Embeddings nested inside a rewritten embedding, such as in
 			// the struct operand of a conjunction, must be rewritten too.
-			name: "nested embeddings inside conjunction operands (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "nested embeddings inside conjunction operands (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #X: ctx: {...}
@@ -179,8 +187,9 @@ v: __closeAll({
 			// comprehensions are treated like embeddings and do not close
 			// their fields. Field values that may resolve to closed
 			// structs must be opened to preserve that behavior.
-			name: "open field values in comprehensions (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "open field values in comprehensions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #HC: hc: {port: 1}
@@ -213,8 +222,9 @@ package foo
 			// Selectors may resolve to closed values just like plain
 			// references, so a conjunction with a selector operand needs
 			// a runtime __reclose check on the enclosing struct.
-			name: "reclose embeddings of selector conjunctions (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "reclose embeddings of selector conjunctions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: a: int
@@ -243,8 +253,9 @@ v: __reclose({
 			// Comprehension field values that may resolve to closed
 			// structs via a selector conjunction or an and() call must
 			// be opened like plain references.
-			name: "open selector and call field values in comprehensions (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "open selector and call field values in comprehensions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #HC: hc: {port: 1}
@@ -286,8 +297,9 @@ lib: v:  #HC
 			// with a defaulted definition operand needs a runtime __reclose
 			// check when embedded, and must be opened as a comprehension
 			// field value.
-			name: "default marker embedding flags (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "default marker embedding flags (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: {a: int}
@@ -330,8 +342,9 @@ v: __reclose({
 			// The old comprehension opening also overrides an explicit
 			// close() in a field value: sibling entries added elsewhere
 			// remain allowed.
-			name: "open close() field values in comprehensions (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "open close() field values in comprehensions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #S: {
@@ -369,8 +382,9 @@ package foo
 			// enclosing literal's own fields — so the embeddings are
 			// simply opened, with a TODO comment flagging the
 			// (permissive) semantic difference.
-			name: "embeddings inside comprehension values (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "embeddings inside comprehension values (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: {a: int}
@@ -438,8 +452,9 @@ z: {
 			// not close under the old semantics, so a wrapper would deny
 			// fields that the old semantics allowed. The embeddings inside
 			// the literal are still opened.
-			name: "no wrappers on struct literal field values in comprehensions (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "no wrappers on struct literal field values in comprehensions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: {a: int}
@@ -472,8 +487,9 @@ package foo
 			// A hoisted close() must keep closing the struct when it is
 			// the only element: under the old semantics {close(X)} is
 			// equivalent to close(X).
-			name: "keep closing of single close() embeds (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "keep closing of single close() embeds (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 o: {b: int}
@@ -497,8 +513,9 @@ s2: close(__reclose({o...}))
 			// literals in one scope: each literal's wrapper is decided by
 			// its own embeddings. A literal embedded directly in another
 			// still carries its flags to the enclosing literal.
-			name: "sibling struct literals in a conjunction (fixExplicitOpen)",
-			exps: []string{"explicitopen"},
+			name:    "sibling struct literals in a conjunction (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
 			in: `package foo
 
 #A: {a: int, d: int}
@@ -535,7 +552,7 @@ w: __closeAll({
 			exps: []string{"aliasv2"},
 			// The input uses the old prefix alias syntax, which v0.18.0
 			// rejects: that is what the fix rewrites.
-			version: "v0.17.0",
+			version: oldEmbedVersion,
 			in: `package foo
 
 obj: {[_=string]: int}

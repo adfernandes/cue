@@ -1,4 +1,10 @@
 // Issue #852
+# Pinned to v0.17.0: the patterns group covers how several embeddings
+# union the fields a closed struct allows, which explicitopen changes from
+# v0.18.0 on; the new semantics are covered by definitions/explicitopen.txtar.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 #E: {
 	c: int
@@ -83,7 +89,7 @@ issue4180: {
 // causing validation errors that shouldn't occur when structs are reordered.
 // https://cuelang.org/issue/3325
 issue3325: ok: {
-	#Items: [string]~(Name,_): {
+	#Items: [Name=string]: { // prefix form: the archive parses at v0.17.0
 		name: Name
 	}
 
@@ -1085,13 +1091,13 @@ issue3332: {
 v3 reports fewer position references in "field not allowed" errors (e.g. a.q.e has 1 position vs v2's 5). v3 correctly handles issue1867.three (close({}) + {...}) while v2 did not. v3 reports issue2241.b.x.r error vs v2 which also reports it. issue3924.three.t1 and t2 have extra "field not allowed" errors for #job.other in v3. v3 shows issue3924.four.A.foo as ~(issue3924.four.#B) via structure sharing.
 -- out/eval/stats --
 Leaks:  6
-Freed:  817
+Freed:  825
 Reused: 774
-Allocs: 49
+Allocs: 57
 Retain: 0
 
-Unifications: 788
-Conjuncts:    1940
+Unifications: 796
+Conjuncts:    1948
 Disjuncts:    6
 
 NumCloseIDs: 585

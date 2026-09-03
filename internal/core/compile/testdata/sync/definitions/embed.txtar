@@ -1,3 +1,8 @@
+# Pinned to v0.17.0: this is the embedding reference case, covering how
+# an embedding constrains its siblings before explicitopen is stable.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 deployment: [string]: #Deployment
 

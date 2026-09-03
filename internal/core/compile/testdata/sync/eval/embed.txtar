@@ -2,6 +2,12 @@
 // closedness enforcement. Verifies that "field not allowed" errors are correctly
 // raised when embedding adds fields disallowed by a closed definition, and that
 // closedness inversion with open fields works correctly.
+# Pinned to v0.17.0: the subject is what an embedding closes and which
+# position it reports, which explicitopen changes from v0.18.0 on; the new
+# semantics are covered by definitions/explicitopen.txtar.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
 -- in.cue --
 #A: {
 	Common
