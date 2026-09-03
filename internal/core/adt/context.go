@@ -148,6 +148,18 @@ type OpContext struct {
 	containments       []containment   // parent relations
 	containsDefIDCache map[uint64]bool // cache for containsDefID results
 
+	// containsDefIDVisited is scratch space for [nodeContext.containsDefIDRec]:
+	// the replacement sources it has already explored within a single
+	// [nodeContext.containsDefID] call. The buffer is reused across calls.
+	//
+	// It holds at most one entry per replaceID of the node, and that count
+	// stays small: the largest seen across the test corpus is single digits,
+	// and [nodeContext.containsDefID] treats more than 15 as unusual enough
+	// to memoize. A linear search is therefore cheaper than hashing. If
+	// the lengths ever grow, the slice can be kept sorted and searched with
+	// binary search instead.
+	containsDefIDVisited []defID
+
 	// [token.Pos] interning for containments to reduce memory usage,
 	// given that millions of elements in [OpContext.containments]
 	// can share the same position. [uint32] is 4 bytes,

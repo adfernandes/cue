@@ -1,0 +1,36 @@
+# Mutually recursive definitions embedding each other must not overflow the
+# stack under the explicitopen experiment. Mirrors issue4006 in typocheck.txtar.
+#
+# Without the experiment every value is {fieldA: string}. With it, #B is a
+# closed embedding in #A, but #B is just {#A} and admits everything #A admits,
+# so the cycle should still resolve to {fieldA: string} everywhere. The
+# evaluator currently denies #A's own fieldA; the todo value records the
+# intended result. The fixer's rewrite (#B... under __closeAll) sidesteps it.
+-- in.cue --
+@experiment(explicitopen)
+
+issue4006: {
+	#A: {
+		#B
+		fieldA: string
+	}
+	#B: {#A}
+	#C: #A & {}
+	out: #C & #B
+
+}
+-- out/compile --
+--- in.cue
+{
+  issue4006: {
+    #A: {
+      〈1;#B〉
+      fieldA: string
+    }
+    #B: {
+      〈1;#A〉
+    }
+    #C: (〈0;#A〉 & {})
+    out: (〈0;#C〉 & 〈0;#B〉)
+  }
+}

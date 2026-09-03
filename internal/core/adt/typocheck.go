@@ -809,6 +809,8 @@ func (n *nodeContext) containsDefID(node, child defID) bool {
 		}
 	}
 
+	// Seed the visited set with child, as containsDefIDRec explores it now.
+	c.containsDefIDVisited = append(c.containsDefIDVisited[:0], child)
 	result := n.containsDefIDRec(node, child, child)
 
 	if caching {
@@ -845,8 +847,16 @@ func (n *nodeContext) containsDefIDRec(node, child, start defID) bool {
 			// Process all entries with 'to' == p.
 			for cursor < len(n.flatReplaceIDs) && n.flatReplaceIDs[cursor].to == p {
 				from := n.flatReplaceIDs[cursor].from
-				if from != child && n.containsDefIDRec(node, from, start) {
-					return true
+				// Replacements may form cycles, for instance between mutually
+				// embedded definitions under the explicitopen experiment.
+				// Exploring a source we already explored within this
+				// top-level call cannot yield a new match, and following a
+				// cycle would recurse forever, so explore each one once.
+				if !slices.Contains(c.containsDefIDVisited, from) {
+					c.containsDefIDVisited = append(c.containsDefIDVisited, from)
+					if n.containsDefIDRec(node, from, start) {
+						return true
+					}
 				}
 				cursor++
 			}
