@@ -4,6 +4,10 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): nestedClose and nestedSingleEmbed record today's rewrite,
+# which drops the closing an embedded struct literal carries. Their
+# assertions follow once the rewrite keeps it.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -283,6 +287,24 @@ nestedLiteral: {
 
 	t1: v & {x: 1}    @test(eq, {x: 1, extra: 1})
 	t2: v & {more: 2} @test(err, code=eval, path=more, contains="field not allowed")
+}
+
+// A close() hoisted out of an embedding inside an embedded struct
+// literal keeps its closing: {close(X)} is equivalent to close(X).
+nestedClose: {
+	v: {
+		{close({a: int})}
+		b: int
+	}
+}
+
+// A single embedded struct literal whose own embedding was opened
+// carries its closing in the flags alone.
+nestedSingleEmbed: {
+	o: close({b: int})
+	v: {
+		{o}
+	}
 }
 
 -- out/errors.txt --
@@ -646,4 +668,22 @@ nestedLiteral: {
 
 	t1: v & {x: 1}    @test(eq, {x: 1, extra: 1})
 	t2: v & {more: 2} @test(err, code=eval, path=more, contains="field not allowed")
+}
+
+// A close() hoisted out of an embedding inside an embedded struct
+// literal keeps its closing: {close(X)} is equivalent to close(X).
+nestedClose: {
+	v: {
+		{{a: int}}
+		b: int
+	}
+}
+
+// A single embedded struct literal whose own embedding was opened
+// carries its closing in the flags alone.
+nestedSingleEmbed: {
+	o: close({b: int})
+	v: {
+		{o...}
+	}
 }
