@@ -166,7 +166,7 @@ func TestCanApplyFix(t *testing.T) {
 			experiment: "exp13_a15",
 			version:    "v0.15.0",
 			target:     "v0.15.0",
-			wantErr:    `experiment "exp13_a15" is already stable as of language version v0.15.0 - cannot apply fix`,
+			wantErr:    `experiment "exp13_a15" is already stable as of language version v0.15.0; files at this version use it without an attribute`,
 		},
 		{
 			name:       "rejected",

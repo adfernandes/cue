@@ -123,6 +123,14 @@ func fixInstances(cmd *Command, args []string, force bool, opts ...fix.Option) (
 
 	errs := fix.Instances(instances, opts...)
 
+	// An instance which fails to load contributes no files, so without this
+	// the fixer would leave it alone and say nothing about it.
+	for _, i := range instances {
+		if i.Err != nil {
+			errs = errors.Append(errs, errors.Promote(suggestModCommand(i.Err), ""))
+		}
+	}
+
 	if errs != nil && !force {
 		return nil, errs
 	}

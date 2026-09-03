@@ -76,6 +76,39 @@ func UpgradeVersion(version string) Option {
 	}
 }
 
+// resolveExperiments returns the experiments to apply to a file whose language
+// version is version, together with the version to rewrite it for: the
+// experiments requested by [Experiments], plus those which [UpgradeVersion]
+// implies, with the "all" shorthand expanded. It fails when any of them cannot
+// be applied at version.
+func (o options) resolveExperiments(version string) ([]string, string, errors.Error) {
+	targetVersion := version
+	exps := slices.Clone(o.exps)
+	if o.upgradeVersion != "" {
+		targetVersion = o.upgradeVersion
+
+		// Add accepted experiments for the target version to the experiment list
+		for _, exp := range cueexperiment.GetUpgradable(version, targetVersion) {
+			// Only add if not already in the list
+			if !slices.Contains(exps, exp) {
+				exps = append(exps, exp)
+			}
+		}
+	}
+
+	// Handle --exp=all (only valid as a lone argument)
+	if slices.Equal(exps, []string{"all"}) {
+		exps = cueexperiment.GetActive(version, targetVersion)
+	}
+
+	for _, exp := range exps {
+		if err := cueexperiment.CanApplyFix(exp, version, targetVersion); err != nil {
+			return nil, "", errors.Newf(token.NoPos, "fix: %v", err)
+		}
+	}
+	return exps, targetVersion, nil
+}
+
 // File applies fixes to f and returns it. It alters the original f.
 func File(f *ast.File, o ...Option) *ast.File {
 	f, err := file(f, "", o...)
@@ -105,32 +138,11 @@ func file(f *ast.File, version string, o ...Option) (*ast.File, errors.Error) {
 		f(&options)
 	}
 
-	// Handle upgrade version logic
-	targetVersion := version
-	if options.upgradeVersion != "" {
-		targetVersion = options.upgradeVersion
-
-		// Add accepted experiments for the target version to the experiment list
-		acceptedExps := cueexperiment.GetUpgradable(version, targetVersion)
-		for _, exp := range acceptedExps {
-			// Only add if not already in the list and if it would make changes
-			if !slices.Contains(options.exps, exp) {
-				options.exps = append(options.exps, exp)
-			}
-		}
+	exps, targetVersion, expErr := options.resolveExperiments(version)
+	if expErr != nil {
+		return nil, expErr
 	}
-
-	// Handle --exp=all (only valid as a lone argument)
-	if slices.Equal(options.exps, []string{"all"}) {
-		activeExps := cueexperiment.GetActive(version, targetVersion)
-		options.exps = activeExps
-	}
-
-	for _, exp := range options.exps {
-		if err := cueexperiment.CanApplyFix(exp, version, targetVersion); err != nil {
-			return nil, errors.Newf(token.NoPos, "fix: %v", err)
-		}
-	}
+	options.exps = exps
 
 	// TODO: should this error be wrapped better to not panic?
 	wantExps, err := cueexperiment.NewFile(targetVersion, options.exps...)

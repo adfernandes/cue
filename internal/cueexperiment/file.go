@@ -239,7 +239,7 @@ func canApplyExperimentFix(experiment, version, target string, t any) error {
 
 	// Check if experiment is already stable (cannot fix)
 	if expInfo.isStableForVersion(version) {
-		const msg = "experiment %q is already stable as of language version %s - cannot apply fix"
+		const msg = "experiment %q is already stable as of language version %s; files at this version use it without an attribute"
 		return fmt.Errorf(msg, experiment, expInfo.Stable)
 	}
 

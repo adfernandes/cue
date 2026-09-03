@@ -53,6 +53,15 @@ func Instances(insts []*build.Instance, o ...Option) errors.Error {
 			}
 		}
 
+		// Validate the requested experiments against the instance's
+		// language version, so that an instance whose files do not even
+		// parse at that version, and so has no files, reports them too.
+		if version != "" {
+			if _, _, err := opts.resolveExperiments(version); err != nil {
+				return err
+			}
+		}
+
 		for _, f := range b.Files {
 			if done[f] {
 				continue
