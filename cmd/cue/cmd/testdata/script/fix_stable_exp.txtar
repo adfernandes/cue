@@ -1,0 +1,29 @@
+# Asking cue fix to port a file to an experiment which the module's
+# language version already makes stable is a mistake worth reporting: the
+# rewrite has nothing to do and the file needs no attribute.
+#
+# TODO(fix): the message must say what to do instead, per
+# contracts/user-facing-behavior.md:
+#   fix: experiment "aliasv2" is already stable as of language version v0.18.0; files at this version use it without an attribute
+! exec cue fix --exp=aliasv2 .
+cmp stderr expect/stderr
+
+# --exp=all names only the experiments still in preview at this version, so
+# it does not trip over the stable ones.
+exec cue fix --exp=all .
+cmp a.cue expect/a
+
+-- cue.mod/module.cue --
+module: "mod.test"
+
+language: version: "v0.18.0"
+-- a.cue --
+package p
+
+a: 1
+-- expect/a --
+package p
+
+a: 1
+-- expect/stderr --
+fix: experiment "aliasv2" is already stable as of language version v0.18.0 - cannot apply fix

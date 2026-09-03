@@ -1,0 +1,30 @@
+# The same mistake as in fix_stable_exp.txtar, but on a file which the
+# module's language version cannot parse at all: the old prefix alias
+# syntax is what aliasv2 replaced, so nothing loads.
+#
+# TODO(fix): both the load failure and the stable experiment must be
+# reported. Today cue fix exits zero and says nothing, leaving a module
+# which no other command can load.
+exec cue fix --exp=aliasv2 .
+! stderr .
+! stdout .
+cmp a.cue expect/a
+
+# Every other command does report the load failure.
+! exec cue vet .
+stderr 'old-style alias syntax'
+
+-- cue.mod/module.cue --
+module: "mod.test"
+
+language: version: "v0.18.0"
+-- a.cue --
+package p
+
+X=a: 1
+b:   X
+-- expect/a --
+package p
+
+X=a: 1
+b:   X
