@@ -88,7 +88,7 @@ Conjuncts:    78
 Disjuncts:    12
 ResolveDep:   12
 
-NumCloseIDs: 12
+NumCloseIDs: 5
 -- diff/-out/run-v3/t1/stats<==>+out/run/t1/stats --
 diff old new
 --- old
@@ -118,7 +118,7 @@ diff old new
 +Disjuncts:    12
 +ResolveDep:   12
 +
-+NumCloseIDs: 12
++NumCloseIDs: 5
 -- out/run/t1/stats --
 Leaks:  0
 Freed:  57
@@ -169,7 +169,7 @@ Conjuncts:    84
 Disjuncts:    12
 ResolveDep:   21
 
-NumCloseIDs: 12
+NumCloseIDs: 5
 -- diff/-out/run-v3/t2/stats<==>+out/run/t2/stats --
 diff old new
 --- old
@@ -199,7 +199,7 @@ diff old new
 +Disjuncts:    12
 +ResolveDep:   21
 +
-+NumCloseIDs: 12
++NumCloseIDs: 5
 -- out/run/t2/stats --
 Leaks:  0
 Freed:  58
@@ -226,7 +226,7 @@ Conjuncts:    162
 Disjuncts:    24
 ResolveDep:   33
 
-NumCloseIDs: 24
+NumCloseIDs: 10
 -- diff/-out/run-v3/stats/totals<==>+out/run/stats/totals --
 diff old new
 --- old
@@ -256,7 +256,7 @@ diff old new
 +Disjuncts:    24
 +ResolveDep:   33
 +
-+NumCloseIDs: 24
++NumCloseIDs: 10
 -- out/run/stats/totals --
 Leaks:  0
 Freed:  115

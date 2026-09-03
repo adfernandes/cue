@@ -18,13 +18,13 @@ a: {
 	}
 
 	#A1: {
-		#A
+		#A... // spread, as x and y are not fields of #A
 		x: int
 		y: z: string // Comment to avoid error
 	}
 
 	#A2: {
-		#A
+		#A... // spread, as i is not a field of #A
 		i: string
 	}
 
@@ -81,14 +81,14 @@ b: {
       ...
     }
     #A1: {
-      〈1;#A〉
+      〈1;#A〉...
       x: int
       y: {
         z: string
       }
     }
     #A2: {
-      〈1;#A〉
+      〈1;#A〉...
       i: string
     }
     s: {

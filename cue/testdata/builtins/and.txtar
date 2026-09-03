@@ -2,7 +2,7 @@
 merge: and([1, 1]) @test(eq, 1)
 
 // ensure definitions along embedded scalars are preserved.
-embed: and([{2, #x: 1}, {2, #x: 2}]) @test(err, code=eval, contains="conflicting values", args=[2, 1], pos=[0:13, 0:21, 0:25, 0:33])
+embed: and([{2, #x: 1}, {2, #x: 2}]) @test(err, code=eval, contains="conflicting values", args=[2, 1], pos=[0:21, 0:33], hint="the two struct literal positions dropped out at v0.18.0: an embedded struct is no longer split into a node of its own, so its literal contributes no position of its own")
 
 // issue3719: and() with a comprehension over an incomplete field failed in
 // evalv3 while the equivalent expression without and() worked correctly.
@@ -38,9 +38,7 @@ Disjuncts:    0
 NumCloseIDs: 10
 -- out/errors.txt --
 [eval] embed.#x: conflicting values 2 and 1:
-    ./in.cue:4:13
     ./in.cue:4:21
-    ./in.cue:4:25
     ./in.cue:4:33
 [incomplete] issue3719._filledLater: undefined field: foo:
     ./in.cue:11:28

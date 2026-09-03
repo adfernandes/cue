@@ -68,9 +68,11 @@ Available per-file experiments:
     Spec change:   https://cuelang.org/cl/1222377
     Requires cue fix when upgrading
 
-  explicitopen (preview: v0.15.0)
+  explicitopen (preview: v0.15.0, stable: v0.18.0)
     explicitopen enables the postfix ... operator to explicitly open
-    closed structs, allowing additional fields to be added.
+    closed structs, allowing additional fields to be added. It is stable as
+    of v0.18.0, so a file at that language version or later embeds strictly
+    and may use the postfix ... operator; cue fix migrates older files.
     Proposal:      https://cuelang.org/issue/4032
     Spec change:   https://cuelang.org/cl/1221642
     Requires cue fix when upgrading

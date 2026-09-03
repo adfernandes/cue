@@ -408,7 +408,8 @@ errorPrecedence: {
 		@test(err, code=eval, path=v,
 			contains="conflicting values %s and %s (mismatched types %s and %s)",
 			args=["notanint", 1, string, int],
-			pos=[-398:4, 0:17, 1:3, 1:12, 1:17])
+			pos=[-398:4, 1:12, 1:17],
+			hint="the two struct literal positions dropped out at v0.18.0: a try or comprehension conjunct is no longer split into a node of its own, so its literal contributes no position of its own")
 	}
 
 	// Mixed case: OptionalUndefined in one field, real error in another
@@ -784,20 +785,18 @@ letTryCycle: {
     ./in.cue:399:12
 [eval] errorPrecedence.conflictError.v: conflicting values "notanint" and 1 (mismatched types string and int):
     ./in.cue:7:4
-    ./in.cue:405:17
-    ./in.cue:406:3
     ./in.cue:406:12
     ./in.cue:406:17
 [eval] assignmentForm.withOutOfRangeIndex.result: index out of range [10] with length 3:
-    ./in.cue:492:16
+    ./in.cue:493:16
 [eval] assignmentForm.withRealError.result: failed arithmetic: division by zero:
-    ./in.cue:518:11
+    ./in.cue:519:11
 [incomplete] letTryCycle._d.c: invalid interpolation: cannot reference optional field: inner:
-    ./in.cue:748:12
-    ./in.cue:748:18
+    ./in.cue:749:12
+    ./in.cue:749:18
 [incomplete] letTryCycle.out: invalid interpolation: cannot reference optional field: inner:
-    ./in.cue:748:12
-    ./in.cue:748:18
+    ./in.cue:749:12
+    ./in.cue:749:18
 -- out/todo.txt --
 In v2, the try mechanism does not exist and many operations that succeed in v3
 produce errors in v2 (type errors, index out of range on open lists, etc.).

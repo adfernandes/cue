@@ -82,11 +82,7 @@ full: {
 }
 -- out/errors.txt --
 [eval] out: conflicting values {val:k,if (val != _|_(explicit error (_|_ literal) in source)) {k}} and "b" (mismatched types struct and string):
-    ./in.cue:4:6
-    ./in.cue:5:2
-    ./in.cue:6:3
     ./in.cue:6:24
-    ./in.cue:8:4
     ./in.cue:9:5
     ./in.cue:35:2
 -- out/eval/stats --

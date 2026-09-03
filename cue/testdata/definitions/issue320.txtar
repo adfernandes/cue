@@ -5,7 +5,7 @@
 -- in.cue --
 #Foo: {
 	x: string
-	#More
+	#More... // spread, as #More only holds a pattern constraint
 }
 
 #More: [=~"^x-"]: _

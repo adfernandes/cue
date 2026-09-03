@@ -1,8 +1,7 @@
-# Tests for closedness with the explicitopen experiment.
-# With explicitopen, spread (#T...) opens a definition,
+# Tests for closedness with the spread operator.
+# Since v0.18.0, spread (#T...) opens a definition,
 # while plain embedding (#T) keeps it closed.
 -- test.cue --
-@experiment(explicitopen)
 package test
 
 #WithSpread: {

@@ -1,6 +1,6 @@
 -- in.cue --
 a: d: {
-	#base
+	#base... // spread, as Y is not one of its fields
 	#info: {...}
 	Y:     #info.X
 }
@@ -19,7 +19,7 @@ a: [string]~(Name,_): {
 {
   a: {
     d: {
-      〈2;#base〉
+      〈2;#base〉...
       #info: {
         ...
       }

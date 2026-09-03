@@ -1,5 +1,3 @@
-@experiment(explicitopen)
-
 // This file models ordering of the dependencies between JSON Schema
 // constraints via the data that each constraint produces or consumes.
 //

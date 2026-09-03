@@ -190,7 +190,7 @@ Unifications: 510
 Conjuncts:    903
 Disjuncts:    0
 
-NumCloseIDs: 238
+NumCloseIDs: 168
 -- out/todo.txt --
 weave.f.out: v2 reports [cycle] error, v3 reports [incomplete] "undefined field: out".
 weaveExtraField.f.out: same v2/v3 difference as weave.f.out.

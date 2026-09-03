@@ -68,12 +68,14 @@ type File struct {
 	StructCmp bool `experiment:"preview:v0.14.0,stable:v0.15.0"`
 
 	// ExplicitOpen enables the postfix ... operator to explicitly open
-	// closed structs, allowing additional fields to be added.
+	// closed structs, allowing additional fields to be added. It is stable as
+	// of v0.18.0, so a file at that language version or later embeds strictly
+	// and may use the postfix ... operator; cue fix migrates older files.
 	//
 	// Proposal:      https://cuelang.org/issue/4032
 	// Spec change:   https://cuelang.org/cl/1221642
 	// Requires cue fix when upgrading
-	ExplicitOpen bool `experiment:"preview:v0.15.0"`
+	ExplicitOpen bool `experiment:"preview:v0.15.0,stable:v0.18.0"`
 
 	// AliasV2 enables the use of 'self' identifier to refer to the
 	// enclosing struct and enables the postfix alias syntax (~X and ~(K,V)).

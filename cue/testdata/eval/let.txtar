@@ -115,12 +115,13 @@ indirectReference: {
 		"\(k)": X
 	}
 	@test(err, code=eval,
-		suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[2, 1], pos=[0:20, 1:7, 1:10, 2:2, 3:6]),
-		suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[3, 1], pos=[0:20, 1:7, 1:13, 2:2, 3:6]))
+		suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[2, 1], pos=[1:7, 1:10, 3:6]),
+		suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[3, 1], pos=[1:7, 1:13, 3:6]),
+		hint="the struct literal and comprehension positions dropped out at v0.18.0: a comprehension conjunct is no longer split into a node of its own, so neither contributes a position of its own")
 
 } @test(err, code=eval,
-	suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[2, 1], pos=[0:20, 1:7, 1:10, 2:2, 3:6]),
-	suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[3, 1], pos=[0:20, 1:7, 1:13, 2:2, 3:6]))
+	suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[2, 1], pos=[1:7, 1:10, 3:6]),
+	suberr=(code=eval, path=y, contains="conflicting values %s and %s", args=[3, 1], pos=[1:7, 1:13, 3:6]))
 
 nestedFor: {
 	for k, y in [ 4, 5 ] {
@@ -230,52 +231,36 @@ issue4022: full: {
 }
 -- out/errors.txt --
 [eval] indirectReference.y: conflicting values 2 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:10
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 indirectReference.y: conflicting values 3 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:13
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 [eval] indirectReference.y: conflicting values 2 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:10
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 indirectReference.y: conflicting values 3 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:13
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 [eval] indirectReference.y: conflicting values 2 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:10
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 indirectReference.y: conflicting values 3 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:13
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 [eval] indirectReference.y: conflicting values 2 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:10
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 indirectReference.y: conflicting values 3 and 1:
-    ./incomprehension.cue:61:20
     ./incomprehension.cue:62:7
     ./incomprehension.cue:62:13
-    ./incomprehension.cue:63:2
     ./incomprehension.cue:64:6
 -- out/eval/stats --
 Leaks:  52

@@ -1,0 +1,37 @@
+# The postfix ... operator at the current language version, where
+# explicitopen is stable. The @experiment attribute below is redundant from
+# v0.18.0 on; it is kept on purpose, as a file may still carry it and it must
+# be accepted and have no effect. postfixexpr.txtar covers the same operator
+# on a module which opts in below v0.18.0.
+-- in.cue --
+@experiment(explicitopen)
+
+#Base: {
+	x: int
+}
+
+// The operator opens the embedded definition, so y is admitted.
+a: #Base... & {y: int} @test(eq, {y: int, x: int})
+
+// Without it, the embedding closes the struct.
+b: {#Base, y: int} @test(err, code=eval, contains="field not allowed", pos=[0:12])
+
+// Applying it to a value which is neither a struct nor a list is a no-op.
+c: 1... @test(eq, 1)
+d: s... @test(eq, "foo")
+s: "foo" @test(eq, "foo")
+-- out/errors.txt --
+[eval] b.y: field not allowed:
+    ./in.cue:11:12
+-- out/eval/stats --
+Leaks:  0
+Freed:  12
+Reused: 3
+Allocs: 9
+Retain: 0
+
+Unifications: 12
+Conjuncts:    19
+Disjuncts:    0
+
+NumCloseIDs: 2

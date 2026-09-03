@@ -13,10 +13,12 @@ cmp stdout expect-stdout
 	ab: "\(a)\(b)"
 }
 
-{
+// The embeddings below are spread, as each closes the file's root struct
+// to its own fields otherwise.
+({
 	a: "aaa"
 	b: "bbb"
-} & #Foo
+} & #Foo)...
 
 #Bar: {
 	_c: string
@@ -24,10 +26,10 @@ cmp stdout expect-stdout
 	cd: "\(_c)\(_d)"
 }
 
-{
+({
 	_c: "ccc"
 	_d: "ddd"
-} & #Bar
+} & #Bar)...
 
 -- expect-stdout --
 a: aaa

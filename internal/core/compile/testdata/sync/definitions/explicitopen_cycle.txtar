@@ -1,12 +1,11 @@
 # Mutually recursive definitions embedding each other must not overflow the
-# stack under the explicitopen experiment. Mirrors issue4006 in typocheck.txtar.
+# stack under the strict embedding of v0.18.0. Mirrors issue4006 in
+# typocheck.txtar, which is pinned to the older semantics.
 #
-# Without the experiment every value is {fieldA: string}. With it, #B is a
-# closed embedding in #A, but #B is just {#A} and so admits everything #A
-# admits. The cycle therefore resolves to {fieldA: string} everywhere.
+# Under the strict embedding of v0.18.0 #B is a closed embedding in #A, but #B
+# is just {#A} and so admits everything #A admits. The cycle therefore resolves
+# to {fieldA: string} everywhere, as it did before v0.18.0.
 -- in.cue --
-@experiment(explicitopen)
-
 issue4006: {
 	#A: {
 		#B

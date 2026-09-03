@@ -42,8 +42,7 @@ are only executed on a best-effort basis. Please check your config.
 		RunE: mkRunE(c, runModUpgrade),
 		Args: cobra.ExactArgs(1),
 
-		// TODO(upgrade): hide until we have a case where an experimental
-		// version is accepted. See other TODO(upgrade) in this file.
+		// TODO(upgrade): hide until we are happy for users to rely on it.
 		Hidden: true,
 	}
 
@@ -56,10 +55,6 @@ func runModUpgrade(cmd *Command, args []string) error {
 	}
 
 	var opts []fix.Option
-
-	// TODO(upgrade): this is just for testing. Remove this line and update the
-	// failing test to a later version.when unhiding this command.
-	opts = append(opts, fix.Experiments("explicitopen"))
 
 	opts = append(opts, fix.UpgradeVersion(args[0]))
 

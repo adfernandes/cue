@@ -120,7 +120,7 @@ panic1: {
 		foo_field: string
 	}
 	#TypeBar: {
-		#TypeBar2
+		#TypeBar2... // spread, as bar_field is not one of its fields
 		bar_field?: string
 	}
 
@@ -267,7 +267,7 @@ panic1: {
       foo_field: string
     }
     #TypeBar: {
-      〈1;#TypeBar2〉
+      〈1;#TypeBar2〉...
       bar_field?: string
     }
     #TypeBar2: {

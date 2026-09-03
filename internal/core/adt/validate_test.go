@@ -232,6 +232,9 @@ func TestValidate(t *testing.T) {
 	}, {
 		// Issue #3992: a required field defined inside a comprehension must
 		// still report the position of its declaration in the error message.
+		// Since v0.18.0 a comprehension conjunct is no longer split into a
+		// node of its own, so the struct literal holding it no longer
+		// reports a position of its own.
 		name: "required field in comprehension reports position",
 		cfg:  &adt.ValidateConfig{Final: true},
 		in: `
@@ -243,7 +246,6 @@ func TestValidate(t *testing.T) {
 			`,
 		out: `incomplete
 				x.foo: field is required but not present:
-				    test:3:5
 				    test:4:6`,
 	}, {
 		name: "allow required fields in definitions",

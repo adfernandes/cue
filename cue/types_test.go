@@ -1502,7 +1502,9 @@ func TestFillPath(t *testing.T) {
 		}, {
 			in: `
 				_schema: _
-				_schema
+				// _schema is spread, as the definition filled in below would
+				// otherwise deny the fields declared beside the embedding.
+				_schema...
 				apiVersion: "foo"
 				spec: group: "foo"
 			`,
@@ -2798,7 +2800,9 @@ func TestIssue3826(t *testing.T) {
 
 		v := ctx.CompileString(`
 			_schema: _
-			_schema
+			// _schema is spread, as the definition filled in below would
+			// otherwise deny the fields declared beside the embedding.
+			_schema...
 			apiVersion: "foo"
 			spec: group: "foo"
 		`)
@@ -4362,13 +4366,13 @@ func TestExpr(t *testing.T) {
 		input: "v: mod(2, 5)",
 		want:  "()(mod 2 5)",
 	}, {
-		input: "@experiment(explicitopen)\n v: #Y..., #Y: {b: 2}",
+		input: "v: #Y..., #Y: {b: 2}",
 		want:  `...(.(〈〉 "#Y"))`,
 	}, {
-		input: "@experiment(explicitopen)\n v: {#Y..., a: 1}, #Y: {b: 2}",
+		input: "v: {#Y..., a: 1}, #Y: {b: 2}",
 		want:  `&(...(.(〈〉 "#Y")) {a:1})`,
 	}, {
-		input: "@experiment(explicitopen)\n v: {#Y, a: 1}, #Y: {b: 2}",
+		input: "v: {#Y, a: 1}, #Y: {b: 2}",
 		want:  `&(.(〈〉 "#Y") {a:1})`,
 	}, {
 		// Note: before explicitopen there is no way to detect embeddings.

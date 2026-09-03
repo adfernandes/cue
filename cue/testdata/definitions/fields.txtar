@@ -43,7 +43,8 @@ ok: t3: {
 ok: t4: {
 	#T: { a: b: 1 }
 	W: {
-		{#T}
+		// #T is spread, as b is not one of its fields.
+		{#T...}
 		b: c: 2
 	}
 
@@ -86,7 +87,9 @@ ok: t6: {
 }
 
 ok: t7: {
-	a: {#A, #B}
+	// Both embeddings are spread, as each definition would otherwise close
+	// a to its own fields and deny the other's.
+	a: {#A..., #B...}
 	#A: b: f: 1
 	#B: b: g: 1
 
@@ -168,7 +171,8 @@ ok: t12: {
 	// nested embedding
 	#T: { a: b: 1 }
 	W: {
-		{#T}
+		// #T is spread, as b is not one of its fields.
+		{#T...}
 		b: c: 2
 	}
 
@@ -253,7 +257,8 @@ err: t4: {
 
 err: t5: {
 	@test(permute)
-	// TODO: this should fail
+	// Since v0.18.0 a itself fails, not only the field asserted below:
+	// each embedded definition closes a.b to its own field.
 	a: {#A, #B}
 	#A: b: f: 1
 	#B: b: g: 1
@@ -263,7 +268,8 @@ err: t5: {
 
 err: t6: {
 	@test(permute)
-	// TODO: this should fail
+	// Since v0.18.0 a itself fails, not only the field asserted below:
+	// each embedded definition closes a.b.c.d.e to its own field.
 	a: {#A, #B}
 	#A: b: c: d: e: f: 1
 	#B: b: c: d: e: g: 1
@@ -393,25 +399,41 @@ Disjuncts:    0
 NumCloseIDs: 121
 -- out/errors.txt --
 [eval] ok.t5.x.c: field not allowed:
-    ./in.cue:65:5
+    ./in.cue:66:5
 [eval] ok.t13.x.c: field not allowed:
-    ./in.cue:192:5
+    ./in.cue:196:5
 [eval] err.t1.a.disallowed: field not allowed:
-    ./in.cue:228:5
+    ./in.cue:232:5
 [eval] err.t2.V.c.e: field not allowed:
-    ./in.cue:235:10
+    ./in.cue:239:10
 [eval] err.t3.a.c: field not allowed:
-    ./in.cue:242:5
+    ./in.cue:246:5
 [eval] err.t4.a.b.h: field not allowed:
-    ./in.cue:249:8
+    ./in.cue:253:8
+[eval] err.t5.a.b.f: field not allowed:
+    ./in.cue:261:9
+[eval] err.t5.a.b.g: field not allowed:
+    ./in.cue:262:9
 [eval] err.t5.b.b.h: field not allowed:
-    ./in.cue:259:8
+    ./in.cue:264:8
+[eval] err.t5.b.b.f: field not allowed:
+    ./in.cue:261:9
+[eval] err.t5.b.b.g: field not allowed:
+    ./in.cue:262:9
+[eval] err.t6.a.b.c.d.e.f: field not allowed:
+    ./in.cue:272:18
+[eval] err.t6.a.b.c.d.e.g: field not allowed:
+    ./in.cue:273:18
 [eval] err.t6.b.b.c.d.e.h: field not allowed:
-    ./in.cue:269:17
+    ./in.cue:275:17
+[eval] err.t6.b.b.c.d.e.f: field not allowed:
+    ./in.cue:272:18
+[eval] err.t6.b.b.c.d.e.g: field not allowed:
+    ./in.cue:273:18
 [eval] err.t7.a.b: field not allowed:
-    ./in.cue:282:5
+    ./in.cue:288:5
 [eval] err.t8.V.c.e: field not allowed:
-    ./in.cue:290:10
+    ./in.cue:296:10
 [eval] validator.keepClosed.x.c: field not allowed:
     ./validators.cue:31:3
     ./validators.cue:36:5

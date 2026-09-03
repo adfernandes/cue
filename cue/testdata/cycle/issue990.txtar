@@ -198,9 +198,9 @@ Unifications: 330
 Conjuncts:    1367
 Disjuncts:    106
 
-NumCloseIDs: 428
+NumCloseIDs: 377
 
-ConjunctInfos:       1003
-MaxConjunctInfos:    6
-MaxReqSets:          19
+ConjunctInfos:       970
+MaxConjunctInfos:    5
+MaxReqSets:          18
 MaxRedirect:         4

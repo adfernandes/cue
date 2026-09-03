@@ -1143,7 +1143,8 @@ issue3729: withoutDisjunction: {
 	if true {
 		root: #sub1?: #sub2: true
 	}
-	@test(err, code=eval, contains="conflicting values null", pos=[0:32, 1:9, 2:2, 3:9])
+	@test(err, code=eval, contains="conflicting values null", pos=[1:9, 3:9],
+		hint="the two struct literal positions dropped out at v0.18.0: a comprehension conjunct is no longer split into a node of its own, so its literal contributes no position of its own")
 }
 issue3729: withoutDisjunctionWithEmbed: {
 	root?: null
@@ -1473,9 +1474,7 @@ issue4422: {
     ./in.cue:123:6
     ./in.cue:124:6
 [eval] fieldMismatch.a: conflicting values 2 and {x:3} (mismatched types int and struct):
-    ./in.cue:181:5
     ./in.cue:182:3
-    ./in.cue:183:3
     ./in.cue:183:11
 [structural_cycle] noStackOverflowStructCycle.#list.tail: structural cycle
 [structural_cycle] noStackOverflowStructCycle.list.tail: structural cycle
@@ -1533,9 +1532,7 @@ voidEliminationSuccess.derefDisj2.E.h: operand g of '!' not concrete (was bool):
 [eval] issue3535.regular.foo.regular: field not allowed:
     ./issue3535.cue:29:4
 [eval] issue3729.withoutDisjunction.root: conflicting values null and {#sub1?:{#sub2:true}} (mismatched types null and struct):
-    ./issue3729.cue:15:32
     ./issue3729.cue:16:9
-    ./issue3729.cue:17:2
     ./issue3729.cue:18:9
 [incomplete] issue3935.reduced.#B.x: required field missing: y:
     ./issue3935.cue:12:7

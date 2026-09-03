@@ -63,7 +63,7 @@ _items: [#VMRuleList]
 #Rule: expr: string @test(eq, string)
 
 #VMRule: {
-	#TypeMeta
+	#TypeMeta... // spread, as spec is not one of its fields
 	spec: [...#RuleGroup]
 }
 #TypeMeta: kind: string | *"default"

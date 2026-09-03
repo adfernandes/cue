@@ -33,7 +33,8 @@ package build
 
 // A FileInfo defines how a file is encoded and interpreted.
 #FileInfo: {
-	#File
+	// #File is spread as the fields below extend it rather than restrict it.
+	#File...
 
 	// For each of these fields it is explained what a true value means
 	// for encoding/decoding.

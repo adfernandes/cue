@@ -1,5 +1,4 @@
 -- in.cue --
-@experiment(explicitopen)
 spread: {
 	a: 1
 	b: a...
@@ -43,7 +42,6 @@ spread: {
 }
 == All
 {
-	@experiment(explicitopen)
 	spread: {
 		a: 1
 		b: 1
@@ -53,7 +51,6 @@ spread: {
 }
 == Eval
 {
-	@experiment(explicitopen)
 	spread: {
 		a: 1
 		b: 1
@@ -62,7 +59,6 @@ spread: {
 	}
 }
 -- out/definition-v3 --
-@experiment(explicitopen)
 spread: {
 	a: 1
 	b: a...
@@ -70,7 +66,6 @@ spread: {
 	d: close({})...
 }
 -- out/definition-v3-noshare --
-@experiment(explicitopen)
 spread: {
 	a: 1
 	b: a...

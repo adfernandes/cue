@@ -1,0 +1,60 @@
+# The same JSON Schema imported into a module below v0.18.0 and into one at
+# v0.18.0 must load in both. Strict embedding, stable as of v0.18.0, changes
+# what an embedding and a comprehension conjunct close, so a spelling which
+# only loads under one of the two would be a bug in the importer.
+
+cd old
+exec cue import -f -p schema -o schema.cue jsonschema: ../schema.json
+exec cue vet ./...
+exec cue vet -d '#Schema' ../ok.json ./...
+! exec cue vet -d '#Schema' ../missing.json ./...
+stderr 'nested'
+! exec cue vet -d '#Schema' ../closed.json ./...
+stderr 'field not allowed'
+
+cd ../new
+exec cue import -f -p schema -o schema.cue jsonschema: ../schema.json
+exec cue vet ./...
+exec cue vet -d '#Schema' ../ok.json ./...
+! exec cue vet -d '#Schema' ../missing.json ./...
+stderr 'nested'
+! exec cue vet -d '#Schema' ../closed.json ./...
+stderr 'field not allowed'
+
+# Both modules received the same syntax.
+cmp schema.cue ../old/schema.cue
+
+-- schema.json --
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$defs": {
+		"Schema": {
+			"type": "object",
+			"properties": {
+				"name": {"type": "string"},
+				"nested": {
+					"type": "object",
+					"properties": {"id": {"type": "string"}},
+					"additionalProperties": false
+				}
+			},
+			"dependentSchemas": {
+				"name": {"required": ["nested"]}
+			},
+			"allOf": [{"properties": {"name": {"minLength": 1}}}]
+		}
+	},
+	"$ref": "#/$defs/Schema"
+}
+-- ok.json --
+{"name": "x", "nested": {"id": "y"}}
+-- missing.json --
+{"name": "x"}
+-- closed.json --
+{"name": "x", "nested": {"id": "y", "other": "z"}}
+-- old/cue.mod/module.cue --
+module: "old.test"
+language: version: "v0.17.0"
+-- new/cue.mod/module.cue --
+module: "new.test"
+language: version: "v0.18.0"

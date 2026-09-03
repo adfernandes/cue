@@ -19,7 +19,8 @@ object: #Leaf & {} @test(eq, {extra?: {}, more?: int}) @test(closed)
 }
 
 #Leaf: {
-	#Mid
+	// #Mid is spread, as more is not one of its fields.
+	#Mid...
 	extra?:  {...}
 	more?: int
 	if extra.foo != _|_ {

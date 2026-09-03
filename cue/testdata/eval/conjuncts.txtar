@@ -41,7 +41,8 @@ issue2351: let: {
 		param: _param & [{}]
 		gen: [for p in param {p}]
 	}).gen
-	@test(err, code=eval, contains="conflicting values", pos=[0:17, 1:15, 2:2, 3:10, 3:19])
+	@test(err, code=eval, contains="conflicting values", pos=[1:15, 3:10, 3:19],
+		hint="the two struct literal positions dropped out at v0.18.0: an embedded struct is no longer split into a node of its own, so its literal contributes no position of its own")
 }
 
 issue2351: hidden: {
@@ -97,9 +98,7 @@ issue2355: {
 
 -- out/errors.txt --
 [eval] param: conflicting values [{}] and "foo" (mismatched types list and string):
-    ./issue2351.cue:4:17
     ./issue2351.cue:5:15
-    ./issue2351.cue:6:2
     ./issue2351.cue:7:10
     ./issue2351.cue:7:19
 [incomplete] issue2355.#GetF1.out: in.f1 undefined as in is incomplete (type _):

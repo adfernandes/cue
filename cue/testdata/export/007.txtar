@@ -17,8 +17,6 @@ Retain: 0
 Unifications: 8
 Conjuncts:    9
 Disjuncts:    0
-
-NumCloseIDs: 1
 -- out/evalalpha --
 Errors:
 c: undefined field: c:

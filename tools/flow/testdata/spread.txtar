@@ -3,8 +3,6 @@
 // comprehensions.
 
 -- in.cue --
-@experiment(explicitopen)
-
 root: [string]: $id: "sequenced"
 
 _template: {}

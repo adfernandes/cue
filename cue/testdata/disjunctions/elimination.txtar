@@ -703,11 +703,11 @@ issue2246: full: {
 	#K1: {
 		#_base: common: 3
 		#FormFoo: {
-			#_base
+			#_base... // spread, as fooID is not one of its fields
 			fooID: string
 		}
 		#FormBar: {
-			#_base
+			#_base... // spread, as barID is not one of its fields
 			barID: string
 		}
 		#Form: {
@@ -752,8 +752,10 @@ issue2246: full: {
 issue2263: simplified: {
 	metrics: #Metric
 	#Metric: {
-		#IDSource | {}
-		#TargetAverage | {}
+		// Both embedded disjunctions are spread, as either would otherwise
+		// close #Metric and deny the fields of the other.
+		(#IDSource | {})...
+		(#TargetAverage | {})...
 	}
 
 	metrics: {
@@ -788,8 +790,10 @@ issue2263: full: {
 	}]
 
 	#Metric: {
-		#Source
-		#Target
+		// Both embeddings are spread, as either would otherwise close
+		// #Metric and deny the fields of the other.
+		#Source...
+		#Target...
 	}
 
 	#Source:
@@ -1164,10 +1168,10 @@ Allocs: 251
 Retain: 0
 
 Unifications: 666
-Conjuncts:    2736
+Conjuncts:    2756
 Disjuncts:    1298
 Notifications: 8
 
-NumCloseIDs: 319
+NumCloseIDs: 198
 -- out/todo.txt --
 issue2685: only evaluated by v3 evaluator.

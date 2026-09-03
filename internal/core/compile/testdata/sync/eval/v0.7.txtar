@@ -213,7 +213,7 @@ issue3194: reduced: {
 	{
 		out: close({ b: A })
 		out: b: A
-	}.out
+	}.out... // spread, as the closed embedding would otherwise deny A
 
 }
 
@@ -482,7 +482,7 @@ issue3925: full: {
         out: {
           b: 〈2;A〉
         }
-      }.out
+      }.out...
     }
   }
 }

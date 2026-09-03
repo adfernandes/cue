@@ -89,6 +89,5 @@ badMixedPrefix: {
 -- out/generate-v3/badMixedPrefix --
 badMixedPrefix.data.mixed.0: conflicting values 1 and string (mismatched types int and string):
     ./datatest/tests.cue:16:16
-    1:322
 -- out/generate-v3/droppedConstraints --
 -- out/generate-v3/mixedPrefixKept --

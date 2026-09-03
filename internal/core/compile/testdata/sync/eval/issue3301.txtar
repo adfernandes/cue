@@ -15,7 +15,8 @@ object: #Leaf & {}
 }
 
 #Leaf: {
-	#Mid
+	// #Mid is spread, as more is not one of its fields.
+	#Mid...
 	extra?:  {...}
 	more?: int
 	if extra.foo != _|_ {
@@ -37,7 +38,7 @@ object: #Leaf & {}
     〈1;#Base〉
   }
   #Leaf: {
-    〈1;#Mid〉
+    〈1;#Mid〉...
     extra?: {
       ...
     }

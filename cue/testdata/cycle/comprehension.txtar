@@ -793,12 +793,7 @@ Conjuncts:    1457
 Disjuncts:    135
 Notifications: 14
 
-NumCloseIDs: 554
-
-ConjunctInfos:       1004
-MaxConjunctInfos:    10
-MaxReqSets:          12
-MaxRedirect:         1
+NumCloseIDs: 314
 -- out/errors.txt --
 [incomplete] B.a.children: cannot range over v.children (incomplete type list):
     ./in.cue:24:40

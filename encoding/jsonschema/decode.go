@@ -441,7 +441,12 @@ var coreToCUE = []cue.Kind{
 	objectType: cue.StructKind,
 }
 
-func kindToAST(k cue.Kind, explicitOpen bool) ast.Expr {
+// kindToAST returns the CUE syntax for a JSON Schema core type. A struct
+// is written open unless openOnlyWhenExplicit is set, per
+// [Config.OpenOnlyWhenExplicit]; note that this is a JSON Schema
+// closedness policy and has nothing to do with the explicitopen
+// experiment, which does not vary the syntax written here.
+func kindToAST(k cue.Kind, openOnlyWhenExplicit bool) ast.Expr {
 	switch k {
 	case cue.NullKind:
 		// TODO: handle OpenAPI restrictions.
@@ -459,7 +464,7 @@ func kindToAST(k cue.Kind, explicitOpen bool) ast.Expr {
 	case cue.ListKind:
 		return ast.NewList(&ast.Ellipsis{})
 	case cue.StructKind:
-		if explicitOpen {
+		if openOnlyWhenExplicit {
 			return ast.NewStruct()
 		}
 		return ast.NewStruct(&ast.Ellipsis{})
@@ -483,8 +488,8 @@ type constraintInfo struct {
 	constraints []ast.Expr
 }
 
-func (c *constraintInfo) setTypeUsed(n cue.Value, t coreType, explicitOpen bool) {
-	c.typ = kindToAST(coreToCUE[t], explicitOpen)
+func (c *constraintInfo) setTypeUsed(n cue.Value, t coreType, openOnlyWhenExplicit bool) {
+	c.typ = kindToAST(coreToCUE[t], openOnlyWhenExplicit)
 	setPos(c.typ, n)
 	ast.SetRelPos(c.typ, token.NoRelPos)
 }

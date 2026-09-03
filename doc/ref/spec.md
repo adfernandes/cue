@@ -1463,8 +1463,6 @@ definitions or hidden fields. Regular fields are not allowed in such case.
 Syntactically, embeddings may be any expression.
 
 ```cue
-@experiment(explicitopen)
-
 Meta: {
     kind: string
     name: string
@@ -2284,10 +2282,15 @@ x...
 
 unifies all elements of `x` into the current context disregarding closedness
 rules implied by `x`, recursively.
-The spread operator is a no-op for all other types.
 
-The spread operator can be used to extend a struct or list and it is an error
-for `...` to be applied to anything else.
+The spread operator can be used to extend a struct or list. Applying it to a
+value of any other type is a no-op: `x...` evaluates to `x` unchanged.
+
+<!-- TODO(explicitopen): rejecting `...` on a value which is neither a struct
+     nor a list is the intended future behavior. It is not an error today
+     because `cue fix` appends `...` to embedded references whose resolved
+     type it cannot know, so tightening this needs the fixer to know
+     resolved types. -->
 
 If `x...` is used within a definition, normal closedness rules apply after the
 `x` is unified with any other fields.
@@ -3207,9 +3210,10 @@ The builtin function `__closeAll` recursively converts a partially defined,
 or open, struct to a fully defined, or closed, struct. It is a no-op for values
 that are not a struct or list.
 
-This builtin is only defined for the `explicitopen` experiment and can be used
-by `cue fix` instead of `__reclose` if it is known for sure a struct needs to be
-reclosed. It should not be used by users directly.
+This builtin exists for the rewrites `cue fix` applies when migrating code
+written before language version v0.18.0: it is used instead of `__reclose` if
+it is known for sure a struct needs to be reclosed. It should not be used by
+users directly.
 
 ### `__reclose`
 
@@ -3217,9 +3221,9 @@ The builtin function `__reclose` closes a literal struct if any of its
 embedding that used a spread operator was closed. It is a no-op for all other
 values.
 
-This builtin is only defined for the `explicitopen` experiment and is used
-used by `cue fix` to convert legacy CUE code to the new semantics. It should
-not be used by users directly.
+This builtin exists for the rewrites `cue fix` applies when migrating code
+written before language version v0.18.0 to the semantics of that version. It
+should not be used by users directly.
 
 ### `and`
 

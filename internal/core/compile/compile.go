@@ -1434,6 +1434,9 @@ func (c *compiler) expr(expr ast.Expr) adt.Expr {
 				return c.errf(n, "postfix ... operator requires @experiment(explicitopen)")
 			}
 
+			// TODO(explicitopen): applying ... to a non-struct, non-list
+			// value is a no-op; the intended future behavior is an error,
+			// which needs the fixer to know resolved types.
 			return &adt.OpenExpr{
 				Src: n,
 				X:   c.expr(n.X),

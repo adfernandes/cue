@@ -1,3 +1,7 @@
+# Pinned to v0.15.0: the subject is the postfix ... operator on a module
+# which opts in below v0.18.0, where the @experiment attribute is what
+# enables it. postfixexpr_stable.txtar covers the operator at the current
+# version, where the attribute is redundant but still accepted.
 -- cue.mod/module.cue --
 module: "test.example"
 language: version: "v0.15.0"

@@ -116,22 +116,18 @@ validate.invalidDisjuntion.result: error in call to encoding/json.Validate: 2 er
 validate.invalidDisjuntion.result: error in call to encoding/json.Validate: conflicting values 1 and 10:
     ./in.cue:6:10
     ./in.cue:14:42
-    json.Validate:1:1
     json.Validate:1:6
 validate.invalidDisjuntion.result: error in call to encoding/json.Validate: conflicting values 2 and 10:
     ./in.cue:6:10
     ./in.cue:14:46
-    json.Validate:1:1
     json.Validate:1:6
 validate.multiConflict.result: error in call to encoding/json.Validate: conflicting values "bad1" and int (mismatched types string and int):
     ./in.cue:6:10
     ./in.cue:26:19
-    json.Validate:1:1
     json.Validate:1:12
 validate.multiConflict.result: error in call to encoding/json.Validate: conflicting values "bad2" and int (mismatched types string and int):
     ./in.cue:6:10
     ./in.cue:26:32
-    json.Validate:1:1
     json.Validate:1:30
 validate.t2.result: error in call to encoding/json.Validate: invalid value 10 (out of bound <3):
     ./in.cue:6:10

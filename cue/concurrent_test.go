@@ -1156,7 +1156,7 @@ func TestConcurrentEmbedding(t *testing.T) {
 			kind: string
 		}
 		#Extended: {
-			#Base
+			#Base...
 			extra: int
 		}
 		val: #Extended & {

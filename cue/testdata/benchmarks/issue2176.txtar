@@ -76,10 +76,10 @@ Unifications: 472
 Conjuncts:    1505
 Disjuncts:    8
 
-NumCloseIDs: 586
+NumCloseIDs: 480
 
-ConjunctInfos:       919
+ConjunctInfos:       853
 MaxConjunctInfos:    28
-MaxReqSets:          26
+MaxReqSets:          1
 -- out/todo.txt --
 let unique_combinations: not marked as multi in v3. Seems benign, but should be fixed.

@@ -6,11 +6,15 @@ See also 46, 52 and 56.
 #DefA: A: "a"
 #DefB: B: "b"
 
-First: {
-	#DefA | #DefB
+First: __closeAll({
+	#DefA...
 	B: "b"
 	C: "c"
-}
+}) | __closeAll({
+	#DefB...
+	B: "b"
+	C: "c"
+})
 
 First: {
 	B: "b"
@@ -20,11 +24,15 @@ First: {
 #DefA: A: "a"
 #DefB: B: "b"
 
-First: {
-	#DefA | #DefB
+First: __closeAll({
+	#DefA...
 	B: "b"
 	C: "c"
-}
+}) | __closeAll({
+	#DefB...
+	B: "b"
+	C: "c"
+})
 
 First: {
 	B: "b"

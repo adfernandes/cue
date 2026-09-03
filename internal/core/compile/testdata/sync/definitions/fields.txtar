@@ -30,7 +30,8 @@ ok: t3: {
 ok: t4: {
 	#T: { a: b: 1 }
 	W: {
-		{#T}
+		// #T is spread, as b is not one of its fields.
+		{#T...}
 		b: c: 2
 	}
 
@@ -59,7 +60,9 @@ ok: t6: {
 }
 
 ok: t7: {
-	a: {#A, #B}
+	// Both embeddings are spread, as each definition would otherwise close
+	// a to its own fields and deny the other's.
+	a: {#A..., #B...}
 	#A: b: f: 1
 	#B: b: g: 1
 
@@ -107,7 +110,8 @@ ok: t12: {
 	// nested embedding
 	#T: { a: b: 1 }
 	W: {
-		{#T}
+		// #T is spread, as b is not one of its fields.
+		{#T...}
 		b: c: 2
 	}
 
@@ -170,7 +174,8 @@ err: t4: {
 }
 
 err: t5: {
-	// TODO: this should fail
+	// Since v0.18.0 a itself fails, not only the field asserted below:
+	// each embedded definition closes a.b to its own field.
 	a: {#A, #B}
 	#A: b: f: 1
 	#B: b: g: 1
@@ -179,7 +184,8 @@ err: t5: {
 }
 
 err: t6: {
-	// TODO: this should fail
+	// Since v0.18.0 a itself fails, not only the field asserted below:
+	// each embedded definition closes a.b.c.d.e to its own field.
 	a: {#A, #B}
 	#A: b: c: d: e: f: 1
 	#B: b: c: d: e: g: 1
@@ -330,7 +336,7 @@ issue3491: {
       }
       W: {
         {
-          〈2;#T〉
+          〈2;#T〉...
         }
         b: {
           c: 2
@@ -367,8 +373,8 @@ issue3491: {
   ok: {
     t7: {
       a: {
-        〈1;#A〉
-        〈1;#B〉
+        〈1;#A〉...
+        〈1;#B〉...
       }
       #A: {
         b: {
@@ -460,7 +466,7 @@ issue3491: {
       }
       W: {
         {
-          〈2;#T〉
+          〈2;#T〉...
         }
         b: {
           c: 2

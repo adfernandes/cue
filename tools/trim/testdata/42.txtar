@@ -8,7 +8,7 @@ this is the best we can do.
 -- a.cue --
 #ClusterResource: X_Platform: string
 #NamespacedResource: {
-	#ClusterResource
+	#ClusterResource... // spread, as metadata is not one of its fields
 	X_Platform: string
 	metadata: namespace: X_Platform
 }
@@ -23,7 +23,7 @@ Resources: myplatform: {}
 == a.cue
 #ClusterResource: X_Platform: string
 #NamespacedResource: {
-	#ClusterResource
+	#ClusterResource... // spread, as metadata is not one of its fields
 	X_Platform: string
 	metadata: namespace: X_Platform
 }
@@ -38,7 +38,7 @@ Resources: myplatform: {}
 == a.cue
 #ClusterResource: X_Platform: string
 #NamespacedResource: {
-	#ClusterResource
+	#ClusterResource... // spread, as metadata is not one of its fields
 	X_Platform: string
 	metadata: namespace: X_Platform
 }

@@ -1577,6 +1577,13 @@ bar: 2
 			out: "@experiment(explicitopen), x: y..., a: foo.bar..., b: (c&d)..., e: fn()...",
 		},
 		{
+			desc: "postfix ... operator once explicitopen is stable",
+			in: `
+		x: y...
+		`,
+			out: "x: y...",
+		},
+		{
 			desc:    "postfix ... operator with experiment missing",
 			version: oldEmbedVersion,
 			in: `

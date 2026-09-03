@@ -400,8 +400,6 @@ noCycle.t1.#x.#x: structural cycle:
 issue3649.cycle.t1.data.a.a: structural cycle:
     ./cycle.cue:81:6
 [eval] issue4037.cycle.f: conflicting values "1233" and 1233 (mismatched types string and int):
-    ./cycle.cue:91:12
-    ./cycle.cue:91:27
     ./cycle.cue:91:38
     ./cycle.cue:92:12
     ./cycle.cue:92:21
@@ -513,4 +511,4 @@ Notifications: 2
 
 GenerationMismatch: 8
 
-NumCloseIDs: 257
+NumCloseIDs: 245

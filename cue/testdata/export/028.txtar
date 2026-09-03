@@ -18,8 +18,6 @@ Retain: 0
 Unifications: 6
 Conjuncts:    9
 Disjuncts:    2
-
-NumCloseIDs: 1
 -- out/evalalpha --
 (struct){
   #FindInMap: (#struct){

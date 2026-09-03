@@ -274,7 +274,7 @@ issue3194: reduced: {
 	{
 		out: close({ b: A })
 		out: b: A
-	}.out
+	}.out... // spread, as the closed embedding would otherwise deny A
 
 	@test(eq, {A: *0 | >10, b: *0 | >10})
 }

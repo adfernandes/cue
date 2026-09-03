@@ -532,16 +532,9 @@ Unifications: 907
 Conjuncts:    1487
 Disjuncts:    16
 
-NumCloseIDs: 486
-
-ConjunctInfos:       1147
-MaxConjunctInfos:    3
-MaxReqSets:          4
-MaxRedirect:         2
+NumCloseIDs: 447
 -- out/errors.txt --
 [eval] openArguments.err2.out.a: conflicting values {allowed:"once"} and null (mismatched types struct and null):
-    ./closedness.cue:36:11
-    ./closedness.cue:36:12
     ./closedness.cue:37:13
     ./closedness.cue:38:5
     ./closedness.cue:43:7
@@ -551,8 +544,6 @@ openArguments.err2.out.a: invalid value {allowed:"once"} (does not satisfy match
     ./closedness.cue:37:20
     ./closedness.cue:44:6
 [eval] explicitClose.err1.out.a: conflicting values {baz:"notAllowed"} and "all" (mismatched types struct and string):
-    ./closedness.cue:49:11
-    ./closedness.cue:49:12
     ./closedness.cue:50:6
     ./closedness.cue:50:17
     ./closedness.cue:52:7

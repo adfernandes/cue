@@ -30,7 +30,7 @@ _items: [#VMRuleList]
 #Rule: expr: string
 
 #VMRule: {
-	#TypeMeta
+	#TypeMeta... // spread, as spec is not one of its fields
 	spec: [...#RuleGroup]
 }
 #TypeMeta: kind: string | *"default"
@@ -83,7 +83,7 @@ _items: [#VMRuleList]
     expr: string
   }
   #VMRule: {
-    〈1;#TypeMeta〉
+    〈1;#TypeMeta〉...
     spec: [
       ...〈2;#RuleGroup〉,
     ]

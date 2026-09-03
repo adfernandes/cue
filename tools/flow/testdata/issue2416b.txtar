@@ -55,7 +55,7 @@ Conjuncts:    63
 Disjuncts:    8
 ResolveDep:   20
 
-NumCloseIDs: 17
+NumCloseIDs: 6
 -- diff/-out/run-v3/t1/stats<==>+out/run/t1/stats --
 diff old new
 --- old
@@ -84,7 +84,7 @@ diff old new
 +Disjuncts:    8
 +ResolveDep:   20
 +
-+NumCloseIDs: 17
++NumCloseIDs: 6
 -- out/run/t1/stats --
 Leaks:  0
 Freed:  33
@@ -111,7 +111,7 @@ Conjuncts:    63
 Disjuncts:    8
 ResolveDep:   20
 
-NumCloseIDs: 17
+NumCloseIDs: 6
 -- diff/-out/run-v3/stats/totals<==>+out/run/stats/totals --
 diff old new
 --- old
@@ -140,7 +140,7 @@ diff old new
 +Disjuncts:    8
 +ResolveDep:   20
 +
-+NumCloseIDs: 17
++NumCloseIDs: 6
 -- out/run/stats/totals --
 Leaks:  0
 Freed:  33

@@ -51,7 +51,8 @@ conflictRangingOverSelf: {
 	@test(err, code=eval, at=x.age,
 		contains="conflicting values %s and %s (mismatched types %s and %s)",
 		args=[int, "age", int, string],
-		pos=[3:9, 6:5, 7:3, 8:9])
+		pos=[3:9, 7:3, 8:9],
+		hint="the struct literal position dropped out at v0.18.0: a comprehension conjunct is no longer split into a node of its own, so its literal contributes no position of its own")
 }
 -- out/errors.txt --
 [eval] circularFor.#list: cannot range over tail != null (found bool, want list or struct):
@@ -63,7 +64,6 @@ conflictRangingOverSelf: {
     ./in.cue:32:4
 [eval] conflictRangingOverSelf.x.age: conflicting values int and "age" (mismatched types int and string):
     ./in.cue:42:9
-    ./in.cue:45:5
     ./in.cue:46:3
     ./in.cue:47:9
 -- out/todo.txt --

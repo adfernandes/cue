@@ -495,11 +495,11 @@ issue2246: full: {
 	#K1: {
 		#_base: common: 3
 		#FormFoo: {
-			#_base
+			#_base... // spread, as fooID is not one of its fields
 			fooID: string
 		}
 		#FormBar: {
-			#_base
+			#_base... // spread, as barID is not one of its fields
 			barID: string
 		}
 		#Form: {
@@ -529,8 +529,10 @@ issue2246: full: {
 issue2263: simplified: {
 	metrics: #Metric
 	#Metric: {
-		#IDSource | {}
-		#TargetAverage | {}
+		// Both embedded disjunctions are spread, as either would otherwise
+		// close #Metric and deny the fields of the other.
+		(#IDSource | {})...
+		(#TargetAverage | {})...
 	}
 
 	metrics: {
@@ -559,8 +561,10 @@ issue2263: full: {
 	}]
 
 	#Metric: {
-		#Source
-		#Target
+		// Both embeddings are spread, as either would otherwise close
+		// #Metric and deny the fields of the other.
+		#Source...
+		#Target...
 	}
 
 	#Source:
@@ -1738,11 +1742,11 @@ issue2685: {
           common: 3
         }
         #FormFoo: {
-          〈1;#_base〉
+          〈1;#_base〉...
           fooID: string
         }
         #FormBar: {
-          〈1;#_base〉
+          〈1;#_base〉...
           barID: string
         }
         #Form: {
@@ -1777,8 +1781,8 @@ issue2685: {
     simplified: {
       metrics: 〈0;#Metric〉
       #Metric: {
-        (〈1;#IDSource〉|{})
-        (〈1;#TargetAverage〉|{})
+        (〈1;#IDSource〉|{})...
+        (〈1;#TargetAverage〉|{})...
       }
       metrics: {
         id: "foo"
@@ -1816,8 +1820,8 @@ issue2685: {
         },
       ]
       #Metric: {
-        〈1;#Source〉
-        〈1;#Target〉
+        〈1;#Source〉...
+        〈1;#Target〉...
       }
       #Source: (〈0;#IDSource〉|〈0;#URISource〉)
       #Target: (〈0;#TargetAverage〉|〈0;#TargetValue〉)

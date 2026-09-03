@@ -11,7 +11,9 @@ inDisjunctions: {
 	#Def: [string]: {
 		a: b: true
 		let X = a
-		close({uint: a: b: X.b}) | close({string: a: b: true})
+		// The embedded disjunction is spread, as either disjunct would
+		// otherwise close this struct and deny the a field above.
+		(close({uint: a: b: X.b}) | close({string: a: b: true}))...
 	}
 	x: socket: string: {}
 	x: syslog: x.socket
@@ -120,23 +122,28 @@ issue3580: {
 	}) @test(closed)
 }
 -- embed.cue --
-nestedEmbedded: base: {
+// The old embedding opened the embedded value along the paths the
+// enclosing literal declares itself. As cue fix rewrites it, the extended
+// label is declared in the nested closed literal, so that foo.allowed stays
+// allowed while foo.other and a sibling field stay denied.
+nestedEmbedded: base: close({
+	{foo?: close({foo?: _, allowed?: _})}
+	foo: allowed: 5
+}) @test(eq, { foo: { allowed: 5, foo?: _ } })
+nestedEmbedded: t1: close({
+	{{foo?: close({foo?: _, allowed?: _})}}
+	foo: allowed: 5
+}) @test(eq, { foo: { allowed: 5, foo?: _ } })
+nestedEmbedded: t2: close({
+	{{{foo?: close({foo?: _, allowed?: _})}}}
+	foo: allowed: 5
+}) @test(eq, { foo: { allowed: 5, foo?: _ } })
+// The original input, under the strict embedding of v0.18.0: the embedded
+// literal closes foo to its own fields, so the field the old semantics
+// admitted is denied.
+nestedEmbedded: strict: {
 	close({ foo?: close({ foo?: _ }) })
-	foo: allowed: 5
-
-	@test(eq, { foo: { allowed: 5, foo?: _ } })
-}
-nestedEmbedded: t1: {
-	{ close({ foo?: close({ foo?: _ }) }) }
-	foo: allowed: 5
-
-	@test(eq, { foo: { allowed: 5, foo?: _ } })
-}
-nestedEmbedded: t2: {
-	{{ close({ foo?: close({ foo?: _ }) }) }}
-	foo: allowed: 5
-
-	@test(eq, { foo: { allowed: 5, foo?: _ } })
+	foo: allowed: 5 @test(err, code=eval, contains="field not allowed", pos=[0:7])
 }
 unified: base: {
 	x: close({ foo?: close({ foo?: _ }) })
@@ -188,18 +195,20 @@ MaxConjunctInfos:    5
 MaxReqSets:          6
 MaxRedirect:         2
 -- out/errors.txt --
+[eval] nestedEmbedded.strict.foo.allowed: field not allowed:
+    ./embed.cue:22:7
 [eval] unified.base.x.foo.disallowed: field not allowed:
-    ./embed.cue:21:10
+    ./embed.cue:26:10
 [eval] unified.t1.x.foo.disallowed: field not allowed:
-    ./embed.cue:25:10
+    ./embed.cue:30:10
 [eval] unified.t2.x.foo.disallowed: field not allowed:
-    ./embed.cue:29:10
+    ./embed.cue:34:10
 [structural_cycle] nestedWithSelfReference.t1._schema.foo: structural cycle
 [eval] nestedWithSelfReference.t1.x.foo.disallowed: field not allowed:
-    ./embed.cue:40:10
+    ./embed.cue:45:10
 [structural_cycle] nestedWithSelfReference.t2._schema.foo: structural cycle
 [eval] nestedWithSelfReference.t2.x.foo.disallowed: field not allowed:
-    ./embed.cue:49:10
+    ./embed.cue:54:10
 [eval] b.x: field not allowed:
     ./in.cue:5:9
 -- out/diff-v2-v3.txt --

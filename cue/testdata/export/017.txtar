@@ -12,8 +12,6 @@ Retain: 0
 Unifications: 6
 Conjuncts:    8
 Disjuncts:    0
-
-NumCloseIDs: 3
 -- out/evalalpha --
 (struct){
   a: (#list){

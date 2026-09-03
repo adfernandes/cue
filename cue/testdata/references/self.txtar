@@ -58,7 +58,7 @@ listCheck: ok1: #IntStrings
 listCheck: ok1: [1, "foo", 2, "bar"] @test(eq, [1, "foo", 2, "bar"])
 
 listCheck: err: #IntStrings
-listCheck: err: [1, "foo", "bar", 2] @test(err, code=eval, path=2, contains="conflicting values %s and %s (mismatched types %s and %s)", args=["bar", int, string, int], pos=[-5:14, -5:15, -5:28, -1:17, 0:28])
+listCheck: err: [1, "foo", "bar", 2] @test(err, code=eval, path=2, contains="conflicting values %s and %s (mismatched types %s and %s)", args=["bar", int, string, int], pos=[-5:28, -1:17, 0:28], hint="the struct literal positions dropped out at v0.18.0: an embedded struct or comprehension conjunct is no longer split into a node of its own, so its literal contributes no position of its own")
 
 -- withlet.cue --
 @experiment(try,aliasv2)
@@ -440,14 +440,10 @@ a: {
     ./issue4440.cue:14:13
     ./issue4440.cue:12:12
 [eval] listCheck.err.2: conflicting values "bar" and int (mismatched types string and int):
-    ./list.cue:4:14
-    ./list.cue:4:15
     ./list.cue:4:28
     ./list.cue:8:17
     ./list.cue:9:28
 [eval] listCheck.err.3: conflicting values 2 and string (mismatched types int and string):
-    ./list.cue:4:14
-    ./list.cue:4:15
     ./list.cue:4:33
     ./list.cue:8:17
     ./list.cue:9:35

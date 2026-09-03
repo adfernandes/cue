@@ -27,8 +27,6 @@ Retain: 0
 Unifications: 10
 Conjuncts:    22
 Disjuncts:    4
-
-NumCloseIDs: 1
 -- out/evalalpha --
 (struct){
   job: (struct){

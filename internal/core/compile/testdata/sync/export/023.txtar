@@ -10,13 +10,13 @@ raw: true
 		}
 	}
 	#def: {
-		#emb
+		#emb... // spread, as b is not one of its fields
 
 		b: 2
 	}
 	#f: a: 10
 	#e: {
-		#f
+		#f... // spread, as b is not one of its fields
 
 		b: int
 		{[_]: <100}
@@ -34,14 +34,14 @@ raw: true
       }
     }
     #def: {
-      〈1;#emb〉
+      〈1;#emb〉...
       b: 2
     }
     #f: {
       a: 10
     }
     #e: {
-      〈1;#f〉
+      〈1;#f〉...
       b: int
       {
         [_]: <100

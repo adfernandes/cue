@@ -268,20 +268,17 @@ badBoundedPartialTuple.data.boundedPartialTuple: invalid value ["a",1,2] (does n
 -- out/generate-v3/badPartialTuple --
 badPartialTuple.data.partialTuple.1: conflicting values "b" and int (mismatched types string and int):
     ./datatest/tests.cue:46:28
-    1:1197
     1:1231
 -- out/generate-v3/badPartialTupleTail --
 badPartialTupleTail.data.partialTupleTail.1: conflicting values "b" and int (mismatched types string and int):
     ./datatest/tests.cue:51:32
     1:1349
-    1:1367
 -- out/generate-v3/ok3 --
 -- out/generate-v3/ok4 --
 -- out/generate-v3/badGappyTuple --
 badGappyTuple.data.gappyTuple.2: conflicting values "c" and int (mismatched types string and int):
     ./datatest/tests.cue:41:39
     1:648
-    1:666
 -- out/generate-v3/badIntIndexed --
 badIntIndexed.data.intIndexed.1: conflicting values "x" and int (mismatched types string and int):
     ./datatest/tests.cue:36:24
@@ -293,7 +290,6 @@ badBoundedRequiredPrefix.data.boundedRequiredPrefix: invalid value ["a",1,2] (do
 -- out/generate-v3/badRequiredPrefixTail --
 badRequiredPrefixTail.data.requiredPrefix.2: conflicting values 2 and bool (mismatched types int and bool):
     ./datatest/tests.cue:66:33
-    1:1529
 -- out/generate-v3/badRequiredPrefixTooShort --
 badRequiredPrefixTooShort.data.requiredPrefix: incompatible list lengths (0 and 1):
     1:1529

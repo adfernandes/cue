@@ -11,12 +11,9 @@ Retain: 0
 Unifications: 3
 Conjuncts:    5
 Disjuncts:    0
-
-NumCloseIDs: 1
 -- out/evalalpha --
 Errors:
 a.0: conflicting values 4 and 3:
-    ./in.cue:1:1
     ./in.cue:1:7
     ./in.cue:1:11
 
@@ -27,7 +24,6 @@ Result:
     // [eval]
     0: (_|_){
       // [eval] a.0: conflicting values 4 and 3:
-      //     ./in.cue:1:1
       //     ./in.cue:1:7
       //     ./in.cue:1:11
     }

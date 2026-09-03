@@ -16,7 +16,8 @@ ifScalarConflict: {
 	if _#cond {5}
 
 	"soo"
-	@test(err, code=eval, contains="conflicting values", args=["soo", 5, string, int], pos=[0:19, 3:2, 3:13, 5:2])
+	@test(err, code=eval, contains="conflicting values", args=["soo", 5, string, int], pos=[3:13, 5:2],
+		hint="the struct literal positions dropped out at v0.18.0: an embedded struct or comprehension conjunct is no longer split into a node of its own, so its literal contributes no position of its own")
 }
 
 ifScalarNested: {
@@ -28,8 +29,6 @@ ifScalarNested: {
 }
 -- out/errors.txt --
 [eval] ifScalarConflict: conflicting values "soo" and 5 (mismatched types string and int):
-    ./in.cue:11:19
-    ./in.cue:14:2
     ./in.cue:14:13
     ./in.cue:16:2
 -- out/eval/stats --

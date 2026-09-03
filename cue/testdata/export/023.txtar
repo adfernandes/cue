@@ -10,13 +10,13 @@ raw: true
 		}
 	}
 	#def: {
-		#emb
+		#emb... // spread, as b is not one of its fields
 
 		b: 2
 	}
 	#f: a: 10
 	#e: {
-		#f
+		#f... // spread, as b is not one of its fields
 
 		b: int
 		{[_]: <100}
@@ -31,10 +31,10 @@ Allocs: 9
 Retain: 0
 
 Unifications: 15
-Conjuncts:    26
+Conjuncts:    28
 Disjuncts:    0
 
-NumCloseIDs: 9
+NumCloseIDs: 2
 -- out/evalalpha --
 (struct){
   #emb: (#struct){

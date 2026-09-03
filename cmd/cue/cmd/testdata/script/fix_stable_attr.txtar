@@ -5,6 +5,7 @@ exec cue fix .
 cmp stable.cue expect/stable
 cmp mixed.cue expect/mixed
 cmp preview.cue expect/preview
+cmp both.cue expect/both
 
 -- cue.mod/module.cue --
 module: "mod.test"
@@ -28,6 +29,12 @@ b: 2
 package p
 
 c: 3
+-- both.cue --
+@experiment(aliasv2,explicitopen)
+
+package p
+
+d: 4
 -- expect/stable --
 package p
 
@@ -44,3 +51,7 @@ b: 2
 package p
 
 c: 3
+-- expect/both --
+package p
+
+d: 4

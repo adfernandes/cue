@@ -82,7 +82,7 @@ foo: {
 
 #Flux: {
 	let R = self
-	#Config
+	#Config... // spread, as the fields below extend #Config
 
 	charts: _
 
@@ -208,7 +208,7 @@ foo: {
   #NetworkPolicy: 〈0;networkingv1〉.#NetworkPolicy
   #Flux: {
     let R#2 = 〈1〉
-    〈1;#Config〉
+    〈1;#Config〉...
     charts: _
     formatOutput: {
       ...

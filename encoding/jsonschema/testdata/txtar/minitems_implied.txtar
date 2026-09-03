@@ -29,6 +29,5 @@ incompatible list lengths (1 and 2):
     test/err-too-short.json:1:1
 -- out/decode/testerr/err-wrong-type --
 0: conflicting values int and "a" (mismatched types int and string):
-    generated.cue:3:1
     generated.cue:3:2
     test/err-wrong-type.json:1:2

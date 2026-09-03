@@ -62,7 +62,7 @@ t: [for x in d {try y = x, {v: y}}]
 // cloneExperimentSrc holds the constructs which are only available
 // with an experiment enabled.
 const cloneExperimentSrc = `
-@experiment(aliasv2,try,explicitopen,functions)
+@experiment(aliasv2,try,functions)
 package p
 
 a~v: {b: 1}

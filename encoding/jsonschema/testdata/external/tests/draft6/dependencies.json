@@ -455,7 +455,6 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3": "unexpected success",
 					"v3-roundtrip": "could not extract schema"
 				}
 			},
@@ -477,7 +476,6 @@
 				},
 				"valid": false,
 				"skip": {
-					"v3": "unexpected success",
 					"v3-roundtrip": "could not extract schema"
 				}
 			},

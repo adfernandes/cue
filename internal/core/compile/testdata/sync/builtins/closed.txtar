@@ -11,7 +11,9 @@ inDisjunctions: {
 	#Def: [string]: {
 		a: b: true
 		let X = a
-		close({uint: a: b: X.b}) | close({string: a: b: true})
+		// The embedded disjunction is spread, as either disjunct would
+		// otherwise close this struct and deny the a field above.
+		(close({uint: a: b: X.b}) | close({string: a: b: true}))...
 	}
 	x: socket: string: {}
 	x: syslog: x.socket
@@ -66,20 +68,28 @@ issue3580: {
 	})
 }
 -- embed.cue --
-nestedEmbedded: base: {
+// The old embedding opened the embedded value along the paths the
+// enclosing literal declares itself. As cue fix rewrites it, the extended
+// label is declared in the nested closed literal, so that foo.allowed stays
+// allowed while foo.other and a sibling field stay denied.
+nestedEmbedded: base: close({
+	{foo?: close({foo?: _, allowed?: _})}
+	foo: allowed: 5
+})
+nestedEmbedded: t1: close({
+	{{foo?: close({foo?: _, allowed?: _})}}
+	foo: allowed: 5
+})
+nestedEmbedded: t2: close({
+	{{{foo?: close({foo?: _, allowed?: _})}}}
+	foo: allowed: 5
+})
+// The original input, under the strict embedding of v0.18.0: the embedded
+// literal closes foo to its own fields, so the field the old semantics
+// admitted is denied.
+nestedEmbedded: strict: {
 	close({ foo?: close({ foo?: _ }) })
 	foo: allowed: 5
-
-}
-nestedEmbedded: t1: {
-	{ close({ foo?: close({ foo?: _ }) }) }
-	foo: allowed: 5
-
-}
-nestedEmbedded: t2: {
-	{{ close({ foo?: close({ foo?: _ }) }) }}
-	foo: allowed: 5
-
 }
 unified: base: {
 	x: close({ foo?: close({ foo?: _ }) })
@@ -117,42 +127,57 @@ nestedWithSelfReference: t2: {
 --- embed.cue
 {
   nestedEmbedded: {
-    base: {
+    base: close({
+      {
+        foo?: close({
+          foo?: _
+          allowed?: _
+        })
+      }
+      foo: {
+        allowed: 5
+      }
+    })
+  }
+  nestedEmbedded: {
+    t1: close({
+      {
+        {
+          foo?: close({
+            foo?: _
+            allowed?: _
+          })
+        }
+      }
+      foo: {
+        allowed: 5
+      }
+    })
+  }
+  nestedEmbedded: {
+    t2: close({
+      {
+        {
+          {
+            foo?: close({
+              foo?: _
+              allowed?: _
+            })
+          }
+        }
+      }
+      foo: {
+        allowed: 5
+      }
+    })
+  }
+  nestedEmbedded: {
+    strict: {
       close({
         foo?: close({
           foo?: _
         })
       })
-      foo: {
-        allowed: 5
-      }
-    }
-  }
-  nestedEmbedded: {
-    t1: {
-      {
-        close({
-          foo?: close({
-            foo?: _
-          })
-        })
-      }
-      foo: {
-        allowed: 5
-      }
-    }
-  }
-  nestedEmbedded: {
-    t2: {
-      {
-        {
-          close({
-            foo?: close({
-              foo?: _
-            })
-          })
-        }
-      }
       foo: {
         allowed: 5
       }
@@ -276,7 +301,7 @@ nestedWithSelfReference: t2: {
               b: true
             }
           }
-        }))
+        }))...
       }
     }
     x: {

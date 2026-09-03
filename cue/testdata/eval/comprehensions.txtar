@@ -125,7 +125,8 @@ issue3691: original: {
 			b: c: 1
 		}
 	}
-	@test(err, code=eval, at=a.b.c, contains="conflicting values", args=[string, 1], pos=[1:15, 2:15, 3:5, 4:3, 5:10])
+	@test(err, code=eval, at=a.b.c, contains="conflicting values", args=[string, 1], pos=[1:15, 2:15, 5:10],
+		hint="the struct literal and comprehension positions dropped out at v0.18.0: a comprehension conjunct is no longer split into a node of its own, so neither contributes a position of its own")
 }
 // Structural cycles follow a different code path.
 issue3691: structuralCycle: {
@@ -136,22 +137,19 @@ issue3691: structuralCycle: {
 			b: c: a
 		}
 	}
-	@test(err, code=eval, at=a.b.c, contains="conflicting values", pos=[1:15, 2:5, 2:15, 3:5, 4:3, 5:10])
+	@test(err, code=eval, at=a.b.c, contains="conflicting values", pos=[1:15, 2:5, 2:15, 5:10],
+		hint="the struct literal and comprehension positions dropped out at v0.18.0: a comprehension conjunct is no longer split into a node of its own, so neither contributes a position of its own")
 }
 -- out/errors.txt --
 [eval] issue3691.original.a.b.c: conflicting values 1 and string (mismatched types int and string):
     ./issue3691.cue:7:15
     ./issue3691.cue:8:15
-    ./issue3691.cue:9:5
-    ./issue3691.cue:10:3
     ./issue3691.cue:11:10
 [eval] issue3691.structuralCycle.a.b.c: conflicting values string and {[string]:X} (mismatched types string and struct):
-    ./issue3691.cue:18:15
-    ./issue3691.cue:19:5
     ./issue3691.cue:19:15
     ./issue3691.cue:20:5
-    ./issue3691.cue:21:3
-    ./issue3691.cue:22:10
+    ./issue3691.cue:20:15
+    ./issue3691.cue:23:10
 -- out/eval/stats --
 Leaks:  7
 Freed:  74

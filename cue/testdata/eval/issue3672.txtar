@@ -159,11 +159,11 @@ Unifications: 368
 Conjuncts:    2310
 Disjuncts:    572
 
-NumCloseIDs: 803
+NumCloseIDs: 590
 
-ConjunctInfos:       860
-MaxConjunctInfos:    7
-MaxReqSets:          15
+ConjunctInfos:       850
+MaxConjunctInfos:    6
+MaxReqSets:          6
 MaxRedirect:         6
 -- out/todo.txt --
 value0: v2 and v3 both evaluate correctly to Only:[{UseSectionName:true}] with

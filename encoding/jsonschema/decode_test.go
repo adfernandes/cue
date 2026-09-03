@@ -492,3 +492,42 @@ foo.#x & {...}
 		"otherpkg.example/foo.#x": "// foo can be a number or a string\nnumber | string",
 	}))
 }
+
+// TestExtractTargetLanguageVersionClosedness checks that the syntax the
+// decoder emits for closedness does not vary with the target language
+// version. Strict embedding, stable as of v0.18.0, changes what an
+// embedding and a comprehension conjunct close, but not which spellings
+// parse: the decoder writes no postfix ... operator and no hidden closing
+// builtin, so one spelling serves every target.
+func TestExtractTargetLanguageVersionClosedness(t *testing.T) {
+	t.Parallel()
+	v := cuecontext.New().CompileString(`
+$schema: "https://json-schema.org/draft/2020-12/schema"
+type: "object"
+properties: {
+	"working-directory": type: "string"
+	run: type: "string"
+	nested: {
+		type:                 "object"
+		properties: name:     type: "string"
+		additionalProperties: false
+	}
+}
+
+// Note: the dependent key is an identifier, as one needing an alias would
+// pick the prefix or the postfix form by target version, which is aliasv2.
+dependentSchemas: run: required: ["working-directory"]
+allOf: [{properties: run: minLength: 1}]
+`)
+	extract := func(version string) string {
+		expr, err := jsonschema.Extract(v, &jsonschema.Config{
+			TargetLanguageVersion: version,
+		})
+		qt.Assert(t, qt.IsNil(err))
+		b, err := format.Node(expr, format.Simplify())
+		qt.Assert(t, qt.IsNil(err))
+		return string(b)
+	}
+	// The empty version means the current one, where explicitopen is stable.
+	qt.Assert(t, qt.Equals(extract("v0.17.0"), extract("")))
+}

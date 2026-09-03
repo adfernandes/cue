@@ -1,6 +1,6 @@
 -- in.cue --
 a: d: {
-	#base
+	#base... // spread, as Y is not one of its fields
 	#info: {...}
 	Y:     #info.X @test(eq, "foo") @test(closed)
 } @test(closed)

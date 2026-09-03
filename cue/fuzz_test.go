@@ -72,7 +72,7 @@ list.Concat(["foo"], [])
 		#\(interpolations
 		"""##`)
 	f.Add(`{@jsonschema(id="foo"), field: string @go(Field,type=Other)}`)
-	f.Add(`@experiment(explicitopen), out: #Schema... & data`)
+	f.Add(`out: #Schema... & data`)
 	f.Add(`@experiment(aliasv2), "-foo"~A: 42`)
 	f.Add(`@experiment(try), a?: int, try { b: a? + 1 }`)
 	f.Add(`@experiment(try), if false { "yes" } else { "no" }`)

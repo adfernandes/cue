@@ -12,8 +12,6 @@ Retain: 0
 Unifications: 3
 Conjuncts:    8
 Disjuncts:    4
-
-NumCloseIDs: 1
 -- out/evalalpha --
 (struct){
   a: ((int|string)){ |(*(string){ "foo" }, *(string){ "bar" }, *(string){ string }, (int){ int }) }

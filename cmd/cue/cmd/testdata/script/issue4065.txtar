@@ -3,6 +3,10 @@
 # cue/ast.ListLit without printable position information,
 # but crucially, still valid positions due to the presence of a RelPos.
 
+# Since v0.18.0 the list literal itself no longer reports a position here:
+# an embedded value is not split into a node of its own, so closedness
+# contributes no position of its own.
+
 ! exec cue vet -c --list x.cue x.json
 cmp stderr stderr.golden
 
@@ -12,6 +16,5 @@ cmp stderr stderr.golden
 {"a": 1}
 -- stderr.golden --
 0.a: conflicting values 1 and string (mismatched types int and string):
-    ./x.cue:1:1
     ./x.cue:1:9
     ./x.json:1:7
