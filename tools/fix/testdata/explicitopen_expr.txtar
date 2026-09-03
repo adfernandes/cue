@@ -4,9 +4,6 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
-# TODO(fix): compScalarField records today's rewrite, which spreads the
-# predeclared scalar types even though they can never be closed.
-
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -736,8 +733,8 @@ compScalarField: {
 	s: {
 		c: bool
 		if c {
-			f: string...
-			n: uint8...
+			f: string
+			n: uint8
 		}
 	}
 	t1: s & {c: true, f: "x", n: 3} @test(eq, {c: true, f: "x", n: 3})

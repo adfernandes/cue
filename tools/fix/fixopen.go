@@ -19,6 +19,8 @@ import (
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/internal"
+	"cuelang.org/go/internal/core/adt"
+	"cuelang.org/go/internal/core/compile"
 )
 
 func todoComment(msg string) *ast.CommentGroup {
@@ -281,6 +283,22 @@ func openCompFieldValue(expr ast.Expr) (ast.Expr, bool) {
 	return expr, false
 }
 
+// isScalarPredeclared reports whether x is a use of a predeclared identifier
+// which can never resolve to a struct, such as string or int8, so that neither
+// embedding it nor a spread on it can carry closedness. An identifier which
+// the parser resolved to a declaration in the file shadows the predeclared one
+// and does not count.
+func isScalarPredeclared(x *ast.Ident) bool {
+	if x.Node != nil || x.Scope != nil {
+		return false
+	}
+	if compile.LookupRange(x.Name) != nil {
+		return true
+	}
+	t, ok := compile.Predeclared(x.Name).(*adt.BasicType)
+	return ok && t.K&adt.StructKind == 0
+}
+
 // collectEmbedFlags recurses into an expression to collect embedding flags
 // without modifying the expression. It is the single classifier of what an
 // embedded expression may resolve to; [openEmbedExpr] derives its rewrites
@@ -308,7 +326,7 @@ func collectEmbedFlags(expr ast.Expr) embedFlags {
 	case *ast.ParenExpr:
 		return collectEmbedFlags(x.X)
 	case *ast.Ident:
-		if x.Name == "_" {
+		if isTop(x) || isScalarPredeclared(x) {
 			return embedFlags{}
 		}
 		if internal.IsDefinition(x) {
