@@ -186,7 +186,14 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 			flags := info.embedFlags
 			info.embedFlags = flagsStack[len(flagsStack)-1]
 			flagsStack = flagsStack[:len(flagsStack)-1]
-			if c.Modified() && info.shouldReclose() {
+			if !info.shouldReclose() {
+				// The literal cannot take a wrapper of its own, so the
+				// scope which decides the wrapper needs its flags. A
+				// close() hoisted out of an embedding inside the literal
+				// is no longer visible to collectEmbedFlags, so the
+				// closing would be lost otherwise.
+				info.embedFlags = info.embedFlags.or(flags)
+			} else if c.Modified() {
 				hasChanges = true
 
 				// A hoisted close() carries its closing only in the close
@@ -219,14 +226,16 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 						}
 					} else {
 						// A bare embedding: the struct argument of a
-						// hoisted close() call.
-						if !flags.close {
+						// hoisted close() call, or a nested struct
+						// literal whose own embeddings were opened.
+						// Either way its closing is now carried by the
+						// flags alone, so the wrapper must restore it.
+						if !flags.mayBeClosed() {
 							c.ClearEnclosingModified()
 							break
 						}
-						// {close(X)} for a struct literal X: unwrap {X}
-						// to X so that the wrapper below restores
-						// close(X).
+						// {X} for a struct literal X: unwrap it so that
+						// the wrapper applies to X directly.
 						if s, ok := embed.Expr.(*ast.StructLit); ok {
 							n = s
 						}

@@ -88,9 +88,7 @@ inClose: {
 	})
 }
 nestedStruct: {
-	containsTrybotTrailer: {
-		{#foo...}
-	}
+	containsTrybotTrailer: __closeAll({#foo...})
 }
 nestedStructWithEmbed: {
 	a: __closeAll({
