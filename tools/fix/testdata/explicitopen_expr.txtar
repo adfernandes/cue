@@ -4,6 +4,9 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): compScalarField records today's rewrite, which spreads the
+# predeclared scalar types even though they can never be closed.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -309,6 +312,30 @@ nestedSingleEmbed: {
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
 }
 
+// Predeclared scalar types can never resolve to a closed struct, so a
+// comprehension field value of such a type needs no ellipsis. A field
+// of the same name shadows the predeclared identifier and does.
+compScalarField: {
+	s: {
+		c: bool
+		if c {
+			f: string
+			n: uint8
+		}
+	}
+	t1: s & {c: true, f: "x", n: 3} @test(eq, {c: true, f: "x", n: 3})
+
+	shadow: {
+		string: {a: int}
+		c:      bool
+		if c {
+			f: string
+		}
+	}
+	t2: shadow & {c: true, f: {b: 2}} @test(eq,
+		{string: {a: int}, c: true, f: {a: int, b: 2}})
+}
+
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
     ./in.cue:13:11
@@ -404,6 +431,10 @@ nestedSingleEmbed: {
     ./in.cue:283:11
 [eval] nestedSingleEmbed.t2.c: field not allowed:
     ./in.cue:295:11
+[incomplete] compScalarField.s: incomplete bool: bool:
+    ./in.cue:303:6
+[incomplete] compScalarField.shadow: incomplete bool: bool:
+    ./in.cue:313:11
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -696,4 +727,28 @@ nestedSingleEmbed: {
 
 	t1: v & {b: 1} @test(eq, {b: 1})
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
+}
+
+// Predeclared scalar types can never resolve to a closed struct, so a
+// comprehension field value of such a type needs no ellipsis. A field
+// of the same name shadows the predeclared identifier and does.
+compScalarField: {
+	s: {
+		c: bool
+		if c {
+			f: string...
+			n: uint8...
+		}
+	}
+	t1: s & {c: true, f: "x", n: 3} @test(eq, {c: true, f: "x", n: 3})
+
+	shadow: {
+		string: {a: int}
+		c:      bool
+		if c {
+			f: string...
+		}
+	}
+	t2: shadow & {c: true, f: {b: 2}} @test(eq,
+		{string: {a: int}, c: true, f: {a: int, b: 2}})
 }
