@@ -199,6 +199,61 @@ foo: "bar"
 	qt.Assert(t, qt.Equals(insts[0].Imports[0].ModuleVersion, module.MustNewVersion("example.com@v0", "v0.0.1")))
 }
 
+// TestDependencyLanguageVersion checks that each module's files are parsed
+// with that module's own declared language version, not the main module's.
+// A dependency declaring an older version keeps the syntax of that version;
+// here, prefix aliases, which the aliasv2 experiment forbids from v0.18.0.
+func TestDependencyLanguageVersion(t *testing.T) {
+	a := txtar.Parse([]byte(`
+-- cue.mod/module.cue --
+module: "main.test"
+language: version: "v0.18.0"
+deps: "example.com@v0": v: "v0.0.1"
+-- main.cue --
+package main
+import "example.com@v0:foo"
+foo
+-- _registry/example.com_v0.0.1/cue.mod/module.cue --
+module: "example.com@v0"
+language: version: "v0.12.0"
+-- _registry/example.com_v0.0.1/foo.cue --
+package foo
+foo: X={a: "bar", b: X.a}
+`))
+	tfs, err := txtar.FS(a)
+	qt.Assert(t, qt.IsNil(err))
+	rfs, err := fs.Sub(tfs, "_registry")
+	qt.Assert(t, qt.IsNil(err))
+	r, err := modregistrytest.New(rfs, "")
+	qt.Assert(t, qt.IsNil(err))
+	defer r.Close()
+
+	dir := t.TempDir()
+	cfg := &load.Config{
+		Dir:     dir,
+		Overlay: map[string]load.Source{},
+		Env: []string{
+			"CUE_CACHE_DIR=" + filepath.Join(dir, "cache"),
+			"CUE_REGISTRY=" + r.Host() + "+insecure",
+		},
+	}
+	for _, f := range a.Files {
+		if !strings.HasPrefix(f.Name, "_registry/") {
+			cfg.Overlay[filepath.Join(dir, f.Name)] = load.FromBytes(f.Data)
+		}
+	}
+	defer modcache.RemoveAll(filepath.Join(dir, "cache"))
+	insts := load.Instances([]string{"."}, cfg)
+	qt.Assert(t, qt.HasLen(insts, 1))
+	qt.Assert(t, qt.IsNil(insts[0].Err))
+
+	qt.Assert(t, qt.HasLen(insts[0].Imports, 1))
+	dep := insts[0].Imports[0]
+	qt.Assert(t, qt.IsNil(dep.Err))
+	qt.Assert(t, qt.HasLen(dep.Files, 1))
+	qt.Assert(t, qt.Equals(dep.Files[0].Pos().LanguageVersion(), "v0.12.0"))
+}
+
 func TestExplicitCUEFilesGetModuleVersion(t *testing.T) {
 	// When a file isn't part of a module, it will be parsed according
 	// to the current module version if there is one.

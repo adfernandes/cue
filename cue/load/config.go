@@ -15,6 +15,7 @@
 package load
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"io/fs"
@@ -497,6 +498,18 @@ func (c *Config) completeFS() error {
 	return nil
 }
 
+// parserConfigFor returns the configuration to parse p's files with, at the
+// language version of the module p belongs to. A package that declares none
+// falls back to [Config.parserConfig], which holds the main module's version;
+// passing an empty version to [parser.Version] would instead select the
+// current one.
+func (c *Config) parserConfigFor(p *build.Instance) parser.Config {
+	if v := p.LanguageVersion(); v != "" {
+		return c.parserConfig.Apply(parser.Version(v))
+	}
+	return c.parserConfig
+}
+
 func (c *Config) languageVersion() string {
 	if c.modFile == nil || c.modFile.Language == nil {
 		return ""
@@ -605,20 +618,31 @@ func (c *Config) loadModule() error {
 		return err
 	}
 	if repls != nil {
+		// A replacement directory is a module of its own, so its files must
+		// be read at its own language version, not ours. Resolve those here,
+		// where the replacements are walked anyway: the source location below
+		// is built once per package resolved through a replacement, too often
+		// to read and unify a module file each time.
+		replVersions := make(map[string]string)
 		for replaced, r := range repls.All() {
-			if r.Dir != "" {
-				if err := c.checkReplaceDirModulePath(replaced, r.Dir); err != nil {
-					return err
-				}
+			if r.Dir == "" {
+				continue
+			}
+			if err := c.checkReplaceDirModulePath(replaced, r.Dir); err != nil {
+				return err
+			}
+			// Key by the resolved directory, as the source location resolves
+			// what it is given before looking it up.
+			dir := c.absReplaceDir(r.Dir)
+			if mf := c.replaceDirModFile(dir); mf != nil && mf.Language != nil {
+				replVersions[dir] = mf.Language.Version
 			}
 		}
 		c.replacements = repls
 		c.Registry = modpkgload.NewReplacingRegistry(c.Registry, repls, func(dir string) (module.SourceLoc, error) {
-			if !pkgpath.IsAbs(dir, c.pathOS) {
-				dir = pkgpath.Join([]string{c.ModuleRoot, dir}, c.pathOS)
-			}
+			dir = c.absReplaceDir(dir)
 			return module.SourceLoc{
-				FS:  c.fileSystem.ioFS(dir, c.languageVersion()),
+				FS:  c.fileSystem.ioFS(dir, cmp.Or(replVersions[dir], c.languageVersion())),
 				Dir: ".",
 			}, nil
 		})
@@ -626,9 +650,18 @@ func (c *Config) loadModule() error {
 	return nil
 }
 
-// checkReplaceDirModulePath verifies that the module.cue in a replacement
-// directory declares the same module path as the module being replaced.
-func (c *Config) checkReplaceDirModulePath(wantPath string, dir string) error {
+// absReplaceDir resolves a replacement directory against the main module root.
+func (c *Config) absReplaceDir(dir string) string {
+	if pkgpath.IsAbs(dir, c.pathOS) {
+		return dir
+	}
+	return pkgpath.Join([]string{c.ModuleRoot, dir}, c.pathOS)
+}
+
+// replaceDirModFile returns the module file of the module in a replacement
+// directory, or nil if it cannot be read: any real problem with it is
+// reported when that module is loaded through the registry.
+func (c *Config) replaceDirModFile(dir string) *modfile.File {
 	modFilePath := pkgpath.Join([]string{dir, "cue.mod", "module.cue"}, c.pathOS)
 	rc, cerr := c.fileSystem.openFile(modFilePath)
 	if cerr != nil {
@@ -641,6 +674,16 @@ func (c *Config) checkReplaceDirModulePath(wantPath string, dir string) error {
 	}
 	replMF, err := modfile.ParseNonStrict(data, modFilePath)
 	if err != nil {
+		return nil
+	}
+	return replMF
+}
+
+// checkReplaceDirModulePath verifies that the module.cue in a replacement
+// directory declares the same module path as the module being replaced.
+func (c *Config) checkReplaceDirModulePath(wantPath string, dir string) error {
+	replMF := c.replaceDirModFile(dir)
+	if replMF == nil {
 		return nil
 	}
 	if got := replMF.QualifiedModule(); got != "" && got != wantPath {

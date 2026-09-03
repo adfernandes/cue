@@ -234,6 +234,10 @@ func yieldPackageFile(fsys fs.FS, fpath string, selectPackage func(pkgName strin
 		// TODO maybe we should make the options here match
 		// the default parser options used by cue/load for better
 		// cache behavior.
+		//
+		// No language version is set: an FS that owns one applies it itself,
+		// and the fallback below has no module to take one from. Either way
+		// ImportsOnly stops before any version-dependent syntax.
 		syntax, syntaxErr = cueFS.ReadCUEFile(fpath, parser.NewConfig(parser.ImportsOnly))
 		if syntax == nil {
 			if syntaxErr == nil {

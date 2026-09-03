@@ -1,0 +1,24 @@
+# cue add must read the file at the language version of the module owning it,
+# not at the current one. Here a prefix alias is valid, as the module predates
+# the version at which the aliasv2 experiment made the postfix form mandatory.
+#
+# TestLatest: skip -- the module deliberately uses the prefix alias form.
+
+stdin stdin.cue
+exec cue add x.cue
+cmp x.cue x.cue-1
+
+-- cue.mod/module.cue --
+module: "main.org@v0"
+language: version: "v0.16.0"
+-- stdin.cue --
+added: 2
+-- x.cue --
+package x
+
+_alias: X={a: 1, b: X.a}
+-- x.cue-1 --
+package x
+
+_alias: X={a: 1, b: X.a}
+added:  2

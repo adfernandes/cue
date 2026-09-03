@@ -247,7 +247,10 @@ func initFile(cmd *Command, file string, getBuild func(path string) *build.Insta
 			return nil, fmt.Errorf("cannot append to directory %s", file)
 		}
 
-		f, err := parser.ParseFile(file, nil)
+		// Stop at the package clause: this parse is what selects the
+		// instance below, so the language version to read the rest of the
+		// file at is not known yet.
+		f, err := parser.ParseFile(file, nil, parser.PackageClauseOnly)
 		if err != nil {
 			return nil, err
 		}
@@ -282,7 +285,9 @@ func (fi *fileInfo) appendAndCheck() (fo originalFile, err error) {
 	}
 	b = append(b, fi.contents.Bytes()...)
 
-	b, err = format.Source(b)
+	// Format at the language version of the module owning the file, so that
+	// syntax only some versions accept is parsed the way the file means it.
+	b, err = format.Source(b, format.Version(fi.build.LanguageVersion()))
 	if err != nil {
 		return originalFile{}, err
 	}

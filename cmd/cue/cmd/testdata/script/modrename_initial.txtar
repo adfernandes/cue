@@ -1,4 +1,8 @@
 # Test the basic functionality of cue mod rename.
+#
+# TestLatest: skip -- the module deliberately uses the prefix alias form,
+# valid at its language version, which renaming must neither reject nor
+# rewrite.
 
 cp cue.mod/module.cue module.cue-0
 exec cue mod rename main.org@v0
@@ -31,6 +35,8 @@ import (
 )
 
 foo.bar
+
+_alias: X={a: 1, b: X.a}
 -- foo/foo.cue --
 package foo
 
@@ -50,6 +56,8 @@ import (
 )
 
 foo.bar
+
+_alias: X={a: 1, b: X.a}
 -- foo/foo.cue-1 --
 package foo
 
@@ -69,6 +77,8 @@ import (
 )
 
 foo.bar
+
+_alias: X={a: 1, b: X.a}
 -- foo/foo.cue-2 --
 package foo
 

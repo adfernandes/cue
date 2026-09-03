@@ -119,7 +119,7 @@ func runModRename(cmd *Command, args []string) error {
 				// Avoid processing files which are inherited from parent directories.
 				continue
 			}
-			if err := mr.renameFile(file); err != nil {
+			if err := mr.renameFile(file, inst.LanguageVersion()); err != nil {
 				return err
 			}
 		}
@@ -127,8 +127,8 @@ func runModRename(cmd *Command, args []string) error {
 	return nil
 }
 
-func (mr *modRenamer) renameFile(file *build.File) error {
-	syntax, err := parser.ParseFile(file.Filename, file.Source, parser.ParseComments)
+func (mr *modRenamer) renameFile(file *build.File, langVersion string) error {
+	syntax, err := parser.ParseFile(file.Filename, file.Source, parser.ParseComments, parser.Version(langVersion))
 	if err != nil {
 		return err
 	}

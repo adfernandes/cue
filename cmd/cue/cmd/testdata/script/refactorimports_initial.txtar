@@ -1,4 +1,8 @@
 # Test the basic functionality of cue refactor imports
+#
+# TestLatest: skip -- the module deliberately uses the prefix alias form,
+# valid at its language version, which refactoring must neither reject nor
+# rewrite.
 
 # Sanity check the initial output:
 exec cue export
@@ -48,6 +52,8 @@ self: {
 	"top": top.self
 	"inner": inner.self
 }
+
+_alias: X={a: 1, b: X.a}
 -- unchanged.cue --
 package x
 
@@ -67,6 +73,8 @@ self: {
 	"top":   top.self
 	"inner": inner.self
 }
+
+_alias: X={a: 1, b: X.a}
 -- _registry/example.com_v0.0.1/cue.mod/module.cue --
 module: "example.com@v0"
 language: version: "v0.8.0"

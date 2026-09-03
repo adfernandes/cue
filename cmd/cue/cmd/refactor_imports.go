@@ -229,7 +229,7 @@ func runRefactorImports(cmd *Command, args []string) error {
 				// Avoid processing files which are inherited from parent directories.
 				continue
 			}
-			syntax, err := parser.ParseFile(file.Filename, file.Source, parser.ParseComments)
+			syntax, err := parser.ParseFile(file.Filename, file.Source, parser.ParseComments, parser.Version(inst.LanguageVersion()))
 			if err != nil {
 				return err
 			}

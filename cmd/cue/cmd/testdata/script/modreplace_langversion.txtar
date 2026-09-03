@@ -1,0 +1,44 @@
+# Every module's files are read at that module's own language version, not
+# the main module's. Here the replacement directory declares a version at
+# which the prefix alias form is still the only one, while the main module
+# declares one at which the aliasv2 experiment has made the postfix form
+# mandatory.
+#
+# TestLatest: skip -- the replacement module deliberately uses the prefix
+# alias form.
+
+cd app
+exec cue export
+cmp stdout $WORK/out/export
+
+-- dep/cue.mod/module.cue --
+module: "example.com/dep@v0"
+language: version: "v0.12.0"
+
+-- dep/dep.cue --
+package dep
+
+value: X={a: 1, b: X.a}
+
+-- app/cue.mod/module.cue --
+module: "main.org@v0"
+language: version: "v0.18.0"
+deps: "example.com/dep@v0": v: "v0.0.1"
+
+-- app/cue.mod/local-module.cue --
+deps: "example.com/dep@v0": replaceWith: "../dep"
+
+-- app/app.cue --
+package app
+
+import "example.com/dep@v0:dep"
+
+out: dep.value
+
+-- out/export --
+{
+    "out": {
+        "a": 1,
+        "b": 1
+    }
+}
