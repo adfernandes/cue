@@ -1,10 +1,6 @@
 # An @experiment attribute is redundant once the experiments it names are
-# stable at the file's language version, so cue fix should drop those names
-# and leave the rest of the attribute alone.
-#
-# TODO(fix): aliasv2 is stable as of v0.18.0, so stable.cue should lose its
-# attribute entirely and mixed.cue should keep only @experiment(try).
-# Today cue fix leaves every attribute untouched.
+# stable at the file's language version, so cue fix drops those names and
+# leaves the rest of the attribute alone.
 exec cue fix .
 cmp stable.cue expect/stable
 cmp mixed.cue expect/mixed
@@ -33,13 +29,11 @@ package p
 
 c: 3
 -- expect/stable --
-@experiment(aliasv2)
-
 package p
 
 a: 1
 -- expect/mixed --
-@experiment(aliasv2,try)
+@experiment(try)
 
 package p
 

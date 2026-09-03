@@ -553,6 +553,42 @@ lbl: int
 mixed: [string]~(X): {n: X.a}
 `,
 		},
+
+		{
+			// aliasv2 is stable as of v0.18.0, so naming it has no effect and
+			// the name goes; try is still in preview, so it stays.
+			name: "remove stable experiment names",
+			in: `@experiment(aliasv2,try)
+
+package foo
+
+a: 1
+`,
+			out: `@experiment(try)
+
+package foo
+
+a: 1
+`,
+		},
+
+		{
+			// The whole attribute goes once every name it holds is stable,
+			// and its comments move to the declaration which follows it.
+			name: "remove stable experiment attribute",
+			in: `// a comment on the attribute
+@experiment(aliasv2)
+
+package foo
+
+a: 1
+`,
+			out: `// a comment on the attribute
+package foo
+
+a: 1
+`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

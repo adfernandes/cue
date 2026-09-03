@@ -22,6 +22,7 @@ package fix
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
@@ -144,6 +145,8 @@ func file(f *ast.File, version string, o ...Option) (*ast.File, errors.Error) {
 	if wantExps.AliasV2 && !existingExps.AliasV2 {
 		f = fixExperiment(fixAliasV2, f, "aliasv2", targetVersion)
 	}
+
+	removeStableExperiments(f, targetVersion)
 
 	// Make sure we use the "after" function, and not the "before",
 	// because "before" will stop recursion early which creates
@@ -271,6 +274,66 @@ func concatCallArgs(expr ast.Expr) (*ast.ListLit, bool) {
 		return nil, false
 	}
 	return list, true
+}
+
+// removeStableExperiments drops the names of experiments which version makes
+// stable from the file's preamble @experiment attributes, as naming them has
+// no effect, and drops an attribute left with no names at all.
+func removeStableExperiments(f *ast.File, version string) {
+	var dropped []ast.Decl
+	for _, d := range f.Decls {
+		// Only the attributes preceding the package clause configure
+		// experiments; see the preamble loop in the parser's parseFile.
+		a, ok := d.(*ast.Attribute)
+		if !ok {
+			if _, ok := d.(*ast.CommentGroup); ok {
+				continue
+			}
+			break
+		}
+		name, body := a.Split()
+		if name != "experiment" {
+			continue
+		}
+		var keep []string
+		n := 0
+		for exp := range strings.SplitSeq(body, ",") {
+			n++
+			if exp = strings.TrimSpace(exp); !cueexperiment.ShouldRemoveAttribute(exp, version) {
+				keep = append(keep, exp)
+			}
+		}
+		switch {
+		case len(keep) == n:
+		case len(keep) == 0:
+			// Nothing is left to declare, so the attribute goes.
+			dropped = append(dropped, d)
+		default:
+			a.Text = fmt.Sprintf("@experiment(%s)", strings.Join(keep, ","))
+		}
+	}
+	if len(dropped) == 0 {
+		return
+	}
+	first := f.Decls[0]
+	f.Decls = slices.DeleteFunc(f.Decls, func(d ast.Decl) bool {
+		return slices.Contains(dropped, d)
+	})
+	if len(f.Decls) == 0 {
+		return
+	}
+	// The comments of a dropped attribute belong to whichever declaration
+	// now comes first, which also inherits its position: a section break
+	// left on the new first declaration would print as a leading blank
+	// line.
+	if d := f.Decls[0]; d != first && d.Pos().RelPos() == token.NewSection {
+		ast.SetRelPos(d, token.NoRelPos)
+	}
+	for _, d := range dropped {
+		for _, cg := range ast.Comments(d) {
+			ast.AddComment(f.Decls[0], cg)
+		}
+	}
 }
 
 func fixExperiment(fn func(*ast.File) (*ast.File, bool), f *ast.File, exp, version string) *ast.File {
