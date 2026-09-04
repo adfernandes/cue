@@ -183,7 +183,7 @@ func TestComplete(t *testing.T) {
 
 			err = codec.Complete(v, tc.value)
 			checkErr(t, err, tc.err)
-			qt.Assert(t, qt.DeepEquals(tc.result, tc.value))
+			qt.Assert(t, qt.DeepEquals(tc.value, tc.result))
 		})
 	}
 }
