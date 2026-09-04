@@ -4,11 +4,6 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
-# TODO(fix): disjunctMixedField, disjunctDefsField, disjunctThreeField and
-# disjunctNested record today's rewrite, which wraps a literal embedding a
-# disjunction and so leaves that disjunction unresolved. Their assertions
-# follow once the rewrite keeps each branch on its own.
-
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -156,7 +151,8 @@ conjunctField: {
 	b: int
 }
 
-// Disjunction with extra field → not simplified, __reclose wraps.
+// Disjunction with extra field → distributed, each operand's branch
+// taking the wrapper that operand warrants.
 disjunctField: {
 	#A | _repo
 	b: int
@@ -167,8 +163,9 @@ disjunctDefs: {
 	#A | #D
 }
 
-// Disjunction with a defaulted definition operand → __reclose wraps,
-// and the comprehension field value is opened.
+// Disjunction with a defaulted definition operand → distributed, the
+// default marker moving to the branch it now marks, and the
+// comprehension field value is opened.
 defaultDisjunct: {
 	#A: {a: int}
 	v: {
@@ -178,9 +175,8 @@ defaultDisjunct: {
 
 	t1: {w: v & {a: 1}} @test(eq, {w: {a: 1, b: int} @test(final)})
 
-	// TODO: the new semantics is more permissive here; under the old
-	// semantics the defaulted branch is closed, so unifying v with
-	// {c: 1} eliminates it and resolves to the empty branch.
+	// The defaulted branch is closed, so the added field eliminates it.
+	t2: v & {c: 1} @test(eq, {b: int, c: 1})
 
 	#S: {
 		enable: bool
@@ -323,6 +319,10 @@ disjunctMixedField: {
 		#A | {}
 		b: int
 	}
+
+	// The added field eliminates the closed branch.
+	t1: v & {c: 1}       @test(eq, {b: int, c: 1})
+	t2: v & {a: 1, c: 1} @test(eq, {a: 1, b: int, c: 1})
 }
 
 // A disjunction of definitions, embedded in a literal which declares
@@ -337,6 +337,9 @@ disjunctDefsField: {
 		B: "b"
 		C: "c"
 	}
+
+	t1: v & {A: "a"} @test(eq, {A: "a", B: "b", C: "c"})
+	t2: v & {D: "d"} @test(err, code=eval, path=D, contains="field not allowed")
 }
 
 // A disjunction of three operands, one of them open.
@@ -347,6 +350,9 @@ disjunctThreeField: {
 		#A | #B | {}
 		b: int
 	}
+
+	t1: v & {c: 1}       @test(eq, {b: int, c: 1})
+	t2: v & {a: 1, x: 1} @test(eq, {a: 1, x: 1, b: int})
 }
 
 // A disjunction embedded through a nested literal, whose wrapper the
@@ -359,6 +365,8 @@ disjunctNested: {
 			b: int
 		}
 	}
+
+	t1: v & {c: 1} @test(eq, {b: int, c: 1})
 }
 
 // Predeclared scalar types can never resolve to a closed struct, so a
@@ -635,27 +643,29 @@ compNestedField: {
 [eval] embeddedCloseField.t3.c: field not allowed:
     ./in.cue:131:11
 [incomplete] defaultDisjunct.#S: incomplete bool: bool:
-    ./in.cue:167:11
+    ./in.cue:168:11
 [eval] andField.v.c: field not allowed:
-    ./in.cue:180:15
+    ./in.cue:181:15
 [eval] andField.t1.c: field not allowed:
-    ./in.cue:180:15
+    ./in.cue:181:15
 [eval] andField.t2.c: field not allowed:
-    ./in.cue:180:15
+    ./in.cue:181:15
 [eval] selConjField.t2.c: field not allowed:
-    ./in.cue:209:11
+    ./in.cue:210:11
 [incomplete] compCallField.#S: incomplete bool: bool:
-    ./in.cue:219:11
+    ./in.cue:220:11
 [incomplete] compLiteralField.#S: incomplete bool: bool:
-    ./in.cue:239:11
+    ./in.cue:240:11
 [eval] nestedLiteral.t2.more: field not allowed:
-    ./in.cue:271:11
+    ./in.cue:272:11
 [eval] nestedClose.t2.c: field not allowed:
-    ./in.cue:283:11
+    ./in.cue:284:11
 [eval] nestedSingleEmbed.t2.c: field not allowed:
-    ./in.cue:295:11
+    ./in.cue:296:11
+[eval] disjunctDefsField.t2.D: field not allowed:
+    ./in.cue:328:11
 [incomplete] compScalarField.s: incomplete bool: bool:
-    ./in.cue:350:6
+    ./in.cue:363:6
 [incomplete] compScalarField.shadow: incomplete bool: bool:
     ./in.cue:313:11
 [incomplete] compClosedField.plain: incomplete bool: bool:
@@ -822,9 +832,13 @@ conjunctField: __closeAll({
 	b: int
 })
 
-// Disjunction with extra field → not simplified, __reclose wraps.
-disjunctField: __reclose({
-	(#A | _repo)...
+// Disjunction with extra field → distributed, each operand's branch
+// taking the wrapper that operand warrants.
+disjunctField: __closeAll({
+	#A...
+	b: int
+}) | __reclose({
+	_repo...
 	b: int
 })
 
@@ -833,20 +847,22 @@ disjunctDefs: {
 	#A | #D
 }
 
-// Disjunction with a defaulted definition operand → __reclose wraps,
-// and the comprehension field value is opened.
+// Disjunction with a defaulted definition operand → distributed, the
+// default marker moving to the branch it now marks, and the
+// comprehension field value is opened.
 defaultDisjunct: {
 	#A: {a: int}
-	v: __reclose({
-		(*#A | {})...
+	v: *__closeAll({
+		#A...
 		b: int
-	})
+	}) | {
+		b: int
+	}
 
 	t1: {w: v & {a: 1}} @test(eq, {w: {a: 1, b: int} @test(final)})
 
-	// TODO: the new semantics is more permissive here; under the old
-	// semantics the defaulted branch is closed, so unifying v with
-	// {c: 1} eliminates it and resolves to the empty branch.
+	// The defaulted branch is closed, so the added field eliminates it.
+	t2: v & {c: 1} @test(eq, {b: int, c: 1})
 
 	#S: {
 		enable: bool
@@ -984,9 +1000,15 @@ nestedSingleEmbed: {
 disjunctMixedField: {
 	#A: {a: int}
 	v: __closeAll({
-		(#A | {})...
+		#A...
 		b: int
-	})
+	}) | {
+		b: int
+	}
+
+	// The added field eliminates the closed branch.
+	t1: v & {c: 1}       @test(eq, {b: int, c: 1})
+	t2: v & {a: 1, c: 1} @test(eq, {a: 1, b: int, c: 1})
 }
 
 // A disjunction of definitions, embedded in a literal which declares
@@ -997,10 +1019,17 @@ disjunctDefsField: {
 	#DefA: {A: string}
 	#DefB: {B: string}
 	v: __closeAll({
-		(#DefA | #DefB)...
+		#DefA...
+		B: "b"
+		C: "c"
+	}) | __closeAll({
+		#DefB...
 		B: "b"
 		C: "c"
 	})
+
+	t1: v & {A: "a"} @test(eq, {A: "a", B: "b", C: "c"})
+	t2: v & {D: "d"} @test(err, code=eval, path=D, contains="field not allowed")
 }
 
 // A disjunction of three operands, one of them open.
@@ -1008,9 +1037,17 @@ disjunctThreeField: {
 	#A: {a: int}
 	#B: {x: int}
 	v: __closeAll({
-		(#A | #B | {})...
+		#A...
 		b: int
-	})
+	}) | __closeAll({
+		#B...
+		b: int
+	}) | {
+		b: int
+	}
+
+	t1: v & {c: 1}       @test(eq, {b: int, c: 1})
+	t2: v & {a: 1, x: 1} @test(eq, {a: 1, x: 1, b: int})
 }
 
 // A disjunction embedded through a nested literal, whose wrapper the
@@ -1018,9 +1055,13 @@ disjunctThreeField: {
 disjunctNested: {
 	#A: {a: int}
 	v: __closeAll({
-		(#A | {})...
+		#A...
 		b: int
-	})
+	}) | {
+		b: int
+	}
+
+	t1: v & {c: 1} @test(eq, {b: int, c: 1})
 }
 
 // Predeclared scalar types can never resolve to a closed struct, so a

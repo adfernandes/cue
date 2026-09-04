@@ -76,7 +76,21 @@ func (c closeInfo) shouldReclose() bool {
 	return c.suspendReclose == 0
 }
 
-func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
+func fixExplicitOpen(f *ast.File) (*ast.File, bool) {
+	// A pass which distributes a struct literal over an embedded
+	// disjunction leaves copies of the literal behind which it has not
+	// visited, so the file is passed over again until none are left.
+	var hasChanges bool
+	for {
+		next, changed, distributed := fixExplicitOpenPass(f)
+		f, hasChanges = next, hasChanges || changed
+		if !distributed {
+			return f, hasChanges
+		}
+	}
+}
+
+func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed bool) {
 	// Comprehension fields which the old semantics closed, and which
 	// openCompFieldValue must therefore leave alone.
 	closedCompFields := oldClosedCompFields(f)
@@ -141,6 +155,16 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 			info.suspendReclose++
 
 		case *ast.StructLit:
+			// A literal which takes no wrapper needs no distributing, as
+			// a spread over a disjunction evaluates on its own.
+			if info.shouldReclose() {
+				if expr, ok := distributeEmbeddedDisjunction(n); ok {
+					c.Replace(expr)
+					hasChanges = true
+					distributed = true
+					return false
+				}
+			}
 			flagsStack = append(flagsStack, info.embedFlags)
 			info.embedFlags = embedFlags{}
 		}
@@ -270,7 +294,118 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 		return true
 	}).(*ast.File)
 
-	return result, hasChanges
+	return result, hasChanges, distributed
+}
+
+// distributeEmbeddedDisjunction rewrites a struct literal which embeds a
+// disjunction into a disjunction of struct literals, one per operand of
+// that disjunction, each carrying a copy of the literal's other
+// declarations. It reports false for a literal which embeds no
+// disjunction, or which is replaced by its single embedding.
+//
+// A wrapper builtin takes the value of its argument, which an unresolved
+// disjunction does not have, so wrapping a literal which embeds one
+// leaves every use of that literal incomplete. close() has always had
+// that limitation, which is also why the old semantics never closed such
+// a literal as a whole: it closed each branch on its own, and a branch
+// whose operand was open stayed open. Distributing says exactly that, as
+// each branch then takes the wrapper its own operand warrants.
+func distributeEmbeddedDisjunction(s *ast.StructLit) (ast.Expr, bool) {
+	// The literal which takes the wrapper may be nested in single
+	// embeddings, which the shortcuts in fixExplicitOpenPass unwrap.
+	for {
+		inner, ok := soleEmbedExpr(s)
+		if !ok {
+			break
+		}
+		lit, ok := inner.(*ast.StructLit)
+		if !ok {
+			break
+		}
+		s = lit
+	}
+	// A literal with a single embedded declaration is replaced by that
+	// embedding, so it takes no wrapper either.
+	if len(s.Elts) < 2 || !collectEmbedFlags(s).mayBeClosed() {
+		return nil, false
+	}
+	i := slices.IndexFunc(s.Elts, isEmbeddedDisjunction)
+	if i < 0 {
+		return nil, false
+	}
+	branches := make([]ast.Expr, len(disjunctOperands(s.Elts[i].(*ast.EmbedDecl).Expr)))
+	for branch := range branches {
+		branches[branch] = distributeBranch(s, i, branch)
+	}
+	return ast.NewBinExpr(token.OR, branches...), true
+}
+
+// isEmbeddedDisjunction reports whether d embeds a disjunction which this
+// fix has not rewritten yet. An embedding which already carries a spread
+// is left alone, so that the argument of a wrapper added by an earlier
+// pass is not distributed out of it.
+func isEmbeddedDisjunction(d ast.Decl) bool {
+	e, ok := d.(*ast.EmbedDecl)
+	return ok && len(disjunctOperands(e.Expr)) > 1
+}
+
+// disjunctOperands returns the operands of the disjunction expr in order,
+// flattening nested disjunctions. For any other expression it returns
+// expr itself.
+func disjunctOperands(expr ast.Expr) []ast.Expr {
+	if x, ok := unparen(expr).(*ast.BinaryExpr); ok && x.Op == token.OR {
+		return append(disjunctOperands(x.X), disjunctOperands(x.Y)...)
+	}
+	return []ast.Expr{expr}
+}
+
+// distributeBranch returns the branch'th disjunct of distributing s over
+// the disjunction embedded as its i'th declaration: a copy of s which
+// embeds that operand alone. A default marker moves from the operand to
+// the branch, which is the disjunct it marks now.
+func distributeBranch(s *ast.StructLit, i, branch int) ast.Expr {
+	// The whole literal is copied, operands included, so that an
+	// identifier in the operand which resolves to a declaration of the
+	// literal keeps resolving to the copy's own.
+	lit := ast.Clone(s)
+	ast.SetRelPos(lit, token.NoSpace)
+	op := disjunctOperands(lit.Elts[i].(*ast.EmbedDecl).Expr)[branch]
+	isDefault := false
+	if x, ok := unparen(op).(*ast.UnaryExpr); ok && x.Op == token.MUL {
+		op, isDefault = x.X, true
+	}
+	ast.SetRelPos(op, token.NoRelPos)
+	opLit, isLit := unparen(op).(*ast.StructLit)
+	if isLit && len(ast.Comments(opLit)) == 0 && len(ast.Comments(lit.Elts[i])) == 0 {
+		// A struct literal operand declares its fields in the branch
+		// directly rather than as a literal embedded in a literal,
+		// which is what unifying it with the literal did. An embedding
+		// which carries comments keeps its declaration, as the
+		// declarations spliced in are no place for them.
+		for _, d := range opLit.Elts {
+			ast.SetRelPos(d, token.Newline)
+		}
+		lit.Elts = slices.Concat(lit.Elts[:i:i], opLit.Elts, lit.Elts[i+1:])
+	} else {
+		embed := &ast.EmbedDecl{Expr: op}
+		astutil.CopyComments(embed, lit.Elts[i])
+		lit.Elts[i] = embed
+	}
+	if isDefault {
+		return &ast.UnaryExpr{Op: token.MUL, X: lit}
+	}
+	return lit
+}
+
+// unparen returns expr with any enclosing parentheses removed.
+func unparen(expr ast.Expr) ast.Expr {
+	for {
+		p, ok := expr.(*ast.ParenExpr)
+		if !ok {
+			return expr
+		}
+		expr = p.X
+	}
 }
 
 // oldClosedCompFields reports which fields reached through a comprehension
@@ -718,6 +853,16 @@ func singleEmbed(s *ast.StructLit) (*ast.EmbedDecl, bool) {
 	}
 	e, ok := s.Elts[0].(*ast.EmbedDecl)
 	return e, ok
+}
+
+// soleEmbedExpr returns the expression which a single-embedding literal is
+// equivalent to, if dropping its braces orphans no comment on either.
+func soleEmbedExpr(s *ast.StructLit) (ast.Expr, bool) {
+	e, ok := singleEmbed(s)
+	if !ok || len(ast.Comments(s)) != 0 || len(ast.Comments(e)) != 0 {
+		return nil, false
+	}
+	return e.Expr, true
 }
 
 func addEllipsis(expr ast.Expr) *ast.PostfixExpr {
