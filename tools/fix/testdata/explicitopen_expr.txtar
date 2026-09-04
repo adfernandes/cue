@@ -4,10 +4,6 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
-# TODO(fix): compClosedField records today's rewrite, which opens a
-# comprehension field value even where nothing beside it could widen the
-# field. Its assertions on the closing follow once the rewrite keeps it.
-
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -354,6 +350,7 @@ compClosedField: {
 		}
 	}
 	t1: plain & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+	t2: plain & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// A declaration beside the comprehension widens the field.
 	sibling: {
@@ -374,6 +371,7 @@ compClosedField: {
 		}
 	}
 	otherLiteral: f?: {...}
+	t4: otherLiteral & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// An embedding and a pattern constraint may both declare the field,
 	// so those keep the ellipsis.
@@ -396,6 +394,7 @@ compClosedField: {
 	// A comprehension producing list elements has no declaration beside
 	// it either.
 	inList: [for v in [1] {f: #A}]
+	t7: inList[0] & {f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 }
 
 // The declarations of one comprehension body arrive as a single conjunct,
@@ -413,6 +412,7 @@ compBodyField: {
 		}
 	}
 	t1: twice & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+	t2: twice & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// An explicit ellipsis in it does.
 	twiceOpen: {
@@ -463,6 +463,7 @@ compNestedField: {
 		}
 	}
 	t1: plain & {c: true, f: g: a: 1} @test(eq, {c: true, f: {g: {a: 1}}})
+	t2: plain & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// A declaration of the path beside it widens the nested field.
 	sibling: {
@@ -483,6 +484,7 @@ compNestedField: {
 		}
 		f: {...}
 	}
+	t4: openEnclosing & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// Nor does a second declaration of the path in the same body.
 	sameBody: {
@@ -492,6 +494,7 @@ compNestedField: {
 			f: g: {b?: int}
 		}
 	}
+	t5: sameBody & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// An explicit ellipsis at the nested path in the same body does.
 	sameBodyOpen: {
@@ -605,8 +608,10 @@ compNestedField: {
     ./in.cue:313:11
 [incomplete] compClosedField.plain: incomplete bool: bool:
     ./in.cue:333:6
+[eval] compClosedField.t2.f.b: field not allowed:
+    ./in.cue:339:28
 [incomplete] compClosedField.sibling: incomplete bool: bool:
-    ./in.cue:342:7
+    ./in.cue:343:7
 [incomplete] compClosedField.otherLiteral: incomplete bool: bool:
     ./in.cue:353:6
 [incomplete] compBodyField.twice: incomplete bool: bool:
@@ -938,7 +943,7 @@ compScalarField: {
 		string: {a: int}
 		c:      bool
 		if c {
-			f: string...
+			f: string
 		}
 	}
 	t2: shadow & {c: true, f: {b: 2}} @test(eq,
@@ -958,10 +963,11 @@ compClosedField: {
 	plain: {
 		c: bool
 		if c {
-			f: #A...
+			f: #A
 		}
 	}
 	t1: plain & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+	t2: plain & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// A declaration beside the comprehension widens the field.
 	sibling: {
@@ -978,10 +984,11 @@ compClosedField: {
 	otherLiteral: {
 		c: bool
 		if c {
-			f: #A...
+			f: #A
 		}
 	}
 	otherLiteral: f?: {...}
+	t4: otherLiteral & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// An embedding and a pattern constraint may both declare the field,
 	// so those keep the ellipsis.
@@ -1003,7 +1010,8 @@ compClosedField: {
 
 	// A comprehension producing list elements has no declaration beside
 	// it either.
-	inList: [for v in [1] {f: #A...}]
+	inList: [for v in [1] {f: #A}]
+	t7:     inList[0] & {f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 }
 
 // The declarations of one comprehension body arrive as a single conjunct,
@@ -1016,11 +1024,12 @@ compBodyField: {
 	twice: {
 		c: bool
 		if c {
-			f: #A...
+			f: #A
 			f: {a: int}
 		}
 	}
 	t1: twice & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+	t2: twice & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 
 	// An explicit ellipsis in it does.
 	twiceOpen: {
@@ -1067,10 +1076,11 @@ compNestedField: {
 	plain: {
 		c: bool
 		if c {
-			f: g: #A...
+			f: g: #A
 		}
 	}
 	t1: plain & {c: true, f: g: a: 1} @test(eq, {c: true, f: {g: {a: 1}}})
+	t2: plain & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// A declaration of the path beside it widens the nested field.
 	sibling: {
@@ -1087,19 +1097,21 @@ compNestedField: {
 	openEnclosing: {
 		c: bool
 		if c {
-			f: g: #A...
+			f: g: #A
 		}
 		f: {...}
 	}
+	t4: openEnclosing & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// Nor does a second declaration of the path in the same body.
 	sameBody: {
 		c: bool
 		if c {
-			f: g: #A...
+			f: g: #A
 			f: g: {b?: int}
 		}
 	}
+	t5: sameBody & {c: true, f: g: b: 2} @test(err, code=eval, contains="field not allowed")
 
 	// An explicit ellipsis at the nested path in the same body does.
 	sameBodyOpen: {

@@ -252,7 +252,8 @@ v: __reclose({
 		{
 			// Comprehension field values that may resolve to closed
 			// structs via a selector conjunction or an and() call must
-			// be opened like plain references.
+			// be opened like plain references, as long as a declaration
+			// beside the comprehension widens the field.
 			name:    "open selector and call field values in comprehensions (fixExplicitOpen)",
 			exps:    []string{"explicitopen"},
 			version: oldEmbedVersion,
@@ -264,6 +265,7 @@ lib: v: #HC
 #Service: {
 	enable: bool
 	egress?: [string]: {...}
+	egress2?: [string]: {...}
 	if enable {
 		egress: lib.v & {hc: port: 1}
 	}
@@ -281,7 +283,8 @@ lib: v:  #HC
 
 #Service: {
 	enable: bool
-	egress?: [string]: {...}
+	egress?: [string]:  {...}
+	egress2?: [string]: {...}
 	if enable {
 		egress: (lib.v & {hc: port: 1})...
 	}
@@ -300,7 +303,6 @@ lib: v:  #HC
 			// of the package, whose declarations the fixer cannot see, so
 			// a field value reached through a comprehension there keeps
 			// one.
-			// TODO: the field of s is opened too; it should stay "#A".
 			name:    "closed field values in comprehensions (fixExplicitOpen)",
 			exps:    []string{"explicitopen"},
 			version: oldEmbedVersion,
@@ -335,14 +337,14 @@ package foo
 s: {
 	c: bool
 	if c {
-		f: #A...
+		f: #A
 	}
 }
 
 n: {
 	c: bool
 	if c {
-		f: g: #A...
+		f: g: #A
 	}
 }
 

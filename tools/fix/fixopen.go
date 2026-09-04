@@ -15,6 +15,8 @@
 package fix
 
 import (
+	"slices"
+
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
 	"cuelang.org/go/cue/token"
@@ -75,6 +77,9 @@ func (c closeInfo) shouldReclose() bool {
 }
 
 func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
+	// Comprehension fields which the old semantics closed, and which
+	// openCompFieldValue must therefore leave alone.
+	closedCompFields := oldClosedCompFields(f)
 
 	var info closeInfo
 	recloseStack := []closeInfo{}
@@ -146,8 +151,9 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 			popScope(c)
 
 			// See openCompFieldValue: comprehension conjuncts did not
-			// close their fields under the old semantics.
-			if info.inComprehension {
+			// close their fields under the old semantics, unless the
+			// field had no other declaration to widen it.
+			if info.inComprehension && !closedCompFields[n] {
 				if newValue, changed := openCompFieldValue(n.Value); changed {
 					n.Value = newValue
 					hasChanges = true
@@ -265,6 +271,242 @@ func fixExplicitOpen(f *ast.File) (result *ast.File, hasChanges bool) {
 	}).(*ast.File)
 
 	return result, hasChanges
+}
+
+// oldClosedCompFields reports which fields reached through a comprehension
+// body the pre-v0.18.0 semantics closed, so that [openCompFieldValue] can
+// leave those alone.
+//
+// A conjunct inserted through a comprehension behaved like an embedding: the
+// field it declared was closed by its value, except where another declaration
+// widened it. Which declarations could widen it is exact: only those of the
+// struct literal holding the comprehension, of the literals it embeds, and of
+// its comprehension bodies. Another conjunct of the enclosing field, another
+// declaration of it in the same file, and another file of the package all left
+// the closing in place.
+//
+// One comprehension body is one conjunct, so its own declarations of a field
+// intersect rather than widen each other; only an explicit ellipsis in one of
+// them, or a value whose declarations cannot be known, reopens the field. Each
+// body is therefore a widening group of its own, beside the group formed by
+// the literal holding them and the literals it embeds.
+//
+// A field nested below one reached through a comprehension is decided the same
+// way, one level down: the declarations which can widen it are those of its
+// own label inside the values of the declarations of the enclosing field.
+//
+// The top level of a file is the one place where declarations the fixer cannot
+// see still widen, as the files of a package share it, so nothing reached
+// through a comprehension there is reported as closed.
+func oldClosedCompFields(f *ast.File) map[*ast.Field]bool {
+	// Struct literals which declare into an enclosing struct rather than
+	// starting a struct of their own: an embedded literal and a
+	// comprehension body both contribute their declarations to the literal
+	// which holds them. A comprehension which is not a struct declaration,
+	// such as one producing list elements, has a body which starts a struct
+	// of its own, with no other declaration to widen its fields.
+	inlined := make(map[*ast.StructLit]bool)
+	compRoot := make(map[*ast.StructLit]bool)
+	markInlined := func(decls []ast.Decl) {
+		for _, d := range decls {
+			switch d := d.(type) {
+			case *ast.EmbedDecl:
+				if s, ok := d.Expr.(*ast.StructLit); ok {
+					inlined[s] = true
+				}
+			case *ast.Comprehension:
+				if s, ok := d.Value.(*ast.StructLit); ok {
+					inlined[s] = true
+				}
+			}
+		}
+	}
+
+	// nested holds the literals which the analysis of an enclosing struct
+	// descends into, as the value of one of the declarations of a field it
+	// decides. They do not start a struct of their own, which would lose the
+	// enclosing declarations of their path.
+	nested := make(map[*ast.StructLit]bool)
+	closed := make(map[*ast.Field]bool)
+
+	// group numbers the widening groups: outerGroup for the declarations of
+	// the struct itself and of the literals it embeds, and a fresh group per
+	// comprehension body.
+	const outerGroup = 0
+	group := outerGroup
+
+	// collect flattens the declarations which land in one struct into its
+	// fields, each tagged with the group it arrives through, and reports
+	// whether one of them may declare a field the fixer cannot name.
+	var collect func(decls []ast.Decl, g int, fields *[]groupField) bool
+	collect = func(decls []ast.Decl, g int, fields *[]groupField) (ambiguous bool) {
+		for _, d := range decls {
+			switch d := d.(type) {
+			case *ast.Field:
+				if _, _, err := ast.LabelName(d.Label); err != nil {
+					// A pattern constraint or a dynamic label may
+					// declare any field.
+					ambiguous = true
+					continue
+				}
+				*fields = append(*fields, groupField{d, g})
+			case *ast.EmbedDecl:
+				if e, ok := d.Expr.(*ast.StructLit); ok {
+					ambiguous = collect(e.Elts, g, fields) || ambiguous
+				} else {
+					// The embedded value may declare any field.
+					ambiguous = true
+				}
+			case *ast.Comprehension:
+				if e, ok := d.Value.(*ast.StructLit); ok {
+					group++
+					ambiguous = collect(e.Elts, group, fields) || ambiguous
+				} else {
+					ambiguous = true
+				}
+			case *ast.Ellipsis, *ast.Alias, *ast.LetClause, *ast.Attribute,
+				*ast.CommentGroup, *ast.Package, *ast.ImportDecl:
+				// Declares no field of its own. An ellipsis allows
+				// further fields in the struct, but does not widen
+				// what any of them allows.
+			default:
+				ambiguous = true
+			}
+		}
+		return ambiguous
+	}
+
+	// decide records which of the fields landing in one struct the old
+	// semantics closed, and descends into the values of the declarations of
+	// each field reached through a comprehension. An ambiguous struct
+	// decides nothing, but the descent still claims the literals below it.
+	var decide func(fields []groupField, ambiguous bool)
+	decide = func(fields []groupField, ambiguous bool) {
+		byName := make(map[string][]groupField)
+		var names []string
+		for _, gf := range fields {
+			name, _, _ := ast.LabelName(gf.field.Label)
+			if byName[name] == nil {
+				names = append(names, name)
+			}
+			byName[name] = append(byName[name], gf)
+		}
+		for _, name := range names {
+			decls := byName[name]
+			viaComp := false
+			for _, gf := range decls {
+				if gf.group == outerGroup {
+					continue
+				}
+				viaComp = true
+				if ambiguous {
+					continue
+				}
+				// A declaration from another group is a conjunct of its
+				// own and widens the field; one from the same group is
+				// unified into this conjunct, so only an explicit
+				// ellipsis in it reopens the field.
+				widened := slices.ContainsFunc(decls, func(other groupField) bool {
+					return other.field != gf.field &&
+						(other.group != gf.group || mayReopen(other.field.Value))
+				})
+				if !widened {
+					closed[gf.field] = true
+				}
+			}
+			if !viaComp {
+				// Nothing at this path came through a comprehension, so
+				// a literal below it starts a struct of its own.
+				continue
+			}
+			var sub []groupField
+			subAmbiguous := ambiguous
+			for _, gf := range decls {
+				s, ok := gf.field.Value.(*ast.StructLit)
+				if !ok {
+					// The value's own declarations cannot be known.
+					subAmbiguous = true
+					continue
+				}
+				nested[s] = true
+				subAmbiguous = collect(s.Elts, gf.group, &sub) || subAmbiguous
+			}
+			if len(sub) > 0 {
+				decide(sub, subAmbiguous)
+			}
+		}
+	}
+
+	// The walk is in preorder, so a struct is classified by its parent
+	// before it is reached, and the descent of an enclosing struct claims
+	// the nested literals before the walk gets to them.
+	ast.Walk(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.File:
+			markInlined(n.Decls)
+			// The files of a package share the top level of a file, so
+			// nothing reached through a comprehension there is decided.
+			var top []groupField
+			collect(n.Decls, outerGroup, &top)
+			decide(top, true)
+		case *ast.Comprehension:
+			if s, ok := n.Value.(*ast.StructLit); ok && !inlined[s] {
+				compRoot[s] = true
+			}
+		case *ast.StructLit:
+			markInlined(n.Elts)
+			if inlined[n] || nested[n] {
+				return true
+			}
+			g := outerGroup
+			if compRoot[n] {
+				group++
+				g = group
+			}
+			var fields []groupField
+			before := group
+			ambiguous := collect(n.Elts, g, &fields)
+			if g != outerGroup || group != before {
+				// Something here arrived through a comprehension.
+				decide(fields, ambiguous)
+			}
+		}
+		return true
+	}, nil)
+	return closed
+}
+
+// groupField is one field declaration landing in a struct, paired with the
+// widening group it arrives through; see [oldClosedCompFields].
+type groupField struct {
+	field *ast.Field
+	group int
+}
+
+// mayReopen reports whether a value unified into a closed one may reopen it.
+// The old semantics intersected the closedness of the conjuncts one
+// comprehension body contributed, so only an explicit ellipsis, or a value
+// whose declarations cannot be known, widened what the field allowed.
+func mayReopen(expr ast.Expr) bool {
+	s, ok := expr.(*ast.StructLit)
+	if !ok {
+		return true
+	}
+	for _, d := range s.Elts {
+		switch d := d.(type) {
+		case *ast.Ellipsis:
+			return true
+		case *ast.EmbedDecl:
+			if mayReopen(d.Expr) {
+				return true
+			}
+		case *ast.Comprehension:
+			if mayReopen(d.Value) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // openCompFieldValue adds a postfix ellipsis to a field value inside a
