@@ -4,6 +4,10 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): compClosedField records today's rewrite, which opens a
+# comprehension field value even where nothing beside it could widen the
+# field. Its assertions on the closing follow once the rewrite keeps it.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -333,6 +337,173 @@ compScalarField: {
 		{string: {a: int}, c: true, f: {a: int, b: 2}})
 }
 
+// A comprehension field value which has no other declaration beside it
+// was closed by the old semantics, so it needs no ellipsis. Only the
+// declarations of the struct literal holding the comprehension, of the
+// literals it embeds, and of its other comprehension bodies could
+// widen the field.
+compClosedField: {
+	#A: {a: int}
+	#B: {f?: {...}}
+
+	// Nothing beside the comprehension: the field stays closed.
+	plain: {
+		c: bool
+		if c {
+			f: #A
+		}
+	}
+	t1: plain & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+
+	// A declaration beside the comprehension widens the field.
+	sibling: {
+		c:  bool
+		f?: {...}
+		if c {
+			f: #A
+		}
+	}
+	t3: sibling & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	// Another literal for the same struct does not: it is another
+	// conjunct of the field rather than a declaration beside it.
+	otherLiteral: {
+		c: bool
+		if c {
+			f: #A
+		}
+	}
+	otherLiteral: f?: {...}
+
+	// An embedding and a pattern constraint may both declare the field,
+	// so those keep the ellipsis.
+	viaEmbed: {
+		#B
+		if true {
+			f: #A
+		}
+	}
+	t5: viaEmbed & {f: {b: 2}} @test(eq, {f: {a: int, b: 2}})
+
+	viaPattern: {
+		[string]: {...}
+		if true {
+			f: #A
+		}
+	}
+	t6: viaPattern & {f: {b: 2}} @test(eq, {f: {a: int, b: 2}})
+
+	// A comprehension producing list elements has no declaration beside
+	// it either.
+	inList: [for v in [1] {f: #A}]
+}
+
+// The declarations of one comprehension body arrive as a single conjunct,
+// so they intersect rather than widen each other; a body beside or below
+// it is a conjunct of its own.
+compBodyField: {
+	#A: {a: int}
+
+	// A second declaration in the same body does not widen the field.
+	twice: {
+		c: bool
+		if c {
+			f: #A
+			f: {a: int}
+		}
+	}
+	t1: twice & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+
+	// An explicit ellipsis in it does.
+	twiceOpen: {
+		c: bool
+		if c {
+			f: #A
+			f: {b?: int, ...}
+		}
+	}
+	t3: twiceOpen & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	// Another comprehension body widens the field, whether it stands
+	// beside the first or below it.
+	otherBody: {
+		c: bool
+		if c {
+			f: #A
+		}
+		if c {
+			f: {b?: int}
+		}
+	}
+	t4: otherBody & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	nestedBody: {
+		c: bool
+		if c {
+			if c {
+				f: #A
+			}
+			f: {b?: int}
+		}
+	}
+	t5: nestedBody & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+}
+
+// A field nested below one reached through a comprehension is decided the
+// same way, one level down: only a declaration of its own label inside a
+// widening declaration of the enclosing field widens it.
+compNestedField: {
+	#A: {a: int}
+
+	// Nothing declares the nested path beside the comprehension.
+	plain: {
+		c: bool
+		if c {
+			f: g: #A
+		}
+	}
+	t1: plain & {c: true, f: g: a: 1} @test(eq, {c: true, f: {g: {a: 1}}})
+
+	// A declaration of the path beside it widens the nested field.
+	sibling: {
+		c: bool
+		if c {
+			f: g: #A
+		}
+		f: {g?: {...}}
+	}
+	t3: sibling & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
+
+	// A declaration of the enclosing field which declares no g does not,
+	// whatever its own ellipsis allows of f.
+	openEnclosing: {
+		c: bool
+		if c {
+			f: g: #A
+		}
+		f: {...}
+	}
+
+	// Nor does a second declaration of the path in the same body.
+	sameBody: {
+		c: bool
+		if c {
+			f: g: #A
+			f: g: {b?: int}
+		}
+	}
+
+	// An explicit ellipsis at the nested path in the same body does.
+	sameBodyOpen: {
+		c: bool
+		if c {
+			f: g: #A
+			f: g: {...}
+		}
+	}
+	t6: sameBodyOpen & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
+}
+
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
     ./in.cue:13:11
@@ -432,6 +603,30 @@ compScalarField: {
     ./in.cue:303:6
 [incomplete] compScalarField.shadow: incomplete bool: bool:
     ./in.cue:313:11
+[incomplete] compClosedField.plain: incomplete bool: bool:
+    ./in.cue:333:6
+[incomplete] compClosedField.sibling: incomplete bool: bool:
+    ./in.cue:342:7
+[incomplete] compClosedField.otherLiteral: incomplete bool: bool:
+    ./in.cue:353:6
+[incomplete] compBodyField.twice: incomplete bool: bool:
+    ./in.cue:391:6
+[incomplete] compBodyField.twiceOpen: incomplete bool: bool:
+    ./in.cue:401:6
+[incomplete] compBodyField.otherBody: incomplete bool: bool:
+    ./in.cue:412:6
+[incomplete] compBodyField.nestedBody: incomplete bool: bool:
+    ./in.cue:423:6
+[incomplete] compNestedField.plain: incomplete bool: bool:
+    ./in.cue:442:6
+[incomplete] compNestedField.sibling: incomplete bool: bool:
+    ./in.cue:451:6
+[incomplete] compNestedField.openEnclosing: incomplete bool: bool:
+    ./in.cue:462:6
+[incomplete] compNestedField.sameBody: incomplete bool: bool:
+    ./in.cue:471:6
+[incomplete] compNestedField.sameBodyOpen: incomplete bool: bool:
+    ./in.cue:480:6
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -748,4 +943,171 @@ compScalarField: {
 	}
 	t2: shadow & {c: true, f: {b: 2}} @test(eq,
 		{string: {a: int}, c: true, f: {a: int, b: 2}})
+}
+
+// A comprehension field value which has no other declaration beside it
+// was closed by the old semantics, so it needs no ellipsis. Only the
+// declarations of the struct literal holding the comprehension, of the
+// literals it embeds, and of its other comprehension bodies could
+// widen the field.
+compClosedField: {
+	#A: {a: int}
+	#B: {f?: {...}}
+
+	// Nothing beside the comprehension: the field stays closed.
+	plain: {
+		c: bool
+		if c {
+			f: #A...
+		}
+	}
+	t1: plain & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+
+	// A declaration beside the comprehension widens the field.
+	sibling: {
+		c:  bool
+		f?: {...}
+		if c {
+			f: #A...
+		}
+	}
+	t3: sibling & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	// Another literal for the same struct does not: it is another
+	// conjunct of the field rather than a declaration beside it.
+	otherLiteral: {
+		c: bool
+		if c {
+			f: #A...
+		}
+	}
+	otherLiteral: f?: {...}
+
+	// An embedding and a pattern constraint may both declare the field,
+	// so those keep the ellipsis.
+	viaEmbed: __closeAll({
+		#B...
+		if true {
+			f: #A...
+		}
+	})
+	t5: viaEmbed & {f: {b: 2}} @test(eq, {f: {a: int, b: 2}})
+
+	viaPattern: {
+		[string]: {...}
+		if true {
+			f: #A...
+		}
+	}
+	t6: viaPattern & {f: {b: 2}} @test(eq, {f: {a: int, b: 2}})
+
+	// A comprehension producing list elements has no declaration beside
+	// it either.
+	inList: [for v in [1] {f: #A...}]
+}
+
+// The declarations of one comprehension body arrive as a single conjunct,
+// so they intersect rather than widen each other; a body beside or below
+// it is a conjunct of its own.
+compBodyField: {
+	#A: {a: int}
+
+	// A second declaration in the same body does not widen the field.
+	twice: {
+		c: bool
+		if c {
+			f: #A...
+			f: {a: int}
+		}
+	}
+	t1: twice & {c: true, f: {a: 1}} @test(eq, {c: true, f: {a: 1}})
+
+	// An explicit ellipsis in it does.
+	twiceOpen: {
+		c: bool
+		if c {
+			f: #A...
+			f: {b?: int, ...}
+		}
+	}
+	t3: twiceOpen & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	// Another comprehension body widens the field, whether it stands
+	// beside the first or below it.
+	otherBody: {
+		c: bool
+		if c {
+			f: #A...
+		}
+		if c {
+			f: {b?: int}
+		}
+	}
+	t4: otherBody & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+
+	nestedBody: {
+		c: bool
+		if c {
+			if c {
+				f: #A...
+			}
+			f: {b?: int}
+		}
+	}
+	t5: nestedBody & {c: true, f: {b: 2}} @test(eq, {c: true, f: {a: int, b: 2}})
+}
+
+// A field nested below one reached through a comprehension is decided the
+// same way, one level down: only a declaration of its own label inside a
+// widening declaration of the enclosing field widens it.
+compNestedField: {
+	#A: {a: int}
+
+	// Nothing declares the nested path beside the comprehension.
+	plain: {
+		c: bool
+		if c {
+			f: g: #A...
+		}
+	}
+	t1: plain & {c: true, f: g: a: 1} @test(eq, {c: true, f: {g: {a: 1}}})
+
+	// A declaration of the path beside it widens the nested field.
+	sibling: {
+		c: bool
+		if c {
+			f: g: #A...
+		}
+		f: {g?: {...}}
+	}
+	t3: sibling & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
+
+	// A declaration of the enclosing field which declares no g does not,
+	// whatever its own ellipsis allows of f.
+	openEnclosing: {
+		c: bool
+		if c {
+			f: g: #A...
+		}
+		f: {...}
+	}
+
+	// Nor does a second declaration of the path in the same body.
+	sameBody: {
+		c: bool
+		if c {
+			f: g: #A...
+			f: g: {b?: int}
+		}
+	}
+
+	// An explicit ellipsis at the nested path in the same body does.
+	sameBodyOpen: {
+		c: bool
+		if c {
+			f: g: #A...
+			f: g: {...}
+		}
+	}
+	t6: sameBodyOpen & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
 }

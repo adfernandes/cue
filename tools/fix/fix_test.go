@@ -293,6 +293,66 @@ lib: v:  #HC
 		},
 
 		{
+			// A comprehension field value with nothing beside it to widen
+			// the field was closed by the old semantics, so it needs no
+			// ellipsis, and a field nested below it is decided the same
+			// way. The top level of a file is shared with the other files
+			// of the package, whose declarations the fixer cannot see, so
+			// a field value reached through a comprehension there keeps
+			// one.
+			// TODO: the field of s is opened too; it should stay "#A".
+			name:    "closed field values in comprehensions (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
+			in: `package foo
+
+#A: {a: int}
+
+s: {
+	c: bool
+	if c {
+		f: #A
+	}
+}
+
+n: {
+	c: bool
+	if c {
+		f: g: #A
+	}
+}
+
+if true {
+	g: h: #A
+}
+`,
+			out: `@experiment(explicitopen)
+
+package foo
+
+#A: {a: int}
+
+s: {
+	c: bool
+	if c {
+		f: #A...
+	}
+}
+
+n: {
+	c: bool
+	if c {
+		f: g: #A...
+	}
+}
+
+if true {
+	g: h: #A...
+}
+`,
+		},
+
+		{
 			// The default marker *X takes on X's closedness: a disjunction
 			// with a defaulted definition operand needs a runtime __reclose
 			// check when embedded, and must be opened as a comprehension
