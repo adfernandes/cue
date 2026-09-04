@@ -4,10 +4,6 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
-# TODO(fix): soleEmbedNested, soleEmbedClose and soleEmbedAttr record
-# today's rewrite, which spreads an embedding that is its literal's whole
-# value. Their assertions follow once the rewrite leaves it alone.
-
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -131,7 +127,7 @@ parenConj: {
 	(#A & _repo)
 }
 
-// Embedded close() with def arg → __closeAll wraps, close() left as-is.
+// Embedded close() with def arg, single embed → left alone.
 embeddedCloseOnly: {
 	close(#A)
 }
@@ -302,8 +298,8 @@ nestedClose: {
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
 }
 
-// A single embedded struct literal whose own embedding was opened
-// carries its closing in the flags alone.
+// A struct literal embedded as the whole value of another needs no
+// opening, so the closing the reference carries is kept as it is.
 nestedSingleEmbed: {
 	o: close({b: int})
 	v: {
@@ -383,6 +379,11 @@ soleEmbedNested: {
 		{o}
 	}
 	w: {{{o}}}
+
+	t1: v & {b: 1, n: m: 2} @test(eq, {b: 1, n: {m: 2}})
+	t2: v & {c: 1}          @test(err, code=eval, path=c, contains="field not allowed")
+	t3: v & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
+	t4: w & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
 }
 
 // A close() call which is its literal's whole value needs no hoisting
@@ -391,6 +392,10 @@ soleEmbedNested: {
 soleEmbedClose: {
 	o: close({b: int, n: close({m: int})})
 	v: {close(o)}
+
+	t1: v & {b: 1, n: m: 2} @test(eq, {b: 1, n: {m: 2}})
+	t2: v & {c: 1}          @test(err, code=eval, path=c, contains="field not allowed")
+	t3: v & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
 }
 
 // An attribute declares nothing, so a literal carrying one beside its
@@ -401,6 +406,9 @@ soleEmbedAttr: {
 		{o}
 		@foo()
 	}
+
+	t1: v & {c: 1}    @test(err, code=eval, path=c, contains="field not allowed")
+	t2: v & {n: q: 1} @test(err, code=eval, contains="field not allowed")
 }
 
 // A literal which declares something beside the embedding is not
@@ -795,7 +803,9 @@ closeOnly: {
 
 // close()-only single embed → {close(X)} ≡ close(X).
 singleClose: {
-	v:  close({a: int})
+	v: {
+		close({a: int})
+	}
 	t1: v & {a: 1}   @test(eq, {a: 1})
 	t2: v & {c: int} @test(err, code=eval, path=c, contains="field not allowed")
 }
@@ -803,9 +813,9 @@ singleClose: {
 // close() of an open reference, single embed.
 singleCloseRef: {
 	o: b: int
-	v: close(__reclose({
-		o...
-	}))
+	v: {
+		close(o)
+	}
 	t1: v & {b: 1}   @test(eq, {b: 1})
 	t2: v & {c: int} @test(err, code=eval, path=c, contains="field not allowed")
 }
@@ -884,9 +894,9 @@ parenConj: {
 	(#A & _repo)
 }
 
-// Embedded close() with def arg → __closeAll wraps, close() left as-is.
+// Embedded close() with def arg, single embed → left alone.
 embeddedCloseOnly: {
-	#A
+	close(#A)
 }
 
 // Embedded close() with def arg + extra field → __closeAll wraps.
@@ -1060,11 +1070,13 @@ nestedClose: {
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
 }
 
-// A single embedded struct literal whose own embedding was opened
-// carries its closing in the flags alone.
+// A struct literal embedded as the whole value of another needs no
+// opening, so the closing the reference carries is kept as it is.
 nestedSingleEmbed: {
 	o: close({b: int})
-	v: __reclose({o...})
+	v: {
+		{o}
+	}
 
 	t1: v & {b: 1} @test(eq, {b: 1})
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
@@ -1146,8 +1158,15 @@ disjunctNested: {
 // nested paths as well.
 soleEmbedNested: {
 	o: close({b: int, n: close({m: int})})
-	v: __reclose({o...})
-	w: __reclose({{o...}})
+	v: {
+		{o}
+	}
+	w: {{{o}}}
+
+	t1: v & {b: 1, n: m: 2} @test(eq, {b: 1, n: {m: 2}})
+	t2: v & {c: 1}          @test(err, code=eval, path=c, contains="field not allowed")
+	t3: v & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
+	t4: w & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
 }
 
 // A close() call which is its literal's whole value needs no hoisting
@@ -1155,17 +1174,24 @@ soleEmbedNested: {
 // while hoisting spreads its argument.
 soleEmbedClose: {
 	o: close({b: int, n: close({m: int})})
-	v: close(__reclose({o...}))
+	v: {close(o)}
+
+	t1: v & {b: 1, n: m: 2} @test(eq, {b: 1, n: {m: 2}})
+	t2: v & {c: 1}          @test(err, code=eval, path=c, contains="field not allowed")
+	t3: v & {n: q: 1}       @test(err, code=eval, contains="field not allowed")
 }
 
 // An attribute declares nothing, so a literal carrying one beside its
 // embedding is still that embedding alone.
 soleEmbedAttr: {
 	o: close({b: int, n: close({m: int})})
-	v: __reclose({
-		{o...}
+	v: {
+		{o}
 		@foo()
-	})
+	}
+
+	t1: v & {c: 1}    @test(err, code=eval, path=c, contains="field not allowed")
+	t2: v & {n: q: 1} @test(err, code=eval, contains="field not allowed")
 }
 
 // A literal which declares something beside the embedding is not

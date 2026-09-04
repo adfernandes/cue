@@ -548,9 +548,10 @@ package foo
 		},
 
 		{
-			// A hoisted close() must keep closing the struct when it is
-			// the only element: under the old semantics {close(X)} is
-			// equivalent to close(X).
+			// A close() which is the only element of its struct closes
+			// it as it did before: {close(X)} is equivalent to close(X)
+			// in both eras, so the call is left where it is rather than
+			// hoisted to wrapper level.
 			name:    "keep closing of single close() embeds (fixExplicitOpen)",
 			exps:    []string{"explicitopen"},
 			version: oldEmbedVersion,
@@ -561,14 +562,12 @@ o: {b: int}
 s1: {close({c: 3})}
 s2: {close(o)}
 `,
-			out: `@experiment(explicitopen)
-
-package foo
+			out: `package foo
 
 o: {b: int}
 
-s1: close({c: 3})
-s2: close(__reclose({o...}))
+s1: {close({c: 3})}
+s2: {close(o)}
 `,
 		},
 
@@ -588,9 +587,7 @@ v: {
 	c: 2
 }
 `,
-			out: `@experiment(explicitopen)
-
-package foo
+			out: `package foo
 
 #D: a: 1
 v: {
@@ -605,11 +602,6 @@ v: {
 			// equivalent to that embedding, so the embedding needs no
 			// spread and the literal no wrapper. A literal which
 			// declares something beside the embedding does need both.
-			//
-			// TODO(fix): the outputs of v1 to v4 record today's rewrite,
-			// which spreads such an embedding and thereby opens the
-			// closedness of the embedded value's nested paths, and
-			// drops the comments on the literal it collapses.
 			name:    "whole-value embeddings need no opening (fixExplicitOpen)",
 			exps:    []string{"explicitopen"},
 			version: oldEmbedVersion,
@@ -640,13 +632,18 @@ package foo
 
 o: close({b: int, n: close({m: int})})
 
-v1: __reclose({o...})
-v2: __reclose({{o...}})
-v3: __reclose({o...})
-v4: __reclose({
-	{o...}
+v1: {
+	{o}
+}
+v2: {{{o}}}
+v3: {
+	// leading comment
+	{o} // trailing comment
+}
+v4: {
+	{o}
 	@foo()
-})
+}
 w: __reclose({
 	{o...}
 	b: int

@@ -69,6 +69,16 @@ type closeInfo struct {
 	// value lose the old conditional closing and get a TODO comment.
 	compValue bool
 
+	// An embedding declared directly in the struct literal being
+	// traversed is that literal's whole value: the literal has no other
+	// element, and the literal is itself the whole value of the position
+	// it appears in. Such an embedding needs no opening, as { X } is
+	// equivalent to X — the literal declares nothing of its own which
+	// the old semantics opened X for. Unlike suspendReclose it follows
+	// from the position of the literal, so it carries through the
+	// embedding of a nested literal.
+	wholeValue bool
+
 	embedFlags
 }
 
@@ -114,13 +124,20 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 	// declarations and decides its wrapper from exactly those: flags
 	// must not leak to sibling literals in the same scope. Enclosing
 	// literals re-collect them through collectEmbedFlags, which
-	// descends into embedded literals.
-	var flagsStack []embedFlags
+	// descends into embedded literals. litStack saves the enclosing
+	// literal's flags, and its wholeValue, which soleEmbed re-decides
+	// per literal.
+	var litStack []closeInfo
 	result = astutil.Apply(f, func(c astutil.Cursor) bool {
 		n := c.Node()
 		switch n := n.(type) {
 		case *ast.Field:
-			next := closeInfo{}
+			// A field's value is not embedded in anything, so a literal
+			// there is the whole value of its position. Inside a
+			// comprehension it is not: the old semantics opened the
+			// conjunct the comprehension inserted, whatever it declared
+			// (see openCompFieldValue).
+			next := closeInfo{wholeValue: !info.inComprehension}
 			// Fields with definition labels reclose on their own. Fields
 			// inside comprehensions never wrap: a wrapper would deny
 			// fields that the old semantics allowed (see
@@ -132,8 +149,11 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 
 		case *ast.BinaryExpr:
 			if n.Op == token.AND || n.Op == token.OR {
-				pushScope(closeInfo{})
+				pushScope(closeInfo{wholeValue: true})
 			}
+
+		case *ast.LetClause, *ast.ListLit, *ast.Alias:
+			pushScope(closeInfo{wholeValue: true})
 
 		case *ast.Comprehension:
 			// Comprehensions are a scope boundary like conjunctions:
@@ -165,8 +185,10 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 					return false
 				}
 			}
-			flagsStack = append(flagsStack, info.embedFlags)
+			litStack = append(litStack, info)
 			info.embedFlags = embedFlags{}
+			_, sole := soleEmbed(n)
+			info.wholeValue = info.wholeValue && sole
 		}
 		return true
 	}, func(c astutil.Cursor) bool {
@@ -189,7 +211,7 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 				popScope(c)
 			}
 
-		case *ast.Comprehension:
+		case *ast.LetClause, *ast.ListLit, *ast.Alias, *ast.Comprehension:
 			popScope(c)
 
 		case *ast.EmbedDecl:
@@ -199,7 +221,7 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 			// embeddings (e.g. inside struct operands of a conjunction)
 			// have already been processed; a Replace in the pre-visit
 			// would prevent the children from being traversed at all.
-			newExpr, exprChanged, flags := openEmbedExpr(n.Expr)
+			newExpr, exprChanged, flags := openEmbedExpr(n.Expr, info.wholeValue)
 			info.embedFlags = info.embedFlags.or(flags)
 			if exprChanged {
 				if info.compValue {
@@ -216,8 +238,9 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 
 		case *ast.StructLit:
 			flags := info.embedFlags
-			info.embedFlags = flagsStack[len(flagsStack)-1]
-			flagsStack = flagsStack[:len(flagsStack)-1]
+			saved := litStack[len(litStack)-1]
+			litStack = litStack[:len(litStack)-1]
+			info.embedFlags, info.wholeValue = saved.embedFlags, saved.wholeValue
 			if !info.shouldReclose() {
 				// The literal cannot take a wrapper of its own, so the
 				// scope which decides the wrapper needs its flags. A
@@ -228,49 +251,20 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 			} else if c.Modified() {
 				hasChanges = true
 
-				// A hoisted close() carries its closing only in the close
-				// flag, so the single-embed shortcuts below would drop it.
-				// They still apply when the embedded expression guarantees
-				// the closing by itself (a definition, with no operand
-				// that needs a runtime check).
-				closeSubsumed := flags.def && !flags.other && !flags.forceReclose
-
-				// Single embedding: { expr } ≡ expr, so the wrapper can
-				// often be omitted. This is decided in post-processing
-				// (after ... was added) because at the EmbedDecl
-				// pre-visit level we don't yet know the parent struct's
-				// element count.
+				// Single embedding: { expr } ≡ expr. wholeValue keeps
+				// the ... off such an embedding, so what is left here is
+				// the struct argument of a hoisted close() call, or a
+				// nested struct literal whose own embeddings were
+				// opened. Either way its closing is now carried by the
+				// flags alone, so the wrapper must restore it, applied
+				// to the embedded literal directly.
 				if embed, ok := singleEmbed(n); ok {
-					if pf, ok := embed.Expr.(*ast.PostfixExpr); ok && pf.Op == token.ELLIPSIS {
-						if !flags.close || closeSubsumed {
-							// Use the expression directly without
-							// wrapping; strip the ... since it is not
-							// needed outside a wrapper.
-							//
-							// TODO: this incorrectly fires for
-							// single-embed structs inside close() at
-							// field-value level, e.g. a: close({_repo}).
-							// Fix by tracking whether we are inside a
-							// close() argument.
-							embed.Expr = pf.X
-							c.ClearEnclosingModified()
-							break
-						}
-					} else {
-						// A bare embedding: the struct argument of a
-						// hoisted close() call, or a nested struct
-						// literal whose own embeddings were opened.
-						// Either way its closing is now carried by the
-						// flags alone, so the wrapper must restore it.
-						if !flags.mayBeClosed() {
-							c.ClearEnclosingModified()
-							break
-						}
-						// {X} for a struct literal X: unwrap it so that
-						// the wrapper applies to X directly.
-						if s, ok := embed.Expr.(*ast.StructLit); ok {
-							n = s
-						}
+					if !flags.mayBeClosed() {
+						c.ClearEnclosingModified()
+						break
+					}
+					if s, ok := embed.Expr.(*ast.StructLit); ok {
+						n = s
 					}
 				}
 
@@ -716,8 +710,7 @@ func collectEmbedFlags(expr ast.Expr) embedFlags {
 			case "close":
 				f := embedFlags{close: true}
 				if len(x.Args) == 1 {
-					_, _, af := openCloseArg(x.Args[0])
-					f = f.or(af)
+					f = f.or(collectEmbedFlags(x.Args[0]))
 				}
 				return f
 			case "and", "or":
@@ -758,7 +751,13 @@ func collectEmbedFlags(expr ast.Expr) embedFlags {
 // expressions always get ... on the whole expression; embedded close() calls
 // are hoisted; any other expression gets ... exactly when its flags indicate
 // it may resolve to a closed value.
-func openEmbedExpr(expr ast.Expr) (result ast.Expr, changed bool, flags embedFlags) {
+//
+// whole reports that the embedding is the whole value of its struct literal
+// (see [closeInfo.wholeValue]), in which case no opening is needed at all:
+// nothing is declared beside the embedding for the old semantics to have
+// opened it for, and an ellipsis would open the closedness of its nested
+// paths too, which no wrapper restores.
+func openEmbedExpr(expr ast.Expr, whole bool) (result ast.Expr, changed bool, flags embedFlags) {
 	switch x := expr.(type) {
 	case *ast.PostfixExpr:
 		// Already has ellipsis; still collect flags from the underlying
@@ -771,11 +770,17 @@ func openEmbedExpr(expr ast.Expr) (result ast.Expr, changed bool, flags embedFla
 			// Other binary ops (e.g. +, *) don't need ellipsis.
 			return expr, false, embedFlags{}
 		}
+		if whole {
+			break
+		}
 		// Add ... to the entire expression rather than each operand,
 		// even when no operand may resolve to a closed value.
 		return addEllipsis(expr), true, collectEmbedFlags(x)
 
 	case *ast.ParenExpr:
+		if whole {
+			break
+		}
 		// Add ... to the whole parenthesized expression.
 		return addEllipsis(expr), true, collectEmbedFlags(x)
 
@@ -794,7 +799,13 @@ func openEmbedExpr(expr ast.Expr) (result ast.Expr, changed bool, flags embedFla
 			// argument as the new embedding, and set the close flag
 			// so the containing struct gets close() wrapping.
 			if len(x.Args) == 1 {
-				newArg, _, f := openCloseArg(x.Args[0])
+				newArg, _, f := openCloseArg(x.Args[0], whole)
+				if whole && !f.mayBeClosed() {
+					// Nothing inside the argument was opened, and the
+					// literal declares nothing beside the call, so the
+					// call closes the literal just as it did before.
+					return expr, false, embedFlags{}
+				}
 				f.close = true
 				astutil.CopyMeta(newArg, x)
 				return newArg, true, f
@@ -803,6 +814,11 @@ func openEmbedExpr(expr ast.Expr) (result ast.Expr, changed bool, flags embedFla
 		}
 	}
 
+	if whole {
+		// Nothing to open, and no flags to report: a wrapper on the
+		// enclosing literal would close what the embedding leaves open.
+		return expr, false, embedFlags{}
+	}
 	if f := collectEmbedFlags(expr); f.mayBeClosed() {
 		return addEllipsis(expr), true, f
 	}
@@ -813,14 +829,22 @@ func openEmbedExpr(expr ast.Expr) (result ast.Expr, changed bool, flags embedFla
 // adding ... to any embeddings inside a struct literal. For non-struct
 // arguments, it returns the flags without modifying the expression
 // (adding ... to a bare identifier inside close() is not valid).
-func openCloseArg(expr ast.Expr) (ast.Expr, bool, embedFlags) {
+//
+// whole is as in [openEmbedExpr]: a close() call which is the whole value
+// of its literal passes it on, since its argument is then the whole value
+// of the call.
+func openCloseArg(expr ast.Expr, whole bool) (ast.Expr, bool, embedFlags) {
 	s, ok := expr.(*ast.StructLit)
 	if !ok {
 		// Non-struct argument: process like a regular embedding so that
 		// e.g. close(#A) → #A... when hoisted.
-		newExpr, _, f := openEmbedExpr(expr)
+		newExpr, _, f := openEmbedExpr(expr, whole)
 		return newExpr, f.mayBeClosed(), f
 	}
+	// An embedding is the whole value of the argument literal only if
+	// the literal declares nothing else, just as in the traversal.
+	_, sole := soleEmbed(s)
+	whole = whole && sole
 	var f embedFlags
 	var changed bool
 	newElts := make([]ast.Decl, len(s.Elts))
@@ -830,7 +854,7 @@ func openCloseArg(expr ast.Expr) (ast.Expr, bool, embedFlags) {
 		if !ok {
 			continue
 		}
-		newExpr, exprChanged, ef := openEmbedExpr(embed.Expr)
+		newExpr, exprChanged, ef := openEmbedExpr(embed.Expr, whole)
 		f = f.or(ef)
 		if exprChanged {
 			changed = true
@@ -845,14 +869,34 @@ func openCloseArg(expr ast.Expr) (ast.Expr, bool, embedFlags) {
 	return &newStruct, true, f
 }
 
+// soleEmbed returns the embedding which is the only declaration of s
+// contributing to its value, so that s is equivalent to it. Attributes
+// declare nothing and do not count, unlike in [singleEmbed], which the
+// rewrites dropping the braces of s use: those would drop the attribute.
+func soleEmbed(s *ast.StructLit) (*ast.EmbedDecl, bool) {
+	var found *ast.EmbedDecl
+	for _, d := range s.Elts {
+		switch d := d.(type) {
+		case *ast.Attribute:
+		case *ast.EmbedDecl:
+			if found != nil {
+				return nil, false
+			}
+			found = d
+		default:
+			return nil, false
+		}
+	}
+	return found, found != nil
+}
+
 // singleEmbed returns the sole element of s if it is a single embedded
 // declaration.
 func singleEmbed(s *ast.StructLit) (*ast.EmbedDecl, bool) {
 	if len(s.Elts) != 1 {
 		return nil, false
 	}
-	e, ok := s.Elts[0].(*ast.EmbedDecl)
-	return e, ok
+	return soleEmbed(s)
 }
 
 // soleEmbedExpr returns the expression which a single-embedding literal is

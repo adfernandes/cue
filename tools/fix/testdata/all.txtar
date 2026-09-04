@@ -14,6 +14,10 @@ X: {
 	#A
 }
 #Y: { #A }
+Z: {
+	#A
+	b: int
+}
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "all.test"
@@ -28,4 +32,8 @@ package foo
 X: {
 	#A
 }
-#Y: {#A...}
+#Y: {#A}
+Z: __closeAll({
+	#A...
+	b: int
+})
