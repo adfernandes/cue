@@ -237,6 +237,9 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 			}
 
 		case *ast.StructLit:
+			if openNestedClosing(n) {
+				hasChanges = true
+			}
 			flags := info.embedFlags
 			saved := litStack[len(litStack)-1]
 			litStack = litStack[:len(litStack)-1]
@@ -888,6 +891,276 @@ func soleEmbed(s *ast.StructLit) (*ast.EmbedDecl, bool) {
 		}
 	}
 	return found, found != nil
+}
+
+// openNestedClosing widens the closedness which an embedded struct literal
+// declares for a field with the labels the enclosing literal declares for
+// that same field. It reports whether it changed anything.
+//
+// Before v0.18.0 an embedding opened the closedness of the embedded value
+// along the paths the enclosing literal declares itself, recursively, so
+// that
+//
+//	v: {
+//		close({foo?: close({foo?: _})})
+//		foo: allowed: 5
+//	}
+//
+// permitted v.foo.allowed while still denying v & {foo: other: 6}. Neither
+// a spread of the embedded literal nor a wrapper around the enclosing one
+// reproduces that, as a spread opens the nested closedness for every
+// conjunct. Declaring the extended labels in the nested closed literal
+// does: the old semantics permitted exactly the union of both field sets
+// at every extended path, to any conjunct.
+func openNestedClosing(lit *ast.StructLit) (changed bool) {
+	// The old semantics inlined an embedded literal into the struct which
+	// embeds it, so the declarations of all of them opened the closedness
+	// of any value the struct embeds.
+	lits := embeddedLits(lit)
+	for i := 1; i < len(lits); i++ {
+		// A literal's own declarations, and those of the literals it
+		// embeds in turn, never opened its closedness: only the struct
+		// which embeds it did.
+		var decls []ast.Decl
+		for j, t := range lits {
+			if j < i || j >= i+lits[i].span {
+				decls = append(decls, t.lit.Elts...)
+			}
+		}
+		// An embedded literal is open by itself, so its own labels need
+		// no widening; only the closedness of their values does.
+		if widenFields(lits[i].lit, decls, false, false) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+// embeddedLit is one literal of an embedding tree in preorder, with the
+// number of entries its own subtree spans.
+type embeddedLit struct {
+	lit  *ast.StructLit
+	span int
+}
+
+// embeddedLits returns the struct literals which the expression expr
+// contributes as they are: expr itself if it is a literal, and those its
+// own embeddings contribute in turn. Any other embedded expression is
+// spread, which opens it recursively.
+func embeddedLits(expr ast.Expr) []embeddedLit {
+	s, ok := expr.(*ast.StructLit)
+	if !ok {
+		return nil
+	}
+	lits := []embeddedLit{{lit: s}}
+	for _, d := range s.Elts {
+		if embed, ok := d.(*ast.EmbedDecl); ok {
+			lits = append(lits, embeddedLits(embed.Expr)...)
+		}
+	}
+	lits[0].span = len(lits)
+	return lits
+}
+
+// widenClosing widens the closedness which expr imposes on a struct so
+// that the fields decls declares are allowed as well. It returns the
+// expression to use in place of expr, which differs from it only where a
+// closing had to be spread to be widened. closed says whether an
+// enclosing __closeAll closes expr already.
+func widenClosing(expr ast.Expr, decls []ast.Decl, closed bool) (result ast.Expr, changed bool) {
+	switch x := expr.(type) {
+	case *ast.ParenExpr:
+		x.X, changed = widenClosing(x.X, decls, closed)
+		return x, changed
+	case *ast.BinaryExpr:
+		// Every operand constrains the same field, so a closing in any of
+		// them denies what the enclosing literal adds.
+		if x.Op == token.AND || x.Op == token.OR {
+			var c1, c2 bool
+			x.X, c1 = widenClosing(x.X, decls, closed)
+			x.Y, c2 = widenClosing(x.Y, decls, closed)
+			changed = c1 || c2
+		}
+		return x, changed
+	}
+	s, recursive := closingLit(expr, closed)
+	if s == nil {
+		// A reference to a definition is a closing with no literal to
+		// declare the added labels in, so spread it into one instead.
+		if ref, ok := definitionRef(expr); ok {
+			lit := &ast.StructLit{Elts: []ast.Decl{
+				&ast.EmbedDecl{Expr: addEllipsis(ref)},
+			}}
+			if !widenFields(lit, decls, true, true) {
+				return expr, false
+			}
+			ast.SetRelPos(lit, token.NoSpace)
+			return ast.NewCall(ast.NewIdent("__closeAll"), lit), true
+		}
+		return expr, false
+	}
+	for _, d := range s.Elts {
+		// An explicit ... keeps the literal open, and close() does not
+		// override it, so there is nothing to widen.
+		if _, ok := d.(*ast.Ellipsis); ok {
+			return expr, false
+		}
+	}
+	return expr, widenFields(s, decls, recursive, true)
+}
+
+// definitionRef returns the definition which expr provably references: an
+// identifier or a selector naming one, in either case possibly wrapped in
+// struct literals which embed nothing else, as { X } is equivalent to X.
+// A definition is closed, and closed recursively, so spreading it and
+// closing the union again reproduces the old widening of it.
+//
+// Any other reference has a closedness this fix cannot know. Spreading it
+// would open the closedness of its fields for every conjunct, which the
+// old semantics only did along the extended paths, so such a reference is
+// left as it is.
+func definitionRef(expr ast.Expr) (ast.Expr, bool) {
+	switch x := unparen(expr).(type) {
+	case *ast.StructLit:
+		if e, ok := soleEmbedExpr(x); ok {
+			return definitionRef(e)
+		}
+	case *ast.Ident:
+		if internal.IsDef(x.Name) {
+			return x, true
+		}
+	case *ast.SelectorExpr:
+		if id, ok := x.Sel.(*ast.Ident); ok && internal.IsDef(id.Name) {
+			return x, true
+		}
+	}
+	return nil, false
+}
+
+// widenValue returns the value to declare for a label which a closed
+// value does not declare itself, so that what the enclosing literal
+// declares below that label is allowed as well: a literal mirroring those
+// labels, as a recursive closing closes the widening it adds too, or top
+// where the enclosing literal declares no struct there at all.
+func widenValue(expr ast.Expr) ast.Expr {
+	decls, ok := ownDecls(expr)
+	if !ok {
+		return ast.NewIdent("_")
+	}
+	lit := &ast.StructLit{}
+	widenFields(lit, decls, true, true)
+	ast.SetRelPos(lit, token.NoSpace)
+	return lit
+}
+
+// widenFields widens the closedness of the values which s declares for the
+// fields decls extends, and declares the labels decls adds to s as
+// optional fields if inject is set. recursive says whether the closedness
+// of s is recursive, which makes a plain struct literal inside it closed.
+func widenFields(s *ast.StructLit, decls []ast.Decl, recursive, inject bool) (changed bool) {
+	for _, d := range decls {
+		f, ok := d.(*ast.Field)
+		if !ok {
+			continue
+		}
+		name, ok := widenLabel(f.Label)
+		if !ok {
+			continue
+		}
+		declared := false
+		for _, e := range s.Elts {
+			g, ok := e.(*ast.Field)
+			if !ok {
+				continue
+			}
+			if n, ok := widenLabel(g.Label); !ok || n != name {
+				continue
+			}
+			declared = true
+			// The label is allowed already, but the closedness of its
+			// value may deny what the enclosing literal adds below it.
+			own, _ := ownDecls(f.Value)
+			if v, c := widenClosing(g.Value, own, recursive); c {
+				g.Value, changed = v, true
+			}
+		}
+		if !declared && inject {
+			s.Elts = append(s.Elts, &ast.Field{
+				Label:      ast.NewStringLabel(name),
+				Constraint: token.OPTION,
+				Value:      widenValue(f.Value),
+			})
+			changed = true
+		}
+	}
+	return changed
+}
+
+// ownDecls returns the declarations which expr contributes as a struct
+// literal of its own, and whose labels the old semantics therefore allowed
+// along with those of an embedded value. It reports whether expr
+// contributes a struct literal at all, which an empty one does with no
+// declarations of its own.
+func ownDecls(expr ast.Expr) ([]ast.Decl, bool) {
+	switch x := unparen(expr).(type) {
+	case *ast.StructLit:
+		return x.Elts, true
+	case *ast.BinaryExpr:
+		// A disjunct's fields are allowed only where it is selected, so
+		// only a conjunction contributes all of its operands.
+		if x.Op == token.AND {
+			a, okA := ownDecls(x.X)
+			b, okB := ownDecls(x.Y)
+			return slices.Concat(a, b), okA || okB
+		}
+	}
+	return nil, false
+}
+
+// closingLit returns the struct literal whose field set expr closes, if
+// any, and whether it closes it recursively. closed says whether an
+// enclosing __closeAll closes expr already.
+func closingLit(expr ast.Expr, closed bool) (*ast.StructLit, bool) {
+	switch x := expr.(type) {
+	case *ast.StructLit:
+		// A literal is open by itself; only a __closeAll around it closes
+		// it, and then recursively.
+		if closed {
+			return x, true
+		}
+	case *ast.CallExpr:
+		id, ok := x.Fun.(*ast.Ident)
+		if !ok || len(x.Args) != 1 {
+			return nil, false
+		}
+		switch id.Name {
+		case "close", "__reclose":
+			// __reclose closes conditionally, in which case widening its
+			// literal is a no-op. close(__reclose(X)) is what a literal
+			// with a hoisted close() and an embedding which needs a
+			// runtime check gets, so unwrap either call.
+			if s, ok := x.Args[0].(*ast.StructLit); ok {
+				return s, false
+			}
+			return closingLit(x.Args[0], closed)
+		case "__closeAll":
+			if s, ok := x.Args[0].(*ast.StructLit); ok {
+				return s, true
+			}
+		}
+	}
+	return nil, false
+}
+
+// widenLabel returns the name of l if declaring that name can widen a
+// closed struct: a definition or hidden field is allowed regardless of
+// closedness, and a pattern or dynamic label declares no name at all.
+func widenLabel(l ast.Label) (string, bool) {
+	name, _, err := ast.LabelName(l)
+	if err != nil || internal.IsDefOrHidden(name) {
+		return "", false
+	}
+	return name, true
 }
 
 // singleEmbed returns the sole element of s if it is a single embedded
