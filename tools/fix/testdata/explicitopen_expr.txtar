@@ -4,6 +4,10 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): soleEmbedNested, soleEmbedClose and soleEmbedAttr record
+# today's rewrite, which spreads an embedding that is its literal's whole
+# value. Their assertions follow once the rewrite leaves it alone.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -369,6 +373,49 @@ disjunctNested: {
 	t1: v & {c: 1} @test(eq, {b: int, c: 1})
 }
 
+// A struct literal whose only element is an embedding is equivalent to
+// that embedding, at any nesting depth, so the embedding needs no
+// spread: a spread would open the closedness of the embedded value's
+// nested paths as well.
+soleEmbedNested: {
+	o: close({b: int, n: close({m: int})})
+	v: {
+		{o}
+	}
+	w: {{{o}}}
+}
+
+// A close() call which is its literal's whole value needs no hoisting
+// to wrapper level either: it closes the literal just as it did before,
+// while hoisting spreads its argument.
+soleEmbedClose: {
+	o: close({b: int, n: close({m: int})})
+	v: {close(o)}
+}
+
+// An attribute declares nothing, so a literal carrying one beside its
+// embedding is still that embedding alone.
+soleEmbedAttr: {
+	o: close({b: int, n: close({m: int})})
+	v: {
+		{o}
+		@foo()
+	}
+}
+
+// A literal which declares something beside the embedding is not
+// equivalent to it, and still needs the spread and the wrapper.
+soleEmbedSibling: {
+	o: close({b: int})
+	v: {
+		{o}
+		c: int
+	}
+
+	t1: v & {b: 1, c: 2} @test(eq, {b: 1, c: 2})
+	t2: v & {d: 1}       @test(err, code=eval, path=d, contains="field not allowed")
+}
+
 // Predeclared scalar types can never resolve to a closed struct, so a
 // comprehension field value of such a type needs no ellipsis. A field
 // of the same name shadows the predeclared identifier and does.
@@ -567,6 +614,18 @@ compNestedField: {
 	t6: sameBodyOpen & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
 }
 
+// A nested literal with fields of its own beside an embedding takes the
+// wrapper directly, in place of the literal which only embeds it.
+nestedUnwrap: {
+	#D: {a: int}
+	v: {
+		{#D, b: int}
+	}
+
+	t1: v & {a: 1, b: 2} @test(eq, {a: 1, b: 2})
+	t2: v & {c: 1}       @test(err, code=eval, path=c, contains="field not allowed")
+}
+
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
     ./in.cue:13:11
@@ -664,36 +723,53 @@ compNestedField: {
     ./in.cue:296:11
 [eval] disjunctDefsField.t2.D: field not allowed:
     ./in.cue:328:11
+[eval] soleEmbedSibling.t2.d: field not allowed:
+    ./in.cue:398:11
 [incomplete] compScalarField.s: incomplete bool: bool:
-    ./in.cue:363:6
+    ./in.cue:406:6
 [incomplete] compScalarField.shadow: incomplete bool: bool:
-    ./in.cue:313:11
+    ./in.cue:416:11
 [incomplete] compClosedField.plain: incomplete bool: bool:
-    ./in.cue:333:6
+    ./in.cue:436:6
 [eval] compClosedField.t2.f.b: field not allowed:
-    ./in.cue:339:28
+    ./in.cue:442:28
 [incomplete] compClosedField.sibling: incomplete bool: bool:
-    ./in.cue:343:7
+    ./in.cue:446:7
 [incomplete] compClosedField.otherLiteral: incomplete bool: bool:
-    ./in.cue:353:6
+    ./in.cue:457:6
+[eval] compClosedField.t4.f.b: field not allowed:
+    ./in.cue:463:35
+[eval] compClosedField.t7.f.b: field not allowed:
+    ./in.cue:486:23
 [incomplete] compBodyField.twice: incomplete bool: bool:
-    ./in.cue:391:6
+    ./in.cue:497:6
+[eval] compBodyField.t2.f.b: field not allowed:
+    ./in.cue:504:28
 [incomplete] compBodyField.twiceOpen: incomplete bool: bool:
-    ./in.cue:401:6
+    ./in.cue:508:6
 [incomplete] compBodyField.otherBody: incomplete bool: bool:
-    ./in.cue:412:6
+    ./in.cue:519:6
 [incomplete] compBodyField.nestedBody: incomplete bool: bool:
-    ./in.cue:423:6
+    ./in.cue:530:6
 [incomplete] compNestedField.plain: incomplete bool: bool:
-    ./in.cue:442:6
+    ./in.cue:549:6
+[eval] compNestedField.t2.f.g.b: field not allowed:
+    ./in.cue:555:30
 [incomplete] compNestedField.sibling: incomplete bool: bool:
-    ./in.cue:451:6
+    ./in.cue:559:6
 [incomplete] compNestedField.openEnclosing: incomplete bool: bool:
-    ./in.cue:462:6
+    ./in.cue:570:6
+[eval] compNestedField.t4.f.g.b: field not allowed:
+    ./in.cue:576:38
 [incomplete] compNestedField.sameBody: incomplete bool: bool:
-    ./in.cue:471:6
+    ./in.cue:580:6
+[eval] compNestedField.t5.f.g.b: field not allowed:
+    ./in.cue:583:11
+    ./in.cue:586:33
 [incomplete] compNestedField.sameBodyOpen: incomplete bool: bool:
-    ./in.cue:480:6
+    ./in.cue:590:6
+[eval] nestedUnwrap.t2.c: field not allowed:
+    ./in.cue:608:11
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -1064,6 +1140,47 @@ disjunctNested: {
 	t1: v & {c: 1} @test(eq, {b: int, c: 1})
 }
 
+// A struct literal whose only element is an embedding is equivalent to
+// that embedding, at any nesting depth, so the embedding needs no
+// spread: a spread would open the closedness of the embedded value's
+// nested paths as well.
+soleEmbedNested: {
+	o: close({b: int, n: close({m: int})})
+	v: __reclose({o...})
+	w: __reclose({{o...}})
+}
+
+// A close() call which is its literal's whole value needs no hoisting
+// to wrapper level either: it closes the literal just as it did before,
+// while hoisting spreads its argument.
+soleEmbedClose: {
+	o: close({b: int, n: close({m: int})})
+	v: close(__reclose({o...}))
+}
+
+// An attribute declares nothing, so a literal carrying one beside its
+// embedding is still that embedding alone.
+soleEmbedAttr: {
+	o: close({b: int, n: close({m: int})})
+	v: __reclose({
+		{o...}
+		@foo()
+	})
+}
+
+// A literal which declares something beside the embedding is not
+// equivalent to it, and still needs the spread and the wrapper.
+soleEmbedSibling: {
+	o: close({b: int})
+	v: __reclose({
+		{o...}
+		c: int
+	})
+
+	t1: v & {b: 1, c: 2} @test(eq, {b: 1, c: 2})
+	t2: v & {d: 1}       @test(err, code=eval, path=d, contains="field not allowed")
+}
+
 // Predeclared scalar types can never resolve to a closed struct, so a
 // comprehension field value of such a type needs no ellipsis. A field
 // of the same name shadows the predeclared identifier and does.
@@ -1260,4 +1377,14 @@ compNestedField: {
 		}
 	}
 	t6: sameBodyOpen & {c: true, f: g: b: 2} @test(eq, {c: true, f: {g: {a: int, b: 2}}})
+}
+
+// A nested literal with fields of its own beside an embedding takes the
+// wrapper directly, in place of the literal which only embeds it.
+nestedUnwrap: {
+	#D: {a: int}
+	v:  __closeAll({#D..., b: int})
+
+	t1: v & {a: 1, b: 2} @test(eq, {a: 1, b: 2})
+	t2: v & {c: 1}       @test(err, code=eval, path=c, contains="field not allowed")
 }

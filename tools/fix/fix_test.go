@@ -573,6 +573,88 @@ s2: close(__reclose({o...}))
 		},
 
 		{
+			// A whole-value embedding in a let clause needs no opening
+			// either, so a file with nothing else to rewrite is left
+			// alone: no spread, no wrapper, and no attribute.
+			name:    "whole-value embedding in a let clause (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
+			in: `package foo
+
+#D: a: 1
+v: {
+	let x = {#D}
+	b: x
+	c: 2
+}
+`,
+			out: `@experiment(explicitopen)
+
+package foo
+
+#D: a: 1
+v: {
+	let x = {#D}
+	b: x
+	c: 2
+}
+`,
+		},
+		{
+			// A struct literal whose only element is an embedding is
+			// equivalent to that embedding, so the embedding needs no
+			// spread and the literal no wrapper. A literal which
+			// declares something beside the embedding does need both.
+			//
+			// TODO(fix): the outputs of v1 to v4 record today's rewrite,
+			// which spreads such an embedding and thereby opens the
+			// closedness of the embedded value's nested paths, and
+			// drops the comments on the literal it collapses.
+			name:    "whole-value embeddings need no opening (fixExplicitOpen)",
+			exps:    []string{"explicitopen"},
+			version: oldEmbedVersion,
+			in: `package foo
+
+o: close({b: int, n: close({m: int})})
+
+v1: {
+	{o}
+}
+v2: {{{o}}}
+v3: {
+	// leading comment
+	{o} // trailing comment
+}
+v4: {
+	{o}
+	@foo()
+}
+w: {
+	{o}
+	b: int
+}
+`,
+			out: `@experiment(explicitopen)
+
+package foo
+
+o: close({b: int, n: close({m: int})})
+
+v1: __reclose({o...})
+v2: __reclose({{o...}})
+v3: __reclose({o...})
+v4: __reclose({
+	{o...}
+	@foo()
+})
+w: __reclose({
+	{o...}
+	b: int
+})
+`,
+		},
+
+		{
 			// Embedding flags must not leak between sibling struct
 			// literals in one scope: each literal's wrapper is decided by
 			// its own embeddings. A literal embedded directly in another
