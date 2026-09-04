@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -93,9 +93,7 @@ func TestToFile(t *testing.T) {
 
 			got := string(b)
 			want := strings.TrimLeft(tc.want, "\n")
-			if got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, want))
 		})
 	}
 }

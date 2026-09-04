@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/internal/cuetest"
 	"cuelang.org/go/mod/module"
@@ -249,9 +249,7 @@ func TestCheckFiles(t *testing.T) {
 			// Check the files.
 			cf, _ := modzip.CheckFiles(files, fakeFileIO{})
 			got := formatCheckedFiles(cf)
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("unexpected result; (-want +got):\n%s", diff)
-			}
+			qt.Check(t, qt.Equals(got, test.want))
 			// Check that the error (if any) is just a list of invalid files.
 			// SizeError is not covered in this test.
 			var gotErr string
@@ -299,9 +297,7 @@ func TestCheckDir(t *testing.T) {
 			cf, _ := modzip.CheckDir(tmpDir)
 			rep := strings.NewReplacer(tmpDir, "$work", `'\''`, `'\''`, string(os.PathSeparator), "/")
 			got := rep.Replace(formatCheckedFiles(cf))
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("unexpected result; (-want +got):\n%s", diff)
-			}
+			qt.Check(t, qt.Equals(got, test.want))
 
 			// Check that the error (if any) is just a list of invalid files.
 			// SizeError is not covered in this test.
@@ -349,9 +345,7 @@ func TestCheckZip(t *testing.T) {
 			m := module.MustNewVersion(test.path, test.version)
 			cf, checkZipErr := modzip.CheckZipFile(m, tmpZipPath)
 			got := formatCheckedFiles(cf)
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("unexpected result; (-want +got):\n%s", diff)
-			}
+			qt.Check(t, qt.Equals(got, test.want))
 
 			// Check that the error (if any) is just a list of invalid files.
 			// SizeError is not covered in this test.

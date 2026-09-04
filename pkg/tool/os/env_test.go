@@ -18,7 +18,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"cuelang.org/go/cue"
@@ -92,7 +92,7 @@ func TestGetenv(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		var opts = []cmp.Option{
+		qt.Assert(t, qt.CmpEquals[any](got, want,
 			cmpopts.IgnoreFields(ast.BinaryExpr{}, "OpPos"),
 			cmpopts.IgnoreFields(ast.BasicLit{}, "ValuePos"),
 			cmpopts.IgnoreUnexported(ast.BasicLit{}, ast.BinaryExpr{}),
@@ -101,11 +101,7 @@ func TestGetenv(t *testing.T) {
 				_, ok := want[s]
 				return !ok
 			}),
-		}
-
-		if diff := cmp.Diff(want, got, opts...); diff != "" {
-			t.Error(diff)
-		}
+		))
 
 		// Errors:
 		for _, etc := range []struct{ config, err string }{{

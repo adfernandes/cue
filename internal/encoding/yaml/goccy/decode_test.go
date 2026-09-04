@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/cuecontext"
@@ -1232,9 +1231,7 @@ func TestFiles(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if want := string(b); got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, string(b)))
 		})
 	}
 }

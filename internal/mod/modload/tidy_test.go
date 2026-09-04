@@ -10,7 +10,6 @@ import (
 
 	"cuelabs.dev/go/oci/ociregistry/ociclient"
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/tools/txtar"
 
 	"cuelang.org/go/mod/modcache"
@@ -53,10 +52,7 @@ func TestTidy(t *testing.T) {
 				qt.Assert(t, qt.IsNil(err))
 				out.Write(tidyFile)
 			}
-			if diff := cmp.Diff(string(want), out.String()); diff != "" {
-				t.Log("actual result:\n", out.String())
-				t.Fatalf("unexpected results (-want +got):\n%s", diff)
-			}
+			qt.Assert(t, qt.Equals(out.String(), string(want)))
 
 			// Ensure that CheckTidy does not error after a successful Tidy.
 			// We make a new txtar FS given that an FS is read-only.

@@ -21,7 +21,6 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/token"
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 )
 
 type keyVals [][3]string
@@ -118,9 +117,7 @@ func TestParseAttr(t *testing.T) {
 			for _, kv := range pa.Fields {
 				kvs = append(kvs, [3]string{kv.Key(), kv.Value(), kv.Text()})
 			}
-			if diff := cmp.Diff(tc.out, kvs); diff != "" {
-				t.Errorf("unexpected result; diff (-want +got)\n%s", diff)
-			}
+			qt.Assert(t, qt.DeepEquals(kvs, tc.out))
 		})
 	}
 }

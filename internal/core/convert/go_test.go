@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/apd/v3"
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/internal/core/adt"
@@ -340,9 +340,7 @@ func TestConvert(t *testing.T) {
 				n = &adt.Vertex{BaseValue: v}
 			}
 			got := debug.NodeString(ctx, n, nil)
-			if got != tc.want {
-				t.Error(cmp.Diff(tc.want, got))
-			}
+			qt.Assert(t, qt.Equals(got, tc.want))
 		})
 	}
 }

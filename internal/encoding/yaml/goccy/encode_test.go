@@ -18,8 +18,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-quicktest/qt"
 	yparser "github.com/goccy/go-yaml/parser"
-	"github.com/google/go-cmp/cmp"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
@@ -443,9 +443,7 @@ item: !!binary //4=
 				}
 			}
 			want := strings.TrimSpace(tc.out)
-			if got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, want))
 		})
 	}
 }
@@ -500,9 +498,7 @@ true
 			}
 			got := strings.TrimSpace(string(b))
 			want := strings.TrimSpace(tc.out)
-			if got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, want))
 		})
 	}
 }

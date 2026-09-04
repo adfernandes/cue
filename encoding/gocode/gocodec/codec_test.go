@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -183,9 +183,7 @@ func TestComplete(t *testing.T) {
 
 			err = codec.Complete(v, tc.value)
 			checkErr(t, err, tc.err)
-			if diff := cmp.Diff(tc.value, tc.result); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(tc.result, tc.value))
 		})
 	}
 }
@@ -216,9 +214,7 @@ func TestEncode(t *testing.T) {
 			}
 
 			got := reflect.ValueOf(tc.dst).Elem().Interface()
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(got, tc.want))
 		})
 	}
 }

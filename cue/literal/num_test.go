@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue/token"
+	"github.com/go-quicktest/qt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
@@ -100,13 +101,8 @@ func TestNumbers(t *testing.T) {
 			n.src = ""
 			n.p = 0
 			n.ch = 0
-			if diff := cmp.Diff(tc.n, n, diffOpts...); diff != "" {
-				t.Error(diff)
-				t.Errorf("%#v, %#v\n", n, tc.n)
-			}
-			if n.String() != tc.norm {
-				t.Errorf("got %v; want %v", n.String(), tc.norm)
-			}
+			qt.Assert(t, qt.CmpEquals(n, tc.n, diffOpts...))
+			qt.Assert(t, qt.Equals(n.String(), tc.norm))
 		})
 	}
 }

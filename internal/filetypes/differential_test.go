@@ -23,7 +23,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/internal/filetypes"
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
@@ -85,9 +85,8 @@ func TestDriverMatchesCUE(t *testing.T) {
 						}
 						if derr == nil {
 							want.Filename = b.Filename
-							if diff := cmp.Diff(want, fi, cmpopts.EquateEmpty()); diff != "" {
-								t.Errorf("[%s enc=%s interp=%q form=%q] FileInfo mismatch (-CUE +driver):\n%s", mode, enc, interp, form, diff)
-							}
+							qt.Check(t, qt.CmpEquals(fi, want, cmpopts.EquateEmpty()),
+								qt.Commentf("[%s enc=%s interp=%q form=%q] FileInfo mismatch", mode, enc, interp, form))
 						}
 					}
 				}
@@ -106,9 +105,8 @@ func TestDriverMatchesCUE(t *testing.T) {
 			return
 		}
 		if derr == nil {
-			if diff := cmp.Diff(oracle, f, cmpopts.EquateEmpty()); diff != "" {
-				t.Errorf("[%s %q %s] build.File mismatch (-CUE +driver):\n%s", mode, scope, filename, diff)
-			}
+			qt.Check(t, qt.CmpEquals(f, oracle, cmpopts.EquateEmpty()),
+				qt.Commentf("[%s %q %s] build.File mismatch", mode, scope, filename))
 		}
 	}
 
@@ -195,9 +193,8 @@ func TestDriverMatchesCUE(t *testing.T) {
 					continue
 				}
 				if derr == nil {
-					if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
-						t.Errorf("[%s %s] build.File mismatch (-CUE +driver):\n%s", mode, tc.scope, diff)
-					}
+					qt.Check(t, qt.CmpEquals(got, want, cmpopts.EquateEmpty()),
+						qt.Commentf("[%s %s] build.File mismatch", mode, tc.scope))
 				}
 			}
 		}

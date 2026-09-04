@@ -20,7 +20,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
@@ -513,9 +513,7 @@ func TestRelative(t *testing.T) {
 		got = append(got, fmt.Sprintf("%-7s %-8s %s", pos.RelPos(), tok, lit))
 		pos, tok, lit = S.Scan()
 	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
-	}
+	qt.Assert(t, qt.DeepEquals(got, want))
 }
 
 // Verify that initializing the same scanner more than once works correctly.
@@ -577,9 +575,7 @@ func TestFuncArrow(t *testing.T) {
 					break
 				}
 			}
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(got, tc.want))
 			if s.ErrorCount != 0 {
 				t.Errorf("found %d errors", s.ErrorCount)
 			}

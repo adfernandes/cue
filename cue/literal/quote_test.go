@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 )
 
 func TestQuote(t *testing.T) {
@@ -132,22 +132,18 @@ func TestQuote(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%q", tc.in), func(t *testing.T) {
 			got := tc.form.Quote(tc.in)
-			if got != tc.out {
-				t.Errorf("Quote: %s", cmp.Diff(tc.out, got))
-			}
+			qt.Assert(t, qt.Equals(got, tc.out), qt.Commentf("Quote"))
 
 			got = string(tc.form.Append(nil, tc.in))
-			if got != tc.out {
-				t.Errorf("Append: %s", cmp.Diff(tc.out, got))
-			}
+			qt.Assert(t, qt.Equals(got, tc.out), qt.Commentf("Append"))
 
 			str, err := Unquote(got)
 			if err != nil {
 				t.Errorf("Roundtrip error: %v", err)
 			}
 
-			if !tc.lossy && str != tc.in {
-				t.Errorf("Roundtrip: %s", cmp.Diff(tc.in, str))
+			if !tc.lossy {
+				qt.Assert(t, qt.Equals(str, tc.in), qt.Commentf("Roundtrip"))
 			}
 		})
 	}
@@ -169,9 +165,7 @@ func TestAppendEscaped(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.in, func(t *testing.T) {
 			buf := tc.form.AppendEscaped(nil, tc.in)
-			if got := string(buf); got != tc.out {
-				t.Error(cmp.Diff(tc.out, got))
-			}
+			qt.Assert(t, qt.Equals(string(buf), tc.out))
 		})
 	}
 }

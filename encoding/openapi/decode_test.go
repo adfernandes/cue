@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/tools/txtar"
 
 	"cuelang.org/go/cue"
@@ -114,9 +113,7 @@ func TestDecode(t *testing.T) {
 			if err != nil {
 				got = []byte(err.Error())
 			}
-			if diff := cmp.Diff(errout, got); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(got, errout))
 
 			if gotFile != nil {
 				// verify the generated CUE.
@@ -133,7 +130,7 @@ func TestDecode(t *testing.T) {
 				b = bytes.TrimSpace(b)
 				out = bytes.TrimSpace(out)
 
-				if diff := cmp.Diff(b, out); diff != "" {
+				if !bytes.Equal(b, out) {
 					if cuetest.UpdateGoldenFiles() {
 						a.Files[outIndex].Data = b
 						b = txtar.Format(a)
@@ -143,7 +140,7 @@ func TestDecode(t *testing.T) {
 						}
 						return
 					}
-					t.Error(cmp.Diff(string(b), string(out)))
+					qt.Assert(t, qt.Equals(string(b), string(out)))
 				}
 			}
 		})

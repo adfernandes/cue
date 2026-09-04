@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/tools/txtar"
 )
 
@@ -41,9 +40,7 @@ func TestAllPackageFiles(t *testing.T) {
 				out.WriteString("\n")
 				return true
 			})
-			if diff := cmp.Diff(string(want), out.String()); diff != "" {
-				t.Fatalf("unexpected results (-want +got):\n%s", diff)
-			}
+			qt.Assert(t, qt.Equals(out.String(), string(want)))
 			wantImports, err := fs.ReadFile(tfs, "want-imports")
 			qt.Assert(t, qt.IsNil(err))
 			out.Reset()
@@ -55,9 +52,8 @@ func TestAllPackageFiles(t *testing.T) {
 					fmt.Fprintln(&out, imp)
 				}
 			}
-			if diff := cmp.Diff(string(wantImports), out.String()); diff != "" {
-				t.Fatalf("unexpected results for ImportsForModuleFiles (-want +got):\n%s", diff)
-			}
+			qt.Assert(t, qt.Equals(out.String(), string(wantImports)),
+				qt.Commentf("unexpected results for ImportsForModuleFiles"))
 		})
 	}
 }

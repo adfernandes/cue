@@ -18,7 +18,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/internal/task"
@@ -108,9 +108,7 @@ func TestEnv(t *testing.T) {
 				t.Fatalf("mkCommand error = %v", err)
 			}
 
-			if diff := cmp.Diff(tc.env, cmd.Env); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(cmd.Env, tc.env))
 		})
 	}
 }

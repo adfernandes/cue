@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 )
 
 func TestMarshalling(t *testing.T) {
@@ -224,9 +224,7 @@ func TestMarshalMultiPackage(t *testing.T) {
 			}
 			got := strValue(insts)
 
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(got, want))
 		})
 	}
 }

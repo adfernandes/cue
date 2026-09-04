@@ -18,7 +18,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/ast"
 )
@@ -67,9 +67,7 @@ func TestImportInfo(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.DeepEquals(got, tc.want))
 		})
 	}
 }

@@ -26,7 +26,6 @@ import (
 	"testing/fstest"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -1253,10 +1252,8 @@ func TestFill(t *testing.T) {
 
 		w := mustCompile(t, ctx, tc.out)
 
-		if diff := cmp.Diff(goValue(w), goValue(v)); diff != "" {
-			t.Error(diff)
-			t.Errorf("\ngot:  %s\nwant: %s", v, w)
-		}
+		qt.Assert(t, qt.DeepEquals(goValue(v), goValue(w)),
+			qt.Commentf("got:  %s\nwant: %s", v, w))
 	}
 }
 
@@ -1525,10 +1522,8 @@ func TestFillPath(t *testing.T) {
 
 				w := mustCompile(t, ctx, tc.out)
 
-				if diff := cmp.Diff(goValue(w), goValue(v)); diff != "" {
-					t.Error(diff)
-					t.Errorf("\ngot:  %s\nwant: %s", v, w)
-				}
+				qt.Assert(t, qt.DeepEquals(goValue(v), goValue(w)),
+					qt.Commentf("got:  %s\nwant: %s", v, w))
 			})
 		}
 	})

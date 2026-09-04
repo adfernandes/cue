@@ -26,7 +26,6 @@ import (
 	"cuelang.org/go/internal/core/eval"
 	"cuelang.org/go/internal/cuetdtest"
 	"cuelang.org/go/internal/cuetest"
-	"github.com/google/go-cmp/cmp"
 )
 
 func TestValidate(t *testing.T) {
@@ -388,8 +387,5 @@ func TestValidate(t *testing.T) {
 		got := strings.TrimSpace(w.String())
 		got = strings.ReplaceAll(got, "\n", "\n\t\t\t\t")
 		t.Equal(got, tc.out)
-		if tc.out != got {
-			t.Error(cmp.Diff(tc.out, got))
-		}
 	})
 }

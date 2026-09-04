@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 	"go.yaml.in/yaml/v3"
 
 	"cuelang.org/go/cue/ast"
@@ -361,9 +361,7 @@ field: value
 				got = strings.TrimSpace(string(b))
 			}
 			want := strings.TrimSpace(tc.out)
-			if got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, want))
 		})
 	}
 }
@@ -422,9 +420,7 @@ true
 			}
 			got := strings.TrimSpace(string(b))
 			want := strings.TrimSpace(tc.out)
-			if got != want {
-				t.Error(cmp.Diff(want, got))
-			}
+			qt.Assert(t, qt.Equals(got, want))
 		})
 	}
 }

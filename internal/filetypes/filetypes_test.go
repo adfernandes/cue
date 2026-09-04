@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"cuelang.org/go/cue/build"
@@ -31,9 +30,7 @@ func check(t *testing.T, want, x interface{}, err error) {
 	if err != nil {
 		x = errors.String(err.(errors.Error))
 	}
-	if diff := cmp.Diff(want, x, cmpopts.EquateEmpty()); diff != "" {
-		t.Errorf("unexpected result; -want +got\n%s", diff)
-	}
+	qt.Assert(t, qt.CmpEquals(x, want, cmpopts.EquateEmpty()))
 }
 
 func TestAspectNames(t *testing.T) {
@@ -51,9 +48,7 @@ func TestAspectNames(t *testing.T) {
 		aReferences:   "references",
 		aStream:       "stream",
 	}
-	if diff := cmp.Diff(want, aspectNames); diff != "" {
-		t.Fatalf("aspect name mapping (-want +got):\n%s", diff)
-	}
+	qt.Assert(t, qt.DeepEquals(aspectNames, want))
 }
 
 func TestFromFile(t *testing.T) {

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
+	"github.com/go-quicktest/qt"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/errors"
@@ -68,9 +68,7 @@ func TestExtractDefinitions(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if diff := cmp.Diff(string(b), out.String()); diff != "" {
-				t.Error(diff)
-			}
+			qt.Assert(t, qt.Equals(out.String(), string(b)))
 		})
 	}
 }

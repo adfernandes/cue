@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/go-quicktest/qt"
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/tools/txtar"
 
 	"cuelang.org/go/cue/ast"
@@ -96,10 +95,7 @@ func TestLoadPackages(t *testing.T) {
 						}
 					}
 				}
-				if diff := cmp.Diff(want, out.String()); diff != "" {
-					t.Logf("actual result:\n%s", out.String())
-					t.Fatalf("unexpected results (-want +got):\n%s", diff)
-				}
+				qt.Assert(t, qt.Equals(out.String(), want))
 			})
 		}
 	}
