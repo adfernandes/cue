@@ -4,6 +4,16 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): the nestedOpen cases record today's rewrite, which leaves
+# the nested closedness of an embedded value strict. Their assertions
+# follow once the rewrite opens it along the paths the enclosing literal
+# declares itself.
+#
+# TODO(fix): the nestedOpenRef cases record today's rewrite, which leaves
+# a closing which is a definition reference strict: there is no literal
+# there to declare the extended label in. Their assertions follow once the
+# rewrite spreads the reference and closes the union again.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -634,6 +644,206 @@ nestedUnwrap: {
 	t2: v & {c: 1}       @test(err, code=eval, path=c, contains="field not allowed")
 }
 
+// The old embedding opened the closedness of an embedded value along the
+// paths the enclosing literal declares itself, and only for those.
+nestedOpen: {
+	v: {
+		close({foo?: close({foo?: _})})
+		foo: allowed: 5
+	}
+}
+
+// The opening reaches as deep as the enclosing literal extends.
+nestedOpenDeep: {
+	v: {
+		close({foo?: close({bar?: close({qux?: _})})})
+		foo: bar: baz: 1
+	}
+}
+
+// A field which the enclosing literal does not extend keeps its
+// closedness.
+nestedOpenSibling: {
+	v: {
+		close({foo?: close({foo?: _}), bar?: close({bar?: _})})
+		foo: allowed: 5
+	}
+}
+
+// Every operand of a disjunction or conjunction constrains the extended
+// field, so every one of them is opened.
+nestedOpenOperands: {
+	v: {
+		close({foo?: close({a?: _}) | close({b?: _})})
+		foo: allowed: 5
+	}
+	w: {
+		close({foo?: close({a?: _}) & close({a?: _})})
+		foo: allowed: 5
+	}
+}
+
+// The declarations of a sibling embedding open an embedded value just
+// like the enclosing literal's own fields, as the old semantics inlined
+// both into the struct which embeds them.
+nestedOpenEmbed: {
+	v: {
+		{foo?: close({foo?: _})}
+		{foo: allowed: 5}
+	}
+}
+
+// A literal's own declarations never opened its own closedness, so this
+// one is denied before and after.
+nestedOpenSelf: {
+	v: {
+		{foo?: close({foo?: _}), foo: allowed: 5}
+	}
+}
+
+// A definition reference is a closing with no literal to declare the
+// added label in, so the reference is spread and closed again.
+nestedOpenRef: {
+	#F: {foo?: _}
+	v: {
+		close({foo?: #F})
+		foo: allowed: 5
+	}
+
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}          @test(err, code=eval, contains="field not allowed")
+}
+
+// A selector naming a definition is one too.
+nestedOpenRefSel: {
+	lib: #F: {foo?: _}
+	v: {
+		close({foo?: lib.#F})
+		foo: allowed: 5
+	}
+
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}          @test(err, code=eval, contains="field not allowed")
+}
+
+// { X } is equivalent to X, so a literal which embeds nothing but a
+// definition carries its closing.
+nestedOpenRefEmbed: {
+	#F: {foo?: _}
+	v: {
+		close({foo?: {#F}})
+		foo: allowed: 5
+	}
+
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}          @test(err, code=eval, contains="field not allowed")
+}
+
+// The widening reaches through the definitions the extension crosses.
+nestedOpenRefDeep: {
+	#G: {bar?: _}
+	#F: {foo?: #G}
+	v: {
+		close({foo?: #F})
+		foo: foo: allowed: 5
+	}
+
+	t2: v & {foo: foo: other: 6}   @test(err, code=eval, contains="field not allowed")
+	t3: v & {foo: other: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// A definition closes recursively, so a label it does not declare itself
+// is widened as deep as the extension goes.
+nestedOpenRefAdded: {
+	#F: {foo?: {bar?: int}}
+	v: {
+		close({foo?: #F})
+		foo: foo: zzz: 1
+	}
+
+	t3: v & {foo: foo: qqq: 3} @test(err, code=eval, contains="field not allowed")
+	t4: v & {foo: other: 4}    @test(err, code=eval, contains="field not allowed")
+}
+
+// The widening of a label the extension declares as a struct allows what
+// that struct declares, and no more.
+nestedOpenRefStruct: {
+	#F: {foo?: {bar?: {x?: int}}}
+	v: {
+		close({foo?: #F})
+		foo: bar: {}
+	}
+
+	t1: v & {foo: bar: x: 1} @test(err, code=eval, contains="field not allowed")
+	t2: v & {foo: bar: y: 2} @test(err, code=eval, contains="field not allowed")
+}
+
+// An explicit ... keeps a definition open, at the top and nested, and the
+// spread carries it along.
+nestedOpenRefOpen: {
+	#F: {foo?: _, ...}
+	#G: {foo?: {bar?: int, ...}}
+	v: {
+		close({foo?: #F})
+		foo: allowed: 5
+	}
+	w: {
+		close({foo?: #G})
+		foo: allowed: 5
+	}
+
+	t1: v & {foo: other: 6}    @test(eq, {foo: {allowed: 5, other: 6, foo?: _}})
+	t2: v & {sib: 7}           @test(err, code=eval, contains="field not allowed")
+}
+
+// Every operand of a conjunction or disjunction which is a definition
+// reference is widened. The conjunction's operands declare the same field
+// set, as either would otherwise deny the other's fields.
+nestedOpenRefOperands: {
+	#A: {a?: _}
+	#B: {b?: _}
+	#C: {a?: _}
+	v: {
+		close({foo?: #A & #C})
+		foo: allowed: 5
+	}
+	w: {
+		close({foo?: #A | #B})
+		foo: allowed: 5
+	}
+
+	t2: v & {foo: zzz: 1}     @test(err, code=eval, contains="field not allowed")
+	t3: w & {foo: a: 2}       @test(eq, {foo: {a: 2, allowed: 5}})
+	t4: w & {foo: b: 3}       @test(eq, {foo: {allowed: 5, b: 3}})
+}
+
+// The shape inside a definition body is widened just the same.
+nestedOpenRefDef: {
+	#F: {foo?: _}
+	#V: {
+		close({foo?: #F})
+		foo: allowed: 5
+	}
+	v: #V
+
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}          @test(err, code=eval, contains="field not allowed")
+}
+
+// TODO(fix): a reference which is no definition has a closedness this fix
+// cannot know, so it is left as it is and v no longer evaluates. Spreading
+// it would open the closedness of its fields for every conjunct, which the
+// old semantics only did along the extended paths.
+nestedOpenRefPlain: {
+	p: close({foo?: {bar?: int}})
+	v: {
+		close({foo?: p})
+		foo: allowed: 5
+	}
+
+	t1: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+}
+
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
     ./in.cue:13:11
@@ -731,53 +941,103 @@ nestedUnwrap: {
     ./in.cue:296:11
 [eval] disjunctDefsField.t2.D: field not allowed:
     ./in.cue:328:11
+[eval] soleEmbedNested.t2.c: field not allowed:
+    ./in.cue:370:11
+[eval] soleEmbedNested.t3.n.q: field not allowed:
+    ./in.cue:371:14
+[eval] soleEmbedNested.t4.n.q: field not allowed:
+    ./in.cue:372:14
+[eval] soleEmbedClose.t2.c: field not allowed:
+    ./in.cue:383:11
+[eval] soleEmbedClose.t3.n.q: field not allowed:
+    ./in.cue:384:14
+[eval] soleEmbedAttr.t1.c: field not allowed:
+    ./in.cue:396:11
+[eval] soleEmbedAttr.t2.n.q: field not allowed:
+    ./in.cue:397:14
 [eval] soleEmbedSibling.t2.d: field not allowed:
-    ./in.cue:398:11
+    ./in.cue:410:11
 [incomplete] compScalarField.s: incomplete bool: bool:
-    ./in.cue:406:6
+    ./in.cue:418:6
 [incomplete] compScalarField.shadow: incomplete bool: bool:
-    ./in.cue:416:11
+    ./in.cue:428:11
 [incomplete] compClosedField.plain: incomplete bool: bool:
-    ./in.cue:436:6
+    ./in.cue:448:6
 [eval] compClosedField.t2.f.b: field not allowed:
-    ./in.cue:442:28
+    ./in.cue:454:28
 [incomplete] compClosedField.sibling: incomplete bool: bool:
-    ./in.cue:446:7
+    ./in.cue:458:7
 [incomplete] compClosedField.otherLiteral: incomplete bool: bool:
-    ./in.cue:457:6
+    ./in.cue:469:6
 [eval] compClosedField.t4.f.b: field not allowed:
-    ./in.cue:463:35
+    ./in.cue:475:35
 [eval] compClosedField.t7.f.b: field not allowed:
-    ./in.cue:486:23
+    ./in.cue:498:23
 [incomplete] compBodyField.twice: incomplete bool: bool:
-    ./in.cue:497:6
+    ./in.cue:509:6
 [eval] compBodyField.t2.f.b: field not allowed:
-    ./in.cue:504:28
+    ./in.cue:516:28
 [incomplete] compBodyField.twiceOpen: incomplete bool: bool:
-    ./in.cue:508:6
+    ./in.cue:520:6
 [incomplete] compBodyField.otherBody: incomplete bool: bool:
-    ./in.cue:519:6
+    ./in.cue:531:6
 [incomplete] compBodyField.nestedBody: incomplete bool: bool:
-    ./in.cue:530:6
+    ./in.cue:542:6
 [incomplete] compNestedField.plain: incomplete bool: bool:
-    ./in.cue:549:6
+    ./in.cue:561:6
 [eval] compNestedField.t2.f.g.b: field not allowed:
-    ./in.cue:555:30
+    ./in.cue:567:30
 [incomplete] compNestedField.sibling: incomplete bool: bool:
-    ./in.cue:559:6
+    ./in.cue:571:6
 [incomplete] compNestedField.openEnclosing: incomplete bool: bool:
-    ./in.cue:570:6
+    ./in.cue:582:6
 [eval] compNestedField.t4.f.g.b: field not allowed:
-    ./in.cue:576:38
+    ./in.cue:588:38
 [incomplete] compNestedField.sameBody: incomplete bool: bool:
-    ./in.cue:580:6
+    ./in.cue:592:6
 [eval] compNestedField.t5.f.g.b: field not allowed:
-    ./in.cue:583:11
-    ./in.cue:586:33
+    ./in.cue:595:11
+    ./in.cue:598:33
 [incomplete] compNestedField.sameBodyOpen: incomplete bool: bool:
-    ./in.cue:590:6
+    ./in.cue:602:6
 [eval] nestedUnwrap.t2.c: field not allowed:
-    ./in.cue:608:11
+    ./in.cue:620:11
+[eval] nestedOpenSelf.v.foo.allowed: field not allowed:
+    ./in.cue:676:33
+[eval] nestedOpenRef.t2.foo.other: field not allowed:
+    ./in.cue:689:16
+[eval] nestedOpenRef.t3.sib: field not allowed:
+    ./in.cue:690:11
+[eval] nestedOpenRefSel.t2.foo.other: field not allowed:
+    ./in.cue:701:16
+[eval] nestedOpenRefSel.t3.sib: field not allowed:
+    ./in.cue:702:11
+[eval] nestedOpenRefEmbed.t2.foo.other: field not allowed:
+    ./in.cue:714:16
+[eval] nestedOpenRefEmbed.t3.sib: field not allowed:
+    ./in.cue:715:11
+[eval] nestedOpenRefDeep.t2.foo.foo.other: field not allowed:
+    ./in.cue:727:21
+[eval] nestedOpenRefDeep.t3.foo.other: field not allowed:
+    ./in.cue:728:16
+[eval] nestedOpenRefAdded.t3.foo.foo.qqq: field not allowed:
+    ./in.cue:740:21
+[eval] nestedOpenRefAdded.t4.foo.other: field not allowed:
+    ./in.cue:741:16
+[eval] nestedOpenRefStruct.t1.foo.bar.x: field not allowed:
+    ./in.cue:753:21
+[eval] nestedOpenRefStruct.t2.foo.bar.y: field not allowed:
+    ./in.cue:754:21
+[eval] nestedOpenRefOpen.t2.sib: field not allowed:
+    ./in.cue:772:11
+[eval] nestedOpenRefOperands.t2.foo.zzz: field not allowed:
+    ./in.cue:791:16
+[eval] nestedOpenRefDef.t2.foo.other: field not allowed:
+    ./in.cue:805:16
+[eval] nestedOpenRefDef.t3.sib: field not allowed:
+    ./in.cue:806:11
+[eval] nestedOpenRefPlain.t1.foo.other: field not allowed:
+    ./in.cue:820:16
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -1413,4 +1673,204 @@ nestedUnwrap: {
 
 	t1: v & {a: 1, b: 2} @test(eq, {a: 1, b: 2})
 	t2: v & {c: 1}       @test(err, code=eval, path=c, contains="field not allowed")
+}
+
+// The old embedding opened the closedness of an embedded value along the
+// paths the enclosing literal declares itself, and only for those.
+nestedOpen: {
+	v: close({
+		{foo?: close({foo?: _})}
+		foo: allowed: 5
+	})
+}
+
+// The opening reaches as deep as the enclosing literal extends.
+nestedOpenDeep: {
+	v: close({
+		{foo?: close({bar?: close({qux?: _})})}
+		foo: bar: baz: 1
+	})
+}
+
+// A field which the enclosing literal does not extend keeps its
+// closedness.
+nestedOpenSibling: {
+	v: close({
+		{foo?: close({foo?: _}), bar?: close({bar?: _})}
+		foo: allowed: 5
+	})
+}
+
+// Every operand of a disjunction or conjunction constrains the extended
+// field, so every one of them is opened.
+nestedOpenOperands: {
+	v: close({
+		{foo?: close({a?: _}) | close({b?: _})}
+		foo: allowed: 5
+	})
+	w: close({
+		{foo?: close({a?: _}) & close({a?: _})}
+		foo: allowed: 5
+	})
+}
+
+// The declarations of a sibling embedding open an embedded value just
+// like the enclosing literal's own fields, as the old semantics inlined
+// both into the struct which embeds them.
+nestedOpenEmbed: {
+	v: {
+		{foo?: close({foo?: _})}
+		{foo: allowed: 5}
+	}
+}
+
+// A literal's own declarations never opened its own closedness, so this
+// one is denied before and after.
+nestedOpenSelf: {
+	v: {
+		{foo?: close({foo?: _}), foo: allowed: 5}
+	}
+}
+
+// A definition reference is a closing with no literal to declare the
+// added label in, so the reference is spread and closed again.
+nestedOpenRef: {
+	#F: {foo?: _}
+	v: close({
+		{foo?: #F}
+		foo: allowed: 5
+	})
+
+	t2: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// A selector naming a definition is one too.
+nestedOpenRefSel: {
+	lib: #F: {foo?: _}
+	v: close({
+		{foo?: lib.#F}
+		foo: allowed: 5
+	})
+
+	t2: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// { X } is equivalent to X, so a literal which embeds nothing but a
+// definition carries its closing.
+nestedOpenRefEmbed: {
+	#F: {foo?: _}
+	v: close({
+		{foo?: {#F}}
+		foo: allowed: 5
+	})
+
+	t2: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// The widening reaches through the definitions the extension crosses.
+nestedOpenRefDeep: {
+	#G: {bar?: _}
+	#F: {foo?: #G}
+	v: close({
+		{foo?: #F}
+		foo: foo: allowed: 5
+	})
+
+	t2: v & {foo: foo: other: 6} @test(err, code=eval, contains="field not allowed")
+	t3: v & {foo: other: 7}      @test(err, code=eval, contains="field not allowed")
+}
+
+// A definition closes recursively, so a label it does not declare itself
+// is widened as deep as the extension goes.
+nestedOpenRefAdded: {
+	#F: {foo?: {bar?: int}}
+	v: close({
+		{foo?: #F}
+		foo: foo: zzz: 1
+	})
+
+	t3: v & {foo: foo: qqq: 3} @test(err, code=eval, contains="field not allowed")
+	t4: v & {foo: other: 4}    @test(err, code=eval, contains="field not allowed")
+}
+
+// The widening of a label the extension declares as a struct allows what
+// that struct declares, and no more.
+nestedOpenRefStruct: {
+	#F: {foo?: {bar?: {x?: int}}}
+	v: close({
+		{foo?: #F}
+		foo: bar: {}
+	})
+
+	t1: v & {foo: bar: x: 1} @test(err, code=eval, contains="field not allowed")
+	t2: v & {foo: bar: y: 2} @test(err, code=eval, contains="field not allowed")
+}
+
+// An explicit ... keeps a definition open, at the top and nested, and the
+// spread carries it along.
+nestedOpenRefOpen: {
+	#F: {foo?: _, ...}
+	#G: {foo?: {bar?: int, ...}}
+	v: close({
+		{foo?: #F}
+		foo: allowed: 5
+	})
+	w: close({
+		{foo?: #G}
+		foo: allowed: 5
+	})
+
+	t1: v & {foo: other: 6} @test(eq, {foo: {allowed: 5, other: 6, foo?: _}})
+	t2: v & {sib: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// Every operand of a conjunction or disjunction which is a definition
+// reference is widened. The conjunction's operands declare the same field
+// set, as either would otherwise deny the other's fields.
+nestedOpenRefOperands: {
+	#A: {a?: _}
+	#B: {b?: _}
+	#C: {a?: _}
+	v: close({
+		{foo?: #A & #C}
+		foo: allowed: 5
+	})
+	w: close({
+		{foo?: #A | #B}
+		foo: allowed: 5
+	})
+
+	t2: v & {foo: zzz: 1} @test(err, code=eval, contains="field not allowed")
+	t3: w & {foo: a: 2}   @test(eq, {foo: {a: 2, allowed: 5}})
+	t4: w & {foo: b: 3}   @test(eq, {foo: {allowed: 5, b: 3}})
+}
+
+// The shape inside a definition body is widened just the same.
+nestedOpenRefDef: {
+	#F: {foo?: _}
+	#V: {
+		{foo?: #F}
+		foo: allowed: 5
+	}
+	v: #V
+
+	t2: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+	t3: v & {sib: 7}        @test(err, code=eval, contains="field not allowed")
+}
+
+// TODO(fix): a reference which is no definition has a closedness this fix
+// cannot know, so it is left as it is and v no longer evaluates. Spreading
+// it would open the closedness of its fields for every conjunct, which the
+// old semantics only did along the extended paths.
+nestedOpenRefPlain: {
+	p: close({foo?: {bar?: int}})
+	v: close({
+		{foo?: p}
+		foo: allowed: 5
+	})
+
+	t1: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
 }
