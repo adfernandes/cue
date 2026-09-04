@@ -4,6 +4,11 @@
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
 
+# TODO(fix): disjunctMixedField, disjunctDefsField, disjunctThreeField and
+# disjunctNested record today's rewrite, which wraps a literal embedding a
+# disjunction and so leaves that disjunction unresolved. Their assertions
+# follow once the rewrite keeps each branch on its own.
+
 #no-coverage
 
 -- cue.mod/module.cue --
@@ -309,6 +314,53 @@ nestedSingleEmbed: {
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
 }
 
+// A disjunction of a definition and a literal, embedded in a literal
+// which declares fields of its own: the definition's branch is closed to
+// the definition and to those fields, and the literal's branch is open.
+disjunctMixedField: {
+	#A: {a: int}
+	v: {
+		#A | {}
+		b: int
+	}
+}
+
+// A disjunction of definitions, embedded in a literal which declares
+// fields neither operand does: every branch is closed, to its operand
+// and to the literal's own fields.
+// See https://cuelang.org/issue/1298.
+disjunctDefsField: {
+	#DefA: {A: string}
+	#DefB: {B: string}
+	v: {
+		#DefA | #DefB
+		B: "b"
+		C: "c"
+	}
+}
+
+// A disjunction of three operands, one of them open.
+disjunctThreeField: {
+	#A: {a: int}
+	#B: {x: int}
+	v: {
+		#A | #B | {}
+		b: int
+	}
+}
+
+// A disjunction embedded through a nested literal, whose wrapper the
+// single-embedding shortcut hoists to the enclosing literal.
+disjunctNested: {
+	#A: {a: int}
+	v: {
+		{
+			#A | {}
+			b: int
+		}
+	}
+}
+
 // Predeclared scalar types can never resolve to a closed struct, so a
 // comprehension field value of such a type needs no ellipsis. A field
 // of the same name shadows the predeclared identifier and does.
@@ -603,7 +655,7 @@ compNestedField: {
 [eval] nestedSingleEmbed.t2.c: field not allowed:
     ./in.cue:295:11
 [incomplete] compScalarField.s: incomplete bool: bool:
-    ./in.cue:303:6
+    ./in.cue:350:6
 [incomplete] compScalarField.shadow: incomplete bool: bool:
     ./in.cue:313:11
 [incomplete] compClosedField.plain: incomplete bool: bool:
@@ -924,6 +976,51 @@ nestedSingleEmbed: {
 
 	t1: v & {b: 1} @test(eq, {b: 1})
 	t2: v & {c: 1} @test(err, code=eval, path=c, contains="field not allowed")
+}
+
+// A disjunction of a definition and a literal, embedded in a literal
+// which declares fields of its own: the definition's branch is closed to
+// the definition and to those fields, and the literal's branch is open.
+disjunctMixedField: {
+	#A: {a: int}
+	v: __closeAll({
+		(#A | {})...
+		b: int
+	})
+}
+
+// A disjunction of definitions, embedded in a literal which declares
+// fields neither operand does: every branch is closed, to its operand
+// and to the literal's own fields.
+// See https://cuelang.org/issue/1298.
+disjunctDefsField: {
+	#DefA: {A: string}
+	#DefB: {B: string}
+	v: __closeAll({
+		(#DefA | #DefB)...
+		B: "b"
+		C: "c"
+	})
+}
+
+// A disjunction of three operands, one of them open.
+disjunctThreeField: {
+	#A: {a: int}
+	#B: {x: int}
+	v: __closeAll({
+		(#A | #B | {})...
+		b: int
+	})
+}
+
+// A disjunction embedded through a nested literal, whose wrapper the
+// single-embedding shortcut hoists to the enclosing literal.
+disjunctNested: {
+	#A: {a: int}
+	v: __closeAll({
+		(#A | {})...
+		b: int
+	})
 }
 
 // Predeclared scalar types can never resolve to a closed struct, so a
