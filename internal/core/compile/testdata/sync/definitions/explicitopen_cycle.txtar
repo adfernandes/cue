@@ -2,10 +2,8 @@
 # stack under the explicitopen experiment. Mirrors issue4006 in typocheck.txtar.
 #
 # Without the experiment every value is {fieldA: string}. With it, #B is a
-# closed embedding in #A, but #B is just {#A} and admits everything #A admits,
-# so the cycle should still resolve to {fieldA: string} everywhere. The
-# evaluator currently denies #A's own fieldA; the todo value records the
-# intended result. The fixer's rewrite (#B... under __closeAll) sidesteps it.
+# closed embedding in #A, but #B is just {#A} and so admits everything #A
+# admits. The cycle therefore resolves to {fieldA: string} everywhere.
 -- in.cue --
 @experiment(explicitopen)
 

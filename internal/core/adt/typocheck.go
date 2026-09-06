@@ -303,10 +303,22 @@ func (n *nodeContext) addReplacement(x replaceID) {
 
 	// TODO: we currently may compute n.reqSets too early in some rare
 	// circumstances. We clear the set if it needs to be recomputed.
-	n.computedCloseInfo = false
-	n.reqSets = n.reqSets[:0]
+	n.invalidateReqSets()
 
 	n.replaceIDs = append(n.replaceIDs, x)
+}
+
+// invalidateReqSets forces the next [nodeContext.getReqSets] to recompute
+// the requirement sets.
+func (n *nodeContext) invalidateReqSets() {
+	n.computedCloseInfo = false
+	n.reqSets = n.reqSets[:0]
+}
+
+// reqIndex returns the index in n.reqDefIDs of the requirement tracked for v,
+// or -1 if there is none.
+func (n *nodeContext) reqIndex(v *Vertex) int {
+	return slices.IndexFunc(n.reqDefIDs, func(x refInfo) bool { return x.v == v })
 }
 
 func (n *nodeContext) updateConjunctInfo(k Kind, id CloseInfo, flags conjunctFlags) {
@@ -397,17 +409,15 @@ func (n *nodeContext) addResolver(p Node, v *Vertex, id CloseInfo, forceIgnore b
 	}
 
 	dstID := defID(0)
-	for i, x := range n.reqDefIDs {
-		if x.v == v {
-			dstID = x.id
-			if x.ignore && !ignore {
-				// Override settings of a vertex added by #A...
-				n.reqDefIDs[i].ignore = false
-				n.reqDefIDs[i].parent = id.outerID
-				n.reqDefIDs[i].embed = id.enclosingEmbed
-				n.reqDefIDs[i].conjunctOpened = id.ConjunctOpened
-			}
-			break
+	if i := n.reqIndex(v); i >= 0 {
+		x := &n.reqDefIDs[i]
+		dstID = x.id
+		if x.ignore && !ignore {
+			// Override settings of a vertex added by #A...
+			x.ignore = false
+			x.parent = id.outerID
+			x.embed = id.enclosingEmbed
+			x.conjunctOpened = id.ConjunctOpened
 		}
 	}
 
@@ -439,6 +449,43 @@ func (n *nodeContext) addResolver(p Node, v *Vertex, id CloseInfo, forceIgnore b
 	n.addReplacement(replaceID{from: srcID, to: dstID})
 
 	return id
+}
+
+// linkCyclicResolver records the closedness relation of a resolver whose
+// conjuncts are not scheduled because v is the node itself or the reference
+// was dropped as a cycle. The value is already present in the node, but the
+// requirement introduced by the reference still needs the evidence which
+// [nodeContext.addResolver] would otherwise have recorded.
+//
+// A struct which embeds the node admits everything the node admits, so a
+// reference back to the node makes the requirements along the containment
+// chain of id vacuous. Any other requirement is linked to the one already
+// tracked for v.
+func (n *nodeContext) linkCyclicResolver(v *Vertex, id CloseInfo) {
+	c := n.ctx
+	if c.OpenDef || id.defID == 0 || id.opID != c.opID {
+		return
+	}
+	if deref(n.node) != deref(v) {
+		if i := n.reqIndex(v); i >= 0 {
+			n.addReplacement(replaceID{from: id.defID, to: n.reqDefIDs[i].id})
+		}
+		return
+	}
+	// Walk the raw chain rather than using containsDefID, which memoizes
+	// flatReplaceIDs while replacements may still be added. Parents are
+	// always smaller than their child, so the walk terminates.
+	changed := false
+	for p := id.defID; p != 0; p = c.containments[p].id {
+		i := slices.IndexFunc(n.reqDefIDs, func(x refInfo) bool { return x.id == p })
+		if i >= 0 && !n.reqDefIDs[i].ignore {
+			n.reqDefIDs[i].ignore = true
+			changed = true
+		}
+	}
+	if changed {
+		n.invalidateReqSets()
+	}
 }
 
 // subField updates a CloseInfo for subfields of a struct.
