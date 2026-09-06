@@ -1,11 +1,4 @@
-# Pinned to v0.17.0: the subject is the gate itself, __reclose being
-# available only where explicitopen is enabled.
--- cue.mod/module.cue --
-module: "mod.test"
-language: version: "v0.17.0"
 -- in.cue --
-@experiment(explicitopen)
-
 noClose: {
 	foo: a: int
 	a: __reclose({
@@ -142,12 +135,6 @@ derivedDef: {
 	}
 
 	ctx: n & {globals: #B}
-}
-
--- old.cue --
-retro: {
-	// May not be used if explicitopen is not set.
-	t1: err: __reclose({})
 }
 
 -- out/compile --
@@ -351,13 +338,5 @@ retro: {
     ctx: (〈0;n〉 & {
       globals: 〈1;#B〉
     })
-  }
-}
---- old.cue
-{
-  retro: {
-    t1: {
-      err: __reclose({})
-    }
   }
 }

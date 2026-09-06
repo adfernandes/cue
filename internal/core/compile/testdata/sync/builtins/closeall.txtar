@@ -1,11 +1,4 @@
-# Pinned to v0.17.0: the subject is the gate itself, __closeAll being
-# available only where explicitopen is enabled.
--- cue.mod/module.cue --
-module: "mod.test"
-language: version: "v0.17.0"
 -- in.cue --
-@experiment(explicitopen)
-
 // Basic usage of __closeAll - makes structs recursively closed
 a: __closeAll({
 	field1: 1
@@ -46,12 +39,6 @@ f: {
 g: {
 	err: __closeAll(#A)
 }
--- old.cue --
-// May not be used if explicitopen is not set.
-h: {
-	err: __closeAll({})
-}
-
 -- out/compile --
 --- in.cue
 {
@@ -89,11 +76,5 @@ h: {
   }
   g: {
     err: __closeAll(〈1;#A〉)
-  }
-}
---- old.cue
-{
-  h: {
-    err: __closeAll({})
   }
 }

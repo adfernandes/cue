@@ -1,11 +1,4 @@
-# Pinned to v0.17.0: the subject is the gate itself, __reclose being
-# available only where explicitopen is enabled.
--- cue.mod/module.cue --
-module: "mod.test"
-language: version: "v0.17.0"
 -- in.cue --
-@experiment(explicitopen)
-
 noClose: {
 	foo: a: int
 	a: __reclose({
@@ -151,46 +144,38 @@ derivedDef: {
 	ctx: n & {globals: #B} @test(eq, {globals: {f: "ns"}, s: {f: "ns", extra: "x"}})
 }
 
--- old.cue --
-retro: {
-	// May not be used if explicitopen is not set.
-	t1: err: __reclose({}) @test(err, code=eval, contains="error in call to %s", args=[__reclose], pos=[0:11])
-}
-
 -- out/errors.txt --
 [eval] recursive.t1.err.extra: field not allowed:
-    ./in.cue:26:16
+    ./in.cue:24:16
 [eval] recursive.t4.err.nested.extra: field not allowed:
-    ./in.cue:36:4
+    ./in.cue:34:4
 [eval] nonRecursive.y.err.f: field not allowed:
-    ./in.cue:53:15
+    ./in.cue:51:15
 [eval] nonRecursiveDetect.t1.err.f: field not allowed:
-    ./in.cue:65:16
+    ./in.cue:63:16
 [eval] mixedClose.t1.err.f: field not allowed:
-    ./in.cue:85:16
+    ./in.cue:83:16
 [eval] recloseWrapsClose.t1.err.f: field not allowed:
-    ./in.cue:99:16
+    ./in.cue:97:16
 [eval] recloseWrapsClose.t2.err.a.c: field not allowed:
-    ./in.cue:101:19
+    ./in.cue:99:19
 [eval] nonStructLiterals.t1.err: error in call to __reclose: argument must be a struct or list literal:
-    ./in.cue:108:11
+    ./in.cue:106:11
 [eval] nonStructLiterals.t4.err: error in call to __reclose: argument must be a struct or list literal:
-    ./in.cue:112:11
+    ./in.cue:110:11
 [eval] nonStructDefinitions.t2.err: conflicting values {b:1} and 1 (mismatched types struct and int):
-    ./in.cue:116:8
-    ./in.cue:125:11
-    ./in.cue:125:15
-[eval] retro.t1.err: error in call to __reclose: __reclose may only be used when explicitopen is enabled:
-    ./old.cue:3:11
+    ./in.cue:114:8
+    ./in.cue:123:11
+    ./in.cue:123:15
 -- out/eval/stats --
 Leaks:  0
-Freed:  311
-Reused: 271
-Allocs: 40
+Freed:  299
+Reused: 268
+Allocs: 31
 Retain: 0
 
-Unifications: 232
-Conjuncts:    504
+Unifications: 220
+Conjuncts:    491
 Disjuncts:    0
 
 NumCloseIDs: 120

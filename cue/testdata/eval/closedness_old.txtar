@@ -1,0 +1,493 @@
+# Pinned to v0.17.0: these groups cover how several embeddings union the
+# fields a closed struct allows and how an embedded definition closes its
+# embedder recursively, which explicitopen changes from v0.18.0 on; the new
+# semantics are covered by definitions/explicitopen.txtar.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
+-- embed.cue --
+patterns: shallow: {
+	#a: [>="k"]: int
+	#b: [<="m"]: int
+	#c: [>="w"]: int
+	#d: [<="y"]: int
+
+	single: {
+		X:   #a  // "k" <= x
+		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:8])
+		err: j: 3
+
+		ok: X @test(eq, {k: 3})
+		ok: k: 3
+	}
+
+	and: p1: {
+		X: #a & #b // "k" <= x && x <= "m"
+
+		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-16:6, 1:8])
+		err: j: 3
+
+		ok: X @test(eq, {k: 3})
+		ok: k: 3
+	}
+
+	and: p2: {
+		X:   #b & #a  // "k" <= x && x <= "m"
+		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-25:6, 1:8])
+		err: j: 3
+
+		ok: X @test(eq, {k: 3})
+		ok: k: 3
+	}
+
+	andEmbed: p1: {
+		X: {#a & #b} // "k" <= x && x <= "m"
+
+		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-35:6, 1:8])
+		err: j: 3
+
+		ok: X @test(eq, {k: 3})
+		ok: k: 3
+	}
+
+	andEmbed: p2: {
+		X:   {#b & #a}  // "k" <= x && x <= "m"
+		err: X @test(err, code=eval, path=j, contains="field not allowed", pos=[-44:6, 1:8])
+		err: j: 3
+
+		ok: X @test(eq, {k: 3})
+		ok: k: 3
+	}
+
+	orEmbed: p1: {
+		X: {#a, #b} // "k" <= x && x <= "m"
+
+		ok1: X @test(eq, {j: 3})
+		ok1: j: 3
+
+		ok2: X @test(eq, {k: 3})
+		ok2: k: 3
+	}
+
+	orEmbed: p2: {
+		X:   {#b, #a}  // "k" <= x && x <= "m"
+		ok1: X @test(eq, {j: 3})
+		ok1: j: 3
+
+		ok2: X @test(eq, {k: 3})
+		ok2: k: 3
+	}
+
+	andOrEmbed: t1: p1: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y")
+		X: {
+			#a & #b
+			#c & #d
+		}
+		err1: X @test(eq, {j: 3})
+		err1: j: 3
+
+		ok1: X @test(eq, {k: 3})
+		ok1: k: 3
+	}
+
+	andOrEmbed: t1: p2: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y")
+		X: {
+			#c & #d
+			#a & #b
+		}
+		err1: X @test(eq, {j: 3})
+		err1: j: 3
+
+		ok1: X @test(eq, {k: 3})
+		ok1: k: 3
+	}
+
+	andOrEmbed: t2: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y") || x == "p"
+		X: {
+			#a & #b
+			#c & #d
+			["p"]: int
+		}
+		err1: X @test(eq, {j: 3})
+		err1: j: 3
+
+		ok1: X @test(eq, {k: 3})
+		ok1: k: 3
+
+		ok2: X @test(eq, {p: 3})
+		ok2: p: 3
+	}
+
+	// The last indirection is not a definition.
+	indirect: {
+		a: [>="k"]: int
+		#a: a
+
+		p1: { // XXX // link to code
+			X:    #a
+			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err1: j: 3
+
+			err2: X & __no_sharing
+			err2: j: 3 @test(err, code=eval, contains="field not allowed", pos=[0:10])
+
+			ok: X
+			ok: k: 3 @test(eq, 3)
+		}
+
+		p2: {
+			#a: a & __no_sharing
+			X:  #a
+
+			err1: X
+			err1: j: 3 @test(err, code=eval, contains="field not allowed", pos=[0:10])
+
+			err2: X & __no_sharing @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err2: j: 3
+
+			ok: X @test(eq, {k: 3})
+			ok: k: 3
+		}
+
+		p3: {
+			X: #a & __no_sharing
+
+			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err1: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err2: j: 3
+
+			ok: X @test(eq, {k: 3})
+			ok: k: 3
+		}
+
+		p4: {
+			#a: a & __no_sharing
+			X:  #a
+			X:  #a & __no_sharing
+
+			err1: X @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err1: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=j, contains="field not allowed", pos=[1:10])
+			err2: j: 3
+
+			ok: X @test(eq, {k: 3})
+			ok: k: 3
+		}
+	}
+}
+
+patterns: nested: {
+	#a: x: y: [>="k"]: int
+	#b: x: y: [<="m"]: int
+	#c: x: y: [>="w"]: int
+	#d: x: y: [<="y"]: int
+
+	single: {
+		X:   #a  // "k" <= x
+		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:14])
+		err: x: y: j: 3
+
+		ok: X @test(eq, {x: {y: {k: 3}}})
+		ok: x: y: k: 3
+	}
+
+	and: p1: {
+		X: #a & #b // "k" <= x && x <= "m"
+
+		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-16:12, 1:14])
+		err: x: y: j: 3
+
+		ok: X @test(eq, {x: {y: {k: 3}}})
+		ok: x: y: k: 3
+	}
+
+	and: p2: {
+		X:   #b & #a  // "k" <= x && x <= "m"
+		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-25:12, 1:14])
+		err: x: y: j: 3
+
+		ok: X @test(eq, {x: {y: {k: 3}}})
+		ok: x: y: k: 3
+	}
+
+	andEmbed: p1: {
+		X: {#a & #b} // "k" <= x && x <= "m"
+
+		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-35:12, 1:14])
+		err: x: y: j: 3
+
+		ok: X @test(eq, {x: {y: {k: 3}}})
+		ok: x: y: k: 3
+	}
+
+	andEmbed: p2: {
+		X:   {#b & #a}  // "k" <= x && x <= "m"
+		err: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[-44:12, 1:14])
+		err: x: y: j: 3
+
+		ok: X @test(eq, {x: {y: {k: 3}}})
+		ok: x: y: k: 3
+	}
+
+	orEmbed: p1: {
+		X: {#a, #b} // "k" <= x && x <= "m"
+
+		ok1: X @test(eq, {x: {y: {j: 3}}})
+		ok1: x: y: j: 3
+
+		ok2: X @test(eq, {x: {y: {k: 3}}})
+		ok2: x: y: k: 3
+	}
+
+	orEmbed: p2: {
+		X:   {#b, #a}  // "k" <= x && x <= "m"
+		ok1: X @test(eq, {x: {y: {j: 3}}})
+		ok1: x: y: j: 3
+
+		ok2: X @test(eq, {x: {y: {k: 3}}})
+		ok2: x: y: k: 3
+	}
+
+	andOrEmbed: t1: p1: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y")
+		X: {
+			#a & #b
+			#c & #d
+		}
+		err1: X @test(eq, {x: {y: {j: 3}}})
+		err1: x: y: j: 3
+
+		ok1: X @test(eq, {x: {y: {k: 3}}})
+		ok1: x: y: k: 3
+	}
+
+	andOrEmbed: t1: p2: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y")
+		X: {
+			#c & #d
+			#a & #b
+		}
+		err1: X @test(eq, {x: {y: {j: 3}}})
+		err1: x: y: j: 3
+
+		ok1: X @test(eq, {x: {y: {k: 3}}})
+		ok1: x: y: k: 3
+	}
+
+	andOrEmbed: t2: {
+		// ("k" <= x && x <= "m")  || ("w" <= x && x <= "y") || x == "p"
+		X: {
+			#a & #b
+			#c & #d
+			["p"]: int
+		}
+		err1: X @test(eq, {x: {y: {j: 3}}})
+		err1: x: y: j: 3
+
+		ok1: X @test(eq, {x: {y: {k: 3}}})
+		ok1: x: y: k: 3
+
+		ok2: X @test(eq, {x: {y: {p: 3}}})
+		ok2: x: y: p: 3
+	}
+
+	// The last indirection is not a definition.
+	indirect: {
+		a: x: y: [>="k"]: int
+		#a: a
+
+		p1: {
+			X:    #a
+			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err1: x: y: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err2: x: y: j: 3
+
+			ok: X @test(eq, {x: {y: {k: 3}}})
+			ok: x: y: k: 3
+		}
+
+		p2: {
+			#a: a & __no_sharing
+			X:  #a
+
+			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err1: x: y: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err2: x: y: j: 3
+
+			ok: X @test(eq, {x: {y: {k: 3}}})
+			ok: x: y: k: 3
+		}
+
+		p3: {
+			X: #a & __no_sharing
+
+			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err1: x: y: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err2: x: y: j: 3
+
+			ok: X @test(eq, {x: {y: {k: 3}}})
+			ok: x: y: k: 3
+		}
+
+		p4: {
+			#a: a & __no_sharing
+			X:  #a
+			X:  #a & __no_sharing
+
+			err1: X @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err1: x: y: j: 3
+
+			err2: X & __no_sharing @test(err, code=eval, path=x.y.j, contains="field not allowed", pos=[1:16])
+			err2: x: y: j: 3
+
+			ok: X @test(eq, {x: {y: {k: 3}}})
+			ok: x: y: k: 3
+		}
+	}
+} @test(err, code=eval, contains="field not allowed", pos=[168:16])
+
+// Embedding a definition doesn't recursively close the embedder: closedness
+// is not propagated correctly when a definition is embedded in an open struct.
+// https://cuelang.org/issue/2241
+issue2241: {
+	#close: {}
+
+	a: {
+		x: q: 2
+		#close
+	}
+
+	b: a
+	b: x: r: 4
+} @test(err, code=eval, path=b.x.r, contains="field not allowed", pos=[9:8])
+-- reroot.cue --
+// indirect tests cases where a reference indirectly crosses a node that
+// references a definition, thereby indirectly referencing it.
+indirect: {
+	embed: err1: {
+		#A: {
+			x: {#x, #y}
+			zx: x.a
+		}
+
+		#x: {a: b: 1}
+		#y: {a: c: 2}
+
+		b: #A
+
+		b1: b.zx
+		b1: d: 1 // This should fail as b.zx crosses a reference to definition.
+		@test(err:todo)
+		@test(eq, {
+			#A: {x: {a: {b: 1, c: 2}}, zx: {b: 1, c: 2}}
+			#x: {a: {b: 1}}
+			#y: {a: {c: 2}}
+			b: {x: {a: {b: 1, c: 2}}, zx: {b: 1, c: 2}}
+			b1: {d: 1, b: 1, c: 2}
+		})
+	}
+	closed: err1: {
+		X: {
+			// refer to a value that will be closed after unification in another struct.
+			a: b
+			b: {}
+			a: e: 1
+		}
+		Y: X
+		Y: {
+			b: c
+			c: #X
+		}
+		#X: {}
+		@test(err, at=Y.a.e, code=eval, contains="field not allowed", pos=[5:7])
+	}
+}
+-- out/errors.txt --
+[eval] patterns.shallow.single.err.j: field not allowed:
+    ./embed.cue:10:8
+[eval] patterns.shallow.and.p1.err.j: field not allowed:
+    ./embed.cue:3:6
+    ./embed.cue:20:8
+[eval] patterns.shallow.and.p2.err.j: field not allowed:
+    ./embed.cue:3:6
+    ./embed.cue:29:8
+[eval] patterns.shallow.andEmbed.p1.err.j: field not allowed:
+    ./embed.cue:3:6
+    ./embed.cue:39:8
+[eval] patterns.shallow.andEmbed.p2.err.j: field not allowed:
+    ./embed.cue:3:6
+    ./embed.cue:48:8
+[eval] patterns.shallow.indirect.p1.err1.j: field not allowed:
+    ./embed.cue:124:10
+[eval] patterns.shallow.indirect.p1.err2.j: field not allowed:
+    ./embed.cue:127:10
+[eval] patterns.shallow.indirect.p2.err1.j: field not allowed:
+    ./embed.cue:138:10
+[eval] patterns.shallow.indirect.p2.err2.j: field not allowed:
+    ./embed.cue:141:10
+[eval] patterns.shallow.indirect.p3.err1.j: field not allowed:
+    ./embed.cue:151:10
+[eval] patterns.shallow.indirect.p3.err2.j: field not allowed:
+    ./embed.cue:154:10
+[eval] patterns.shallow.indirect.p4.err1.j: field not allowed:
+    ./embed.cue:166:10
+[eval] patterns.shallow.indirect.p4.err2.j: field not allowed:
+    ./embed.cue:169:10
+[eval] patterns.nested.single.err.x.y.j: field not allowed:
+    ./embed.cue:186:14
+[eval] patterns.nested.and.p1.err.x.y.j: field not allowed:
+    ./embed.cue:179:12
+    ./embed.cue:196:14
+[eval] patterns.nested.and.p2.err.x.y.j: field not allowed:
+    ./embed.cue:179:12
+    ./embed.cue:205:14
+[eval] patterns.nested.andEmbed.p1.err.x.y.j: field not allowed:
+    ./embed.cue:179:12
+    ./embed.cue:215:14
+[eval] patterns.nested.andEmbed.p2.err.x.y.j: field not allowed:
+    ./embed.cue:179:12
+    ./embed.cue:224:14
+[eval] patterns.nested.indirect.p1.err1.x.y.j: field not allowed:
+    ./embed.cue:300:16
+[eval] patterns.nested.indirect.p1.err2.x.y.j: field not allowed:
+    ./embed.cue:303:16
+[eval] patterns.nested.indirect.p2.err1.x.y.j: field not allowed:
+    ./embed.cue:314:16
+[eval] patterns.nested.indirect.p2.err2.x.y.j: field not allowed:
+    ./embed.cue:317:16
+[eval] patterns.nested.indirect.p3.err1.x.y.j: field not allowed:
+    ./embed.cue:327:16
+[eval] patterns.nested.indirect.p3.err2.x.y.j: field not allowed:
+    ./embed.cue:330:16
+[eval] patterns.nested.indirect.p4.err1.x.y.j: field not allowed:
+    ./embed.cue:342:16
+[eval] patterns.nested.indirect.p4.err2.x.y.j: field not allowed:
+    ./embed.cue:345:16
+[eval] issue2241.b.x.r: field not allowed:
+    ./embed.cue:365:8
+[eval] indirect.closed.err1.Y.a.e: field not allowed:
+    ./reroot.cue:31:7
+-- out/eval/stats --
+Leaks:  0
+Freed:  373
+Reused: 335
+Allocs: 38
+Retain: 0
+
+Unifications: 373
+Conjuncts:    1180
+Disjuncts:    0
+
+NumCloseIDs: 407

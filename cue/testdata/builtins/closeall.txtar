@@ -1,11 +1,4 @@
-# Pinned to v0.17.0: the subject is the gate itself, __closeAll being
-# available only where explicitopen is enabled.
--- cue.mod/module.cue --
-module: "mod.test"
-language: version: "v0.17.0"
 -- in.cue --
-@experiment(explicitopen)
-
 // Basic usage of __closeAll - makes structs recursively closed
 a: __closeAll({
 	field1: 1
@@ -49,25 +42,17 @@ f: {
 g: {
 	err: __closeAll(#A) @test(err, code=eval, contains="argument must be a struct or list literal", pos=[0:7])
 }
--- old.cue --
-// May not be used if explicitopen is not set.
-h: {
-	err: __closeAll({}) @test(err, code=eval, contains="__closeAll may only be used when explicitopen is enabled", pos=[0:7])
-}
-
 -- out/errors.txt --
 [eval] b.err.extra: field not allowed:
-    ./in.cue:13:12
+    ./in.cue:11:12
 [eval] c.err.nested.extra: field not allowed:
-    ./in.cue:23:4
+    ./in.cue:21:4
 [eval] d.err: error in call to __closeAll: argument must be a struct or list literal:
-    ./in.cue:31:7
+    ./in.cue:29:7
 [eval] f.err.extra: field not allowed:
-    ./in.cue:37:12
+    ./in.cue:35:12
 [eval] g.err: error in call to __closeAll: argument must be a struct or list literal:
-    ./in.cue:44:7
-[eval] h.err: error in call to __closeAll: __closeAll may only be used when explicitopen is enabled:
-    ./old.cue:3:7
+    ./in.cue:42:7
 -- out/eval/stats --
 Leaks:  0
 Freed:  41

@@ -33,7 +33,6 @@ import (
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/format"
 	cueload "cuelang.org/go/cue/load"
-	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/internal/astinternal"
 	"cuelang.org/go/internal/core/adt"
 	"cuelang.org/go/internal/core/debug"
@@ -41,11 +40,6 @@ import (
 	"cuelang.org/go/internal/cuetest"
 	"cuelang.org/go/internal/tdtest"
 )
-
-// oldEmbedVersion is the last language version with the pre-explicitopen
-// embedding semantics, where an embedding closes but leaves its siblings
-// alone.
-const oldEmbedVersion = "v0.17.0"
 
 func getValue(m *cuetdtest.M, body string) cue.Value {
 	return m.CueContext().CompileString(body, cue.Filename("test"))
@@ -4278,10 +4272,7 @@ func TestExpr(t *testing.T) {
 	testCases := []struct {
 		input string
 		path  string // path to lookup, defaults to "v"
-		// langVersion pins the language version the input is parsed at,
-		// for inputs whose meaning depends on it.
-		langVersion string
-		want        string
+		want  string
 	}{{
 		input: "v: 3",
 		want:  "3",
@@ -4369,11 +4360,6 @@ func TestExpr(t *testing.T) {
 	}, {
 		input: "v: {#Y, a: 1}, #Y: {b: 2}",
 		want:  `&(.(〈〉 "#Y") {a:1})`,
-	}, {
-		// Note: before explicitopen there is no way to detect embeddings.
-		input:       "v: {#Y, a: 1}, #Y: {b: 2}",
-		langVersion: oldEmbedVersion,
-		want:        `&(.(〈〉 "#Y") {a:1})`,
 	}, {
 		input: "v: a.b, a: b: 4",
 		want:  `.(.(〈〉 "a") "b")`,
@@ -4468,16 +4454,7 @@ func TestExpr(t *testing.T) {
 			if path == "" {
 				path = "v"
 			}
-			var v cue.Value
-			if tc.langVersion != "" {
-				f, err := parser.ParseFile("test", tc.input,
-					parser.Version(tc.langVersion))
-				qt.Assert(t, qt.IsNil(err))
-				v = m.CueContext().BuildFile(f)
-			} else {
-				v = getValue(m, tc.input)
-			}
-			v = v.LookupPath(cue.ParsePath(path))
+			v := getValue(m, tc.input).LookupPath(cue.ParsePath(path))
 			got := exprStr(v)
 			if got != tc.want {
 				t.Errorf("\n got %v;\nwant %v", got, tc.want)

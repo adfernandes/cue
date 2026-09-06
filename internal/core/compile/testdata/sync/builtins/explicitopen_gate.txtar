@@ -1,0 +1,26 @@
+# Pinned to v0.17.0: the subject is the gate itself, the hidden __closeAll
+# and __reclose builtins being available only where explicitopen is enabled.
+-- cue.mod/module.cue --
+module: "mod.test"
+language: version: "v0.17.0"
+-- in.cue --
+// Neither builtin may be used if explicitopen is not set.
+closeAll: {
+	err: __closeAll({})
+}
+
+reclose: {
+	t1: err: __reclose({})
+}
+-- out/compile --
+--- in.cue
+{
+  closeAll: {
+    err: __closeAll({})
+  }
+  reclose: {
+    t1: {
+      err: __reclose({})
+    }
+  }
+}
