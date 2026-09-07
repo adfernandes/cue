@@ -36,7 +36,7 @@ func todoComment(msg string) *ast.CommentGroup {
 type embedFlags struct {
 	def          bool // a definition was embedded
 	other        bool // another embedding was modified (needs runtime check)
-	forceReclose bool // disjunction has non-def operand; __closeAll would be wrong
+	forceReclose bool // disjunction with a non-definition operand; needs __reclose
 	close        bool // close() was embedded and hoisted to wrapper level
 }
 
@@ -53,6 +53,13 @@ func (a embedFlags) or(b embedFlags) embedFlags {
 // from may resolve to a closed value.
 func (f embedFlags) mayBeClosed() bool {
 	return f.def || f.other || f.close
+}
+
+// isDefinition reports whether the expression the flags were collected
+// from is a definition, or a disjunction of definitions, and so closed
+// recursively whatever it resolves to.
+func (f embedFlags) isDefinition() bool {
+	return f == embedFlags{def: true}
 }
 
 type closeInfo struct {
@@ -87,20 +94,7 @@ func (c closeInfo) shouldReclose() bool {
 }
 
 func fixExplicitOpen(f *ast.File) (*ast.File, bool) {
-	// A pass which distributes a struct literal over an embedded
-	// disjunction leaves copies of the literal behind which it has not
-	// visited, so the file is passed over again until none are left.
 	var hasChanges bool
-	for {
-		next, changed, distributed := fixExplicitOpenPass(f)
-		f, hasChanges = next, hasChanges || changed
-		if !distributed {
-			return f, hasChanges
-		}
-	}
-}
-
-func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed bool) {
 	// Comprehension fields which the old semantics closed, and which
 	// openCompFieldValue must therefore leave alone.
 	closedCompFields := oldClosedCompFields(f)
@@ -128,7 +122,7 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 	// literal's flags, and its wholeValue, which soleEmbed re-decides
 	// per literal.
 	var litStack []closeInfo
-	result = astutil.Apply(f, func(c astutil.Cursor) bool {
+	return astutil.Apply(f, func(c astutil.Cursor) bool {
 		n := c.Node()
 		switch n := n.(type) {
 		case *ast.Field:
@@ -175,16 +169,6 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 			info.suspendReclose++
 
 		case *ast.StructLit:
-			// A literal which takes no wrapper needs no distributing, as
-			// a spread over a disjunction evaluates on its own.
-			if info.shouldReclose() {
-				if expr, ok := distributeEmbeddedDisjunction(n); ok {
-					c.Replace(expr)
-					hasChanges = true
-					distributed = true
-					return false
-				}
-			}
 			litStack = append(litStack, info)
 			info.embedFlags = embedFlags{}
 			_, sole := soleEmbed(n)
@@ -289,109 +273,7 @@ func fixExplicitOpenPass(f *ast.File) (result *ast.File, hasChanges, distributed
 			}
 		}
 		return true
-	}).(*ast.File)
-
-	return result, hasChanges, distributed
-}
-
-// distributeEmbeddedDisjunction rewrites a struct literal which embeds a
-// disjunction into a disjunction of struct literals, one per operand of
-// that disjunction, each carrying a copy of the literal's other
-// declarations. It reports false for a literal which embeds no
-// disjunction, or which is replaced by its single embedding.
-//
-// A wrapper builtin takes the value of its argument, which an unresolved
-// disjunction does not have, so wrapping a literal which embeds one
-// leaves every use of that literal incomplete. close() has always had
-// that limitation, which is also why the old semantics never closed such
-// a literal as a whole: it closed each branch on its own, and a branch
-// whose operand was open stayed open. Distributing says exactly that, as
-// each branch then takes the wrapper its own operand warrants.
-func distributeEmbeddedDisjunction(s *ast.StructLit) (ast.Expr, bool) {
-	// The literal which takes the wrapper may be nested in single
-	// embeddings, which the shortcuts in fixExplicitOpenPass unwrap.
-	for {
-		inner, ok := soleEmbedExpr(s)
-		if !ok {
-			break
-		}
-		lit, ok := inner.(*ast.StructLit)
-		if !ok {
-			break
-		}
-		s = lit
-	}
-	// A literal with a single embedded declaration is replaced by that
-	// embedding, so it takes no wrapper either.
-	if len(s.Elts) < 2 || !collectEmbedFlags(s).mayBeClosed() {
-		return nil, false
-	}
-	i := slices.IndexFunc(s.Elts, isEmbeddedDisjunction)
-	if i < 0 {
-		return nil, false
-	}
-	branches := make([]ast.Expr, len(disjunctOperands(s.Elts[i].(*ast.EmbedDecl).Expr)))
-	for branch := range branches {
-		branches[branch] = distributeBranch(s, i, branch)
-	}
-	return ast.NewBinExpr(token.OR, branches...), true
-}
-
-// isEmbeddedDisjunction reports whether d embeds a disjunction which this
-// fix has not rewritten yet. An embedding which already carries a spread
-// is left alone, so that the argument of a wrapper added by an earlier
-// pass is not distributed out of it.
-func isEmbeddedDisjunction(d ast.Decl) bool {
-	e, ok := d.(*ast.EmbedDecl)
-	return ok && len(disjunctOperands(e.Expr)) > 1
-}
-
-// disjunctOperands returns the operands of the disjunction expr in order,
-// flattening nested disjunctions. For any other expression it returns
-// expr itself.
-func disjunctOperands(expr ast.Expr) []ast.Expr {
-	if x, ok := unparen(expr).(*ast.BinaryExpr); ok && x.Op == token.OR {
-		return append(disjunctOperands(x.X), disjunctOperands(x.Y)...)
-	}
-	return []ast.Expr{expr}
-}
-
-// distributeBranch returns the branch'th disjunct of distributing s over
-// the disjunction embedded as its i'th declaration: a copy of s which
-// embeds that operand alone. A default marker moves from the operand to
-// the branch, which is the disjunct it marks now.
-func distributeBranch(s *ast.StructLit, i, branch int) ast.Expr {
-	// The whole literal is copied, operands included, so that an
-	// identifier in the operand which resolves to a declaration of the
-	// literal keeps resolving to the copy's own.
-	lit := ast.Clone(s)
-	ast.SetRelPos(lit, token.NoSpace)
-	op := disjunctOperands(lit.Elts[i].(*ast.EmbedDecl).Expr)[branch]
-	isDefault := false
-	if x, ok := unparen(op).(*ast.UnaryExpr); ok && x.Op == token.MUL {
-		op, isDefault = x.X, true
-	}
-	ast.SetRelPos(op, token.NoRelPos)
-	opLit, isLit := unparen(op).(*ast.StructLit)
-	if isLit && len(ast.Comments(opLit)) == 0 && len(ast.Comments(lit.Elts[i])) == 0 {
-		// A struct literal operand declares its fields in the branch
-		// directly rather than as a literal embedded in a literal,
-		// which is what unifying it with the literal did. An embedding
-		// which carries comments keeps its declaration, as the
-		// declarations spliced in are no place for them.
-		for _, d := range opLit.Elts {
-			ast.SetRelPos(d, token.Newline)
-		}
-		lit.Elts = slices.Concat(lit.Elts[:i:i], opLit.Elts, lit.Elts[i+1:])
-	} else {
-		embed := &ast.EmbedDecl{Expr: op}
-		astutil.CopyComments(embed, lit.Elts[i])
-		lit.Elts[i] = embed
-	}
-	if isDefault {
-		return &ast.UnaryExpr{Op: token.MUL, X: lit}
-	}
-	return lit
+	}).(*ast.File), hasChanges
 }
 
 // unparen returns expr with any enclosing parentheses removed.
@@ -690,7 +572,11 @@ func collectEmbedFlags(expr ast.Expr) embedFlags {
 			xf := collectEmbedFlags(x.X)
 			yf := collectEmbedFlags(x.Y)
 			f := xf.or(yf)
-			if x.Op == token.OR && (xf.other || yf.other) {
+			// A disjunction may resolve to any of its operands, so unless
+			// every operand is a definition the closing has to follow the
+			// branch taken: __closeAll would close a branch whose operand
+			// the old semantics left open.
+			if x.Op == token.OR && f.mayBeClosed() && !(xf.isDefinition() && yf.isDefinition()) {
 				f.forceReclose = true
 			}
 			return f
@@ -722,11 +608,11 @@ func collectEmbedFlags(expr ast.Expr) embedFlags {
 		}
 		return embedFlags{}
 	case *ast.UnaryExpr:
-		// The default marker *X takes on X's closedness, but the
-		// disjunction it appears in may resolve to another branch,
-		// so the closing always needs a runtime check.
-		if x.Op == token.MUL && collectEmbedFlags(x.X).mayBeClosed() {
-			return embedFlags{other: true}
+		// The default marker *X takes on X's closedness; whether the
+		// disjunction it marks a branch of needs a runtime check is
+		// decided by the disjunction.
+		if x.Op == token.MUL {
+			return collectEmbedFlags(x.X)
 		}
 		return embedFlags{}
 	case *ast.StructLit:

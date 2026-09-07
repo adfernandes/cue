@@ -7,11 +7,7 @@ See also 46, 52 and 56.
 #DefB: B: "b"
 
 First: __closeAll({
-	#DefA...
-	B: "b"
-	C: "c"
-}) | __closeAll({
-	#DefB...
+	(#DefA | #DefB)...
 	B: "b"
 	C: "c"
 })
@@ -25,11 +21,7 @@ First: {
 #DefB: B: "b"
 
 First: __closeAll({
-	#DefA...
-	B: "b"
-	C: "c"
-}) | __closeAll({
-	#DefB...
+	(#DefA | #DefB)...
 	B: "b"
 	C: "c"
 })

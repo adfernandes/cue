@@ -356,9 +356,9 @@ if true {
 
 		{
 			// The default marker *X takes on X's closedness: a disjunction
-			// with a defaulted definition operand distributes when embedded
-			// in a literal with fields, the marker moving to the branch it
-			// now marks, and must be opened as a comprehension field value.
+			// with a defaulted definition operand needs a runtime __reclose
+			// check when embedded in a literal with fields, and must be
+			// opened as a comprehension field value.
 			name:    "default marker embedding flags (fixExplicitOpen)",
 			exps:    []string{"explicitopen"},
 			version: oldEmbedVersion,
@@ -385,12 +385,10 @@ package foo
 
 #A: {a: int}
 
-v: *__closeAll({
-	#A...
+v: __reclose({
+	(*#A | {})...
 	extra: 1
-}) | {
-	extra: 1
-}
+})
 
 #S: {
 	enable: bool
