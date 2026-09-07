@@ -65,8 +65,8 @@ issue4043: {
 }
 
 // Disjuncts which share every position, here the results of one
-// expression, must each report their error: the selection which keeps
-// only errors contributing a position not seen yet dropped the fourth.
+// expression, must each report their error: a selection which kept only
+// errors contributing a position not seen yet dropped the fourth.
 // https://cuelang.org/issue/4477
 issue4477: {
 	x: 0

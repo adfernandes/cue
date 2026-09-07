@@ -197,6 +197,11 @@ func (n *nodeContext) disjunctError() errors.Error {
 		return disjuncts
 	}
 	// prefix '-' to sort to top
+	//
+	// TODO: the error has no position of its own, so an enclosing
+	// disjunction's selectErrors never keeps it. Giving it the node's
+	// position would report the nested failures too, once errors.Append
+	// stops flattening the list into them.
 	err := ctx.Newf("%d errors in empty disjunction:", k)
 	if pos != nil {
 		addDisjunctPositions(err, pos)
@@ -233,25 +238,58 @@ func selectErrors(a []*Bottom) (errs errors.Error) {
 	}
 	a = a[:k]
 
-	// filter errors
-	positions := map[token.Pos]bool{}
-
-	add := func(b *Bottom, p token.Pos) bool {
-		if positions[p] {
-			return false
+	// Keep an error only where it contributes something new: a position
+	// no kept error has, or, for a single error, a message no error kept at
+	// that position has. Disjuncts which fail the same way at one place
+	// are thus reported once, while those which fail differently, even
+	// sharing every position, are all reported. A list of errors, as a
+	// failed nested disjunction reports, has no message of its own and is
+	// selected by position alone; built without a position of its own,
+	// such a list is not kept, so the errors of a disjunction are reported
+	// without the cascade of nested failures behind one of its disjuncts.
+	// Messages are rendered only where positions collide, as rendering is
+	// costly and the result is often discarded.
+	type kept struct {
+		err   errors.Error
+		msg   string // rendered on demand; empty for a list of errors
+		known bool
+	}
+	message := func(k *kept) string {
+		if !k.known {
+			k.known = true
+			if len(errors.Errors(k.err)) == 1 {
+				k.msg = k.err.Error()
+			}
 		}
-		positions[p] = true
-		errs = errors.Append(errs, b.Err)
+		return k.msg
+	}
+	seen := map[token.Pos][]*kept{}
+
+	add := func(k *kept, p token.Pos) bool {
+		others := seen[p]
+		if len(others) > 0 || !p.IsValid() {
+			msg := message(k)
+			if msg == "" {
+				return false
+			}
+			for _, o := range others {
+				if message(o) == msg {
+					return false
+				}
+			}
+		}
+		seen[p] = append(others, k)
+		errs = errors.Append(errs, k.err)
 		return true
 	}
 
 	for _, b := range a {
-		// TODO: Should we also distinguish by message type?
-		if add(b, b.Err.Position()) {
+		k := &kept{err: b.Err}
+		if add(k, b.Err.Position()) {
 			continue
 		}
 		for _, p := range b.Err.InputPositions() {
-			if add(b, p) {
+			if add(k, p) {
 				break
 			}
 		}

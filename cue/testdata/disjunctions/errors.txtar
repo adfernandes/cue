@@ -73,12 +73,12 @@ issue4043: {
 }
 
 // Disjuncts which share every position, here the results of one
-// expression, must each report their error: the selection which keeps
-// only errors contributing a position not seen yet dropped the fourth.
+// expression, must each report their error: a selection which kept only
+// errors contributing a position not seen yet dropped the fourth.
 // https://cuelang.org/issue/4477
 issue4477: {
 	x: 0
-	x: or([for i in [1, 2, 3, 4] {i * 1}]) @test(err, code=eval, contains="3 errors in empty disjunction", incorrect) @test(err:todo, code=eval, contains="4 errors in empty disjunction",
+	x: or([for i in [1, 2, 3, 4] {i * 1}]) @test(err, code=eval, contains="4 errors in empty disjunction",
 		suberr=(contains="conflicting values 1 and 0", pos=[-1:5, 0:32]),
 		suberr=(contains="conflicting values 2 and 0", pos=[-1:5, 0:32]),
 		suberr=(contains="conflicting values 3 and 0", pos=[-1:5, 0:32]),
@@ -294,7 +294,7 @@ issue4043.B: invalid value 1 (out of bound >10):
 issue4043.B: invalid value 2 (out of bound >10):
     ./in.cue:67:5
     ./in.cue:68:9
-[eval] issue4477.x: 3 errors in empty disjunction:
+[eval] issue4477.x: 4 errors in empty disjunction:
 issue4477.x: conflicting values 1 and 0:
     ./in.cue:79:5
     ./in.cue:80:32
@@ -302,6 +302,9 @@ issue4477.x: conflicting values 2 and 0:
     ./in.cue:79:5
     ./in.cue:80:32
 issue4477.x: conflicting values 3 and 0:
+    ./in.cue:79:5
+    ./in.cue:80:32
+issue4477.x: conflicting values 4 and 0:
     ./in.cue:79:5
     ./in.cue:80:32
 [incomplete] issue3581.reduced.list: 2 errors in empty disjunction:
