@@ -502,6 +502,15 @@ func (c *constraintInfo) add(n cue.Value, x ast.Expr) {
 	}
 }
 
+// addPositioned adds a constraint whose parts carry positions of their
+// own. [constraintInfo.add] would set the keyword's position on x, which
+// for a disjunction is the position of its first operand, as
+// [ast.SetPos] on an [ast.BinaryExpr] writes to that operand.
+func (c *constraintInfo) addPositioned(x ast.Expr) {
+	ast.SetRelPos(x, token.NoRelPos)
+	c.constraints = append(c.constraints, x)
+}
+
 func (s *state) add(n cue.Value, t coreType, x ast.Expr) {
 	s.types[t].add(n, x)
 }
@@ -1180,7 +1189,7 @@ func (s *state) constValue(n cue.Value) ast.Expr {
 		if !n.IsConcrete() {
 			s.errf(n, "invalid non-concrete value")
 		}
-		return n.Syntax(cue.Final()).(ast.Expr)
+		return setPos(n.Syntax(cue.Final()).(ast.Expr), n)
 	}
 }
 
@@ -1292,8 +1301,10 @@ func addTag(field ast.Label, tag, value string) *ast.Field {
 	}
 }
 
+// setPos gives e the position of the value it was decoded from, but not
+// that value's layout: the generated CUE is formatted anew.
 func setPos(e ast.Expr, v cue.Value) ast.Expr {
-	ast.SetPos(e, v.Pos())
+	ast.SetPos(e, v.Pos().WithRel(token.NoRelPos))
 	return e
 }
 

@@ -133,15 +133,18 @@ errorClosedStructExtraField.data.closedStruct.c: field not allowed:
 -- out/generate-v3/errorListWrongElement --
 errorListWrongElement.data.listWithUnaryEquals.1: conflicting values 2 and 99:
     ./datatest/tests.cue:60:33
+    1:313
 -- out/generate-v3/errorListWrongLength --
 errorListWrongLength.data.listConcrete: incompatible list lengths (2 and 3):
     1:256
 -- out/generate-v3/errorNonClosedStructFieldA --
 errorNonClosedStructFieldA.data.closedStruct.a: conflicting values "foo" and "bar":
     ./datatest/tests.cue:48:26
+    1:136
 -- out/generate-v3/errorNonClosedStructFieldB --
 errorNonClosedStructFieldB.data.closedStruct.b: conflicting values 123 and 456:
     ./datatest/tests.cue:52:36
+    1:146
 -- out/generate-v3/errorNonUnaryEquals --
 errorNonUnaryEquals.data.unaryEquals: conflicting values 42 and 99:
     ./datatest/tests.cue:44:21

@@ -79,7 +79,7 @@ func constraintEnum(key string, n cue.Value, s *state) {
 	s.knownTypes &= types
 	s.allowedTypes &= types
 	if len(a) > 0 {
-		s.all.add(n, ast.NewBinExpr(token.OR, a...))
+		s.all.addPositioned(ast.NewBinExpr(token.OR, a...))
 	}
 }
 

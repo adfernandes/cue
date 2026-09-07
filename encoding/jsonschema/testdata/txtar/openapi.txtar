@@ -24,9 +24,8 @@ components:
 
 // A User uses something.
 #User: {
-	id?:   int
-	name?: string
-	address?:
-		null | #PhoneNumber
+	id?:      int
+	name?:    string
+	address?: null | #PhoneNumber
 	...
 }

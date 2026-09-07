@@ -3,7 +3,6 @@
 # produces do.
 # https://cuelang.org/issue/4477
 
-# TODO: only the first enum member carries the schema position.
 ! exec cue vet data.json jsonschema: schema.json
 cmp stderr expect
 
@@ -15,8 +14,10 @@ cmp stderr expect
 3 errors in empty disjunction:
 conflicting values 0 and "three" (mismatched types int and string):
     ./data.json:1:1
+    ./schema.json:1:76
 conflicting values 1 and 0:
     ./data.json:1:1
-    ./schema.json:1:62
+    ./schema.json:1:70
 conflicting values 2 and 0:
     ./data.json:1:1
+    ./schema.json:1:73
