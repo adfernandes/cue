@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/token"
+	"cuelang.org/go/internal"
 )
 
 var _ Elem = &ConjunctGroup{}
@@ -262,18 +263,65 @@ type Num struct {
 func (x *Num) Source() ast.Node { return x.Src }
 func (x *Num) Kind() Kind       { return x.K }
 
+// BigInt sets z to the integer value of x and returns it, allocating a new
+// [big.Int] if z is nil. x must be of a kind which includes [IntKind].
+//
+// The coefficient alone is not the value: a decimal such as 1E+2 or 80E-1 is
+// an integer whose exponent scales its coefficient. Rounding to an integral
+// value brings the exponent to zero, and drops nothing but zeros from an
+// integer.
 func (x *Num) BigInt(z *big.Int) *big.Int {
-	if x.X.Exponent != 0 {
-		panic("cue: exponent should always be nil for integer types")
-	}
 	if z == nil {
 		z = &big.Int{}
 	}
-	z.Set(x.X.Coeff.MathBigInt())
-	if x.X.Negative {
+	var d apd.Decimal
+	_, _ = internal.BaseContext.RoundToIntegralValue(&d, &x.X)
+	z.Set(d.Coeff.MathBigInt())
+	if d.Negative {
 		z.Neg(z)
 	}
 	return z
+}
+
+// Int64 returns the value of x as an int64, reporting whether it fits.
+// x must be of a kind which includes [IntKind].
+func (x *Num) Int64() (int64, bool) {
+	if x.X.Exponent == 0 {
+		// Fast path for the common case, avoiding a [big.Int].
+		if !x.X.Coeff.IsInt64() {
+			return 0, false
+		}
+		i := x.X.Coeff.Int64()
+		if x.X.Negative {
+			i = -i
+		}
+		return i, true
+	}
+	i := x.BigInt(nil)
+	if !i.IsInt64() {
+		return 0, false
+	}
+	return i.Int64(), true
+}
+
+// Uint64 returns the value of x as a uint64, reporting whether it fits.
+// x must be of a kind which includes [IntKind].
+func (x *Num) Uint64() (uint64, bool) {
+	if x.X.Negative {
+		return 0, false
+	}
+	if x.X.Exponent == 0 {
+		// Fast path for the common case, avoiding a [big.Int].
+		if !x.X.Coeff.IsUint64() {
+			return 0, false
+		}
+		return x.X.Coeff.Uint64(), true
+	}
+	i := x.BigInt(nil)
+	if !i.IsUint64() {
+		return 0, false
+	}
+	return i.Uint64(), true
 }
 
 // String is a string value. It can be used as a Value and Expr.

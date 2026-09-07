@@ -463,15 +463,12 @@ func (v Value) Int64() (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if !n.X.Coeff.IsInt64() {
+	i, ok := n.Int64()
+	if !ok {
 		if n.X.Negative {
 			return math.MinInt64, ErrAbove
 		}
 		return math.MaxInt64, ErrBelow
-	}
-	i := n.X.Coeff.Int64()
-	if n.X.Negative {
-		i = -i
 	}
 	return i, nil
 }
@@ -488,10 +485,10 @@ func (v Value) Uint64() (uint64, error) {
 	if n.X.Negative {
 		return 0, ErrAbove
 	}
-	if !n.X.Coeff.IsUint64() {
+	i, ok := n.Uint64()
+	if !ok {
 		return math.MaxUint64, ErrBelow
 	}
-	i := n.X.Coeff.Uint64()
 	return i, nil
 }
 

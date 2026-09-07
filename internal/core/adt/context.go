@@ -1294,12 +1294,13 @@ func (c *OpContext) uint64(v Value, as string) uint64 {
 		c.AddErrf("cannot convert negative number to uint64")
 		return 0
 	}
-	if !x.X.Coeff.IsUint64() {
+	i, ok := x.Uint64()
+	if !ok {
 		// TODO: improve message
 		c.AddErrf("cannot convert number %s to uint64", &x.X)
 		return 0
 	}
-	return x.X.Coeff.Uint64()
+	return i
 }
 
 func (c *OpContext) BoolValue(v Value) bool {

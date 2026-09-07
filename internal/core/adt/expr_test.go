@@ -98,15 +98,6 @@ func TestNumBigInt(t *testing.T) {
 			if _, _, err := n.X.SetString(tc.decimal); err != nil {
 				t.Fatal(err)
 			}
-			if n.X.Exponent != 0 {
-				// TODO: BigInt panics on a non-zero exponent rather than
-				// scaling the coefficient by it.
-				defer func() {
-					if recover() == nil {
-						t.Error("BigInt() did not panic")
-					}
-				}()
-			}
 			if got := n.BigInt(nil).String(); got != tc.want {
 				t.Errorf("BigInt() = %v; want %v", got, tc.want)
 			}
