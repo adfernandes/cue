@@ -170,15 +170,13 @@ func TestConvert(t *testing.T) {
 	}, {
 		&n36, "(int){ -36 }",
 	}, {
-		// TODO: an integral rational is an integer, so r38 and r41 should
-		// convert to 38 and 100, but the quotient carries an exponent.
-		r38, "(int){ 38.0 }",
+		r38, "(int){ 38 }",
 	}, {
 		r39, "(float){ 19.5 }",
 	}, {
 		r40, "(int){ -40 }",
 	}, {
-		r41, "(int){ 1.0E+2 }",
+		r41, "(int){ 100 }",
 	}, {
 		[]int{1, 2, 3, 4}, `(#list){
   0: (int){ 1 }

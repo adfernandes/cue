@@ -291,15 +291,18 @@ func fromGoValue(ctx *adt.OpContext, nilIsTop bool, val reflect.Value) (result a
 
 	case bigRat:
 		v, _ := reflect.TypeAssert[*big.Rat](val)
+		// An integral rational is an integer, so convert its numerator directly.
+		// Dividing by the denominator would work as well, but the quotient may
+		// carry a non-zero exponent, which [adt.IntKind] values must not have.
+		if v.IsInt() {
+			return &adt.Num{Src: src, K: adt.IntKind, X: fromGoBigInt(v.Num())}
+		}
 		// should we represent this as a binary operation?
-		n := &adt.Num{Src: src, K: adt.IntKind}
+		n := &adt.Num{Src: src, K: adt.FloatKind}
 		num := fromGoBigInt(v.Num())
 		denom := fromGoBigInt(v.Denom())
 		if _, err := internal.BaseContext.Quo(&n.X, &num, &denom); err != nil {
 			return ctx.AddErrf("could not convert *big.Rat: %v", err)
-		}
-		if !v.IsInt() {
-			n.K = adt.FloatKind
 		}
 		return n
 
