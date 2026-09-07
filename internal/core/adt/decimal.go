@@ -51,10 +51,6 @@ func (c *OpContext) Quo(a, b *Num) Value {
 	return v
 }
 
-func (c *OpContext) Pow(a, b *Num) Value {
-	return numOp(c, internal.BaseContext.Pow, a, b)
-}
-
 type numFunc func(z, x, y *apd.Decimal) (apd.Condition, error)
 
 func numOp(c *OpContext, fn numFunc, x, y *Num) Value {

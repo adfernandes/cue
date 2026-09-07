@@ -79,12 +79,6 @@ func (c Context) Quo(d, x, y *apd.Decimal) (apd.Condition, error) {
 	return res, err
 }
 
-func (c Context) Sqrt(d, x *apd.Decimal) (apd.Condition, error) {
-	res, err := c.Context.Sqrt(d, x)
-	reduceKeepingFloats(d)
-	return res, err
-}
-
 // BaseContext is used as CUE's default context for arbitrary-precision decimals.
 var BaseContext = Context{*apd.BaseContext.WithPrecision(34)}
 
