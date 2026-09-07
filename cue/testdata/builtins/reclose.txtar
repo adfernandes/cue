@@ -153,18 +153,21 @@ embeddedDisjunction: {
 	#C: {z: 1}
 	mixed: {
 		v: __reclose({(#A | {})..., b: 2})
-		t1: v & {c: 3} @test(eq:todo, {b: 2, c: 3})
-		t2: v & {a: 1, c: 3} @test(eq:todo, {a: 1, b: 2, c: 3})
+		t1: v & {c: 3} @test(eq, {b: 2, c: 3})
+		t2: v & {a: 1, c: 3} @test(eq, {a: 1, b: 2, c: 3})
 	}
 	default: {
 		v: __reclose({(*#A | {})..., b: 2})
-		t1: v & {c: 1} @test(eq:todo, {b: 2, c: 1})
-		t2: v @test(eq, {a: 1, b: 2})
+		t1: v & {c: 1} @test(eq, {b: 2, c: 1})
+		t2: v @test(eq, *{a: 1, b: 2} | {b: 2})
 	}
 	conjunction: {
 		v: __reclose({((#A | {}) & #C)..., b: 2})
 		t1: v & {z: 1} @test(eq, {b: 2, z: 1})
-		t2: v & {c: 3} @test(err:todo, code=eval, contains="field not allowed")
+		t2: v & {c: 3} @test(err, code=eval,
+			suberr=(at=a, contains="field not allowed", pos=[-15:7]),
+			suberr=(at=c, contains="field not allowed", pos=[0:12]),
+			suberr=(at=z, contains="field not allowed", pos=[-14:7]))
 	}
 }
 -- out/errors.txt --
@@ -190,21 +193,22 @@ embeddedDisjunction: {
     ./in.cue:114:8
     ./in.cue:123:11
     ./in.cue:123:15
-[incomplete] embeddedDisjunction.mixed.v: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
-    ./in.cue:154:6
-[incomplete] embeddedDisjunction.mixed.t1: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
-    ./in.cue:154:6
-[incomplete] embeddedDisjunction.mixed.t2: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
-    ./in.cue:154:6
+[eval] embeddedDisjunction.conjunction.t2: 3 errors in empty disjunction:
+embeddedDisjunction.conjunction.t2.a: field not allowed:
+    ./in.cue:151:7
+embeddedDisjunction.conjunction.t2.c: field not allowed:
+    ./in.cue:166:12
+embeddedDisjunction.conjunction.t2.z: field not allowed:
+    ./in.cue:152:7
 -- out/eval/stats --
-Leaks:  19
-Freed:  400
-Reused: 377
-Allocs: 42
+Leaks:  25
+Freed:  422
+Reused: 395
+Allocs: 52
 Retain: 0
 
-Unifications: 282
-Conjuncts:    638
-Disjuncts:    22
+Unifications: 292
+Conjuncts:    670
+Disjuncts:    32
 
-NumCloseIDs: 155
+NumCloseIDs: 171

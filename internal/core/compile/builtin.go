@@ -131,9 +131,10 @@ var lenBuiltin = &adt.Builtin{
 }
 
 var closeBuiltin = &adt.Builtin{
-	Name:   "close",
-	Params: []adt.Param{structParam},
-	Result: adt.StructKind,
+	Name:        "close",
+	Params:      []adt.Param{structParam},
+	Result:      adt.StructKind,
+	PerDisjunct: true,
 	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
 		s, ok := call.Value(0).(*adt.Vertex)
@@ -151,9 +152,10 @@ var closeBuiltin = &adt.Builtin{
 }
 
 var closeAllBuiltin = &adt.Builtin{
-	Name:   "__closeAll",
-	Params: []adt.Param{topParam},
-	Result: adt.TopKind,
+	Name:        "__closeAll",
+	Params:      []adt.Param{topParam},
+	Result:      adt.TopKind,
+	PerDisjunct: true,
 	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
 
@@ -181,9 +183,10 @@ var closeAllBuiltin = &adt.Builtin{
 }
 
 var recloseBuiltin = &adt.Builtin{
-	Name:   "__reclose",
-	Params: []adt.Param{topParam},
-	Result: adt.TopKind,
+	Name:        "__reclose",
+	Params:      []adt.Param{topParam},
+	Result:      adt.TopKind,
+	PerDisjunct: true,
 	Func: func(call adt.BuiltinCallContext) adt.Expr {
 		c := call.OpContext()
 

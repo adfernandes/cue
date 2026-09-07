@@ -49,8 +49,8 @@ embeddedDisjunction: {
 	#A: {a: 1}
 	#B: {b: 1}
 	v: __closeAll({(#A | #B)..., c: 2})
-	t1: v & {a: 1} @test(eq:todo, {a: 1, c: 2})
-	t2: v & {d: 3} @test(err:todo, code=eval, contains="field not allowed")
+	t1: v & {a: 1} @test(eq, {a: 1, c: 2})
+	t2: v & {d: 3} @test(err, code=eval, contains="field not allowed", pos=[0:11])
 }
 -- out/errors.txt --
 [eval] b.err.extra: field not allowed:
@@ -63,21 +63,17 @@ embeddedDisjunction: {
     ./in.cue:35:12
 [eval] g.err: error in call to __closeAll: argument must be a struct or list literal:
     ./in.cue:42:7
-[incomplete] embeddedDisjunction.v: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
-    ./in.cue:50:5
-[incomplete] embeddedDisjunction.t1: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
-    ./in.cue:50:5
-[incomplete] embeddedDisjunction.t2: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
-    ./in.cue:50:5
+[eval] embeddedDisjunction.t2.d: field not allowed:
+    ./in.cue:52:11
 -- out/eval/stats --
-Leaks:  0
-Freed:  72
-Reused: 48
-Allocs: 24
+Leaks:  3
+Freed:  90
+Reused: 63
+Allocs: 30
 Retain: 0
 
-Unifications: 54
-Conjuncts:    90
-Disjuncts:    6
+Unifications: 65
+Conjuncts:    120
+Disjuncts:    12
 
-NumCloseIDs: 16
+NumCloseIDs: 34

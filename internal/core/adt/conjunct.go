@@ -540,18 +540,16 @@ func (n *nodeContext) insertValueConjunct(env *Environment, v Value, id CloseInf
 	case *Vertex:
 		if x.ClosedNonRecursive {
 			n.node.ClosedNonRecursive = true
-
-			// If this is a definition, it will be repeated in the evaluation.
-			if !x.IsFromDisjunction() {
-				id = n.addResolver(v, x, id, false)
-			}
 		} else if x.ClosedRecursive {
 			n.node.ClosedRecursive = true
-
-			// If this is a definition, it will be repeated in the evaluation.
-			if !x.IsFromDisjunction() {
-				id = n.addResolver(v, x, id, false)
-			}
+		}
+		// A vertex which holds a disjunction adds no resolver of its own:
+		// its disjuncts do so as they are processed, each carrying its
+		// closing. A disjunct closed by a builtin (see [Builtin.PerDisjunct])
+		// carries that closing as a flag alone, so it needs the resolver
+		// here like any other closed vertex.
+		if (x.ClosedNonRecursive || x.ClosedRecursive) && disjunctionOf(x) == nil {
+			id = n.addResolver(v, x, id, false)
 		}
 		if _, ok := x.BaseValue.(*StructMarker); ok {
 			n.aStruct = true

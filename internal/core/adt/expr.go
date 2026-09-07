@@ -2384,11 +2384,16 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 				mode:      state.mode,
 			})
 		} else {
-			expr = c.value(a, Flags{
+			flags := Flags{
 				status:    state.status,
 				condition: state.condition | fieldSetKnown | concreteKnown | disjunctionTask,
 				mode:      state.mode,
-			})
+			}
+			if builtin.PerDisjunct {
+				expr = c.valueOrDisjunction(a, flags)
+			} else {
+				expr = c.value(a, flags)
+			}
 		}
 
 		switch v := expr.(type) {
@@ -2449,8 +2454,18 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 		args = append(args, builtin.Params[i].Default())
 	}
 
-	var b *Bottom
-	args, b = builtin.applyParamTypes(c, args)
+	if builtin.PerDisjunct {
+		if d := disjunctionOf(args[0]); d != nil {
+			return builtin.callPerDisjunct(c, callCtx, args, d, state)
+		}
+	}
+	return builtin.finishCall(c, callCtx, args, state)
+}
+
+// finishCall applies the attached function types to args, calls the
+// builtin with them, and evaluates its result.
+func (builtin *Builtin) finishCall(c *OpContext, callCtx BuiltinCallContext, args []Value, state Flags) Value {
+	args, b := builtin.applyParamTypes(c, args)
 	if b != nil {
 		return b
 	}
@@ -2461,7 +2476,7 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 	case nil:
 		return nil
 	case *Bottom:
-		vErr := c.NewPosf(Pos(call), "error in call to %s", builtin.qualifiedName(c))
+		vErr := c.NewPosf(Pos(callCtx.call), "error in call to %s", builtin.qualifiedName(c))
 		return &Bottom{
 			Code: result.Code,
 			Err:  errors.Wrap(vErr, result.Err),
@@ -2471,6 +2486,52 @@ func (builtin *Builtin) rawCall(c *OpContext, call *CallExpr, state Flags) Value
 	v, ci := c.evalStateCI(result, Flags{status: partial, condition: state.condition, mode: state.mode})
 	c.ci = ci
 	return builtin.applyResultTypes(c, v)
+}
+
+// callPerDisjunct calls the builtin once per disjunct of d, the disjunction
+// its first argument holds, and returns the disjunction of the results with
+// the defaults kept, so that f(a | b) is f(a) | f(b). A disjunct whose call
+// fails is eliminated, as unification would eliminate it; the errors are
+// reported only when every disjunct fails.
+func (builtin *Builtin) callPerDisjunct(c *OpContext, callCtx BuiltinCallContext, args []Value, d *Disjunction, state Flags) Value {
+	vals := make([]Value, 0, len(d.Values))
+	numDefaults := 0
+	var errs *Bottom
+	for i, v := range d.Values {
+		a := slices.Clone(args)
+		a[0] = v
+		saved := c.errs
+		c.errs = nil
+		r := builtin.finishCall(c, callCtx, a, state)
+		if r == nil && c.errs != nil {
+			r = c.errs
+		}
+		c.errs = saved
+		switch r := r.(type) {
+		case nil:
+			return nil
+		case *Bottom:
+			errs = CombineErrors(nil, errs, r)
+		default:
+			if i < d.NumDefaults {
+				numDefaults++
+			}
+			vals = append(vals, r)
+		}
+	}
+	switch len(vals) {
+	case 0:
+		return errs
+	case 1:
+		return vals[0]
+	}
+	return &Disjunction{
+		Src:         d.Src,
+		Values:      vals,
+		Errors:      d.Errors,
+		NumDefaults: numDefaults,
+		HasDefaults: d.HasDefaults,
+	}
 }
 
 // applyParamTypes applies every attached function type's parameter
@@ -2549,6 +2610,12 @@ type Builtin struct {
 	// NonConcrete should be set to true if a builtin supports non-concrete
 	// arguments. By default, all arguments are checked to be concrete.
 	NonConcrete bool
+
+	// PerDisjunct marks a builtin which applies to each disjunct of an
+	// unresolved disjunction argument, so that f(a | b) is f(a) | f(b).
+	// Its Func receives such an argument as a [Disjunction], defaults and
+	// all, where other builtins report it as ambiguous.
+	PerDisjunct bool
 
 	Func func(call BuiltinCallContext) Expr
 

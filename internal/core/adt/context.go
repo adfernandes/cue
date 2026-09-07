@@ -790,6 +790,32 @@ func (c *OpContext) value(x Expr, state Flags) (result Value) {
 	return v
 }
 
+// valueOrDisjunction is like [OpContext.value], except that a value which
+// holds a disjunction is returned as that [Disjunction], defaults and all,
+// instead of being resolved to its default or reported as ambiguous. It
+// evaluates the arguments of builtins marked [Builtin.PerDisjunct].
+func (c *OpContext) valueOrDisjunction(x Expr, state Flags) Value {
+	state.concrete = true
+	v := c.evalState(x, state)
+
+	if d := disjunctionOf(v); d != nil {
+		return d
+	}
+	v, _ = c.getDefault(v)
+	return Unwrap(v)
+}
+
+// disjunctionOf returns the disjunction v holds, looking through vertices
+// whose value is another vertex, or nil if v is not a disjunction.
+func disjunctionOf(v Value) *Disjunction {
+	if x, ok := v.(*Vertex); ok {
+		d, _ := x.DerefValue().BaseValue.(*Disjunction)
+		return d
+	}
+	d, _ := v.(*Disjunction)
+	return d
+}
+
 func (c *OpContext) evalState(v Expr, state Flags) (result Value) {
 	result, _ = c.evalStateCI(v, state)
 	return result

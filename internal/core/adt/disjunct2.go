@@ -967,32 +967,3 @@ func isEqualValue[P ComparableValue](ctx *OpContext, x, y P) bool {
 
 	return Equal(ctx, x, y, CheckStructural)
 }
-
-// IsFromDisjunction reports whether any conjunct of v was a disjunction.
-// There are three cases:
-//  1. v is a disjunction itself. This happens when the result is an
-//     unresolved disjunction.
-//  2. v is a disjunct. This happens when only a single disjunct remains. In this
-//     case there will be a forwarded node that is marked with IsDisjunct.
-//  3. the disjunction was erroneous and none of the disjuncts failed.
-//
-// TODO(evalv3): one case that is not covered by this is erroneous disjunctions.
-// This is not the worst, but fixing it may lead to better error messages.
-func (v *Vertex) IsFromDisjunction() bool {
-	_, ok := v.BaseValue.(*Disjunction)
-	return ok || v.isDisjunct()
-}
-
-// TODO: export this instead of IsDisjunct
-func (v *Vertex) isDisjunct() bool {
-	for {
-		if v.IsDisjunct {
-			return true
-		}
-		arc, ok := v.BaseValue.(*Vertex)
-		if !ok {
-			return false
-		}
-		v = arc
-	}
-}
