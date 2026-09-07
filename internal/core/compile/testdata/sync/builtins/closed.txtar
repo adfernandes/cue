@@ -67,6 +67,14 @@ issue3580: {
 		b: x.a
 	})
 }
+
+// The closing applies to each disjunct of a struct which embeds a
+// disjunction.
+embeddedDisjunction: {
+	v: close({({a: 1} | {b: 1})..., c: 2})
+	t1: v & {a: 1}
+	t2: v & {d: 3}
+}
 -- embed.cue --
 // The old embedding opened the embedded value along the paths the
 // enclosing literal declares itself. As cue fix rewrites it, the extended
@@ -378,6 +386,22 @@ nestedWithSelfReference: t2: {
     x: close({
       a: _
       b: 〈1;x〉.a
+    })
+  }
+  embeddedDisjunction: {
+    v: close({
+      ({
+        a: 1
+      }|{
+        b: 1
+      })...
+      c: 2
+    })
+    t1: (〈0;v〉 & {
+      a: 1
+    })
+    t2: (〈0;v〉 & {
+      d: 3
     })
   }
 }

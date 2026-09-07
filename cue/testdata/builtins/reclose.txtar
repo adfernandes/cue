@@ -144,6 +144,29 @@ derivedDef: {
 	ctx: n & {globals: #B} @test(eq, {globals: {f: "ns"}, s: {f: "ns", extra: "x"}})
 }
 
+
+// A struct which embeds a disjunction has no single value for a wrapper to
+// take, so the closing applies to each disjunct: a branch whose operand is
+// closed is closed, and a branch whose operand is open stays open.
+embeddedDisjunction: {
+	#A: {a: 1}
+	#C: {z: 1}
+	mixed: {
+		v: __reclose({(#A | {})..., b: 2})
+		t1: v & {c: 3} @test(eq:todo, {b: 2, c: 3})
+		t2: v & {a: 1, c: 3} @test(eq:todo, {a: 1, b: 2, c: 3})
+	}
+	default: {
+		v: __reclose({(*#A | {})..., b: 2})
+		t1: v & {c: 1} @test(eq:todo, {b: 2, c: 1})
+		t2: v @test(eq, {a: 1, b: 2})
+	}
+	conjunction: {
+		v: __reclose({((#A | {}) & #C)..., b: 2})
+		t1: v & {z: 1} @test(eq, {b: 2, z: 1})
+		t2: v & {c: 3} @test(err:todo, code=eval, contains="field not allowed")
+	}
+}
 -- out/errors.txt --
 [eval] recursive.t1.err.extra: field not allowed:
     ./in.cue:24:16
@@ -167,15 +190,21 @@ derivedDef: {
     ./in.cue:114:8
     ./in.cue:123:11
     ./in.cue:123:15
+[incomplete] embeddedDisjunction.mixed.v: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
+    ./in.cue:154:6
+[incomplete] embeddedDisjunction.mixed.t1: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
+    ./in.cue:154:6
+[incomplete] embeddedDisjunction.mixed.t2: unresolved disjunction {b:2,a:1} | {b:2} (type struct):
+    ./in.cue:154:6
 -- out/eval/stats --
-Leaks:  0
-Freed:  299
-Reused: 268
-Allocs: 31
+Leaks:  19
+Freed:  400
+Reused: 377
+Allocs: 42
 Retain: 0
 
-Unifications: 220
-Conjuncts:    491
-Disjuncts:    0
+Unifications: 282
+Conjuncts:    638
+Disjuncts:    22
 
-NumCloseIDs: 120
+NumCloseIDs: 155

@@ -137,6 +137,29 @@ derivedDef: {
 	ctx: n & {globals: #B}
 }
 
+
+// A struct which embeds a disjunction has no single value for a wrapper to
+// take, so the closing applies to each disjunct: a branch whose operand is
+// closed is closed, and a branch whose operand is open stays open.
+embeddedDisjunction: {
+	#A: {a: 1}
+	#C: {z: 1}
+	mixed: {
+		v: __reclose({(#A | {})..., b: 2})
+		t1: v & {c: 3}
+		t2: v & {a: 1, c: 3}
+	}
+	default: {
+		v: __reclose({(*#A | {})..., b: 2})
+		t1: v & {c: 1}
+		t2: v
+	}
+	conjunction: {
+		v: __reclose({((#A | {}) & #C)..., b: 2})
+		t1: v & {z: 1}
+		t2: v & {c: 3}
+	}
+}
 -- out/compile --
 --- in.cue
 {
@@ -338,5 +361,48 @@ derivedDef: {
     ctx: (〈0;n〉 & {
       globals: 〈1;#B〉
     })
+  }
+  embeddedDisjunction: {
+    #A: {
+      a: 1
+    }
+    #C: {
+      z: 1
+    }
+    mixed: {
+      v: __reclose({
+        (〈2;#A〉|{})...
+        b: 2
+      })
+      t1: (〈0;v〉 & {
+        c: 3
+      })
+      t2: (〈0;v〉 & {
+        a: 1
+        c: 3
+      })
+    }
+    default: {
+      v: __reclose({
+        (*〈2;#A〉|{})...
+        b: 2
+      })
+      t1: (〈0;v〉 & {
+        c: 1
+      })
+      t2: 〈0;v〉
+    }
+    conjunction: {
+      v: __reclose({
+        ((〈2;#A〉|{}) & 〈2;#C〉)...
+        b: 2
+      })
+      t1: (〈0;v〉 & {
+        z: 1
+      })
+      t2: (〈0;v〉 & {
+        c: 3
+      })
+    }
   }
 }

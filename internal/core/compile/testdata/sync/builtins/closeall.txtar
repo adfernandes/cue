@@ -39,6 +39,16 @@ f: {
 g: {
 	err: __closeAll(#A)
 }
+
+// The closing applies to each disjunct of a struct which embeds a
+// disjunction.
+embeddedDisjunction: {
+	#A: {a: 1}
+	#B: {b: 1}
+	v: __closeAll({(#A | #B)..., c: 2})
+	t1: v & {a: 1}
+	t2: v & {d: 3}
+}
 -- out/compile --
 --- in.cue
 {
@@ -76,5 +86,23 @@ g: {
   }
   g: {
     err: __closeAll(〈1;#A〉)
+  }
+  embeddedDisjunction: {
+    #A: {
+      a: 1
+    }
+    #B: {
+      b: 1
+    }
+    v: __closeAll({
+      (〈1;#A〉|〈1;#B〉)...
+      c: 2
+    })
+    t1: (〈0;v〉 & {
+      a: 1
+    })
+    t2: (〈0;v〉 & {
+      d: 3
+    })
   }
 }

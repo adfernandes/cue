@@ -42,6 +42,16 @@ f: {
 g: {
 	err: __closeAll(#A) @test(err, code=eval, contains="argument must be a struct or list literal", pos=[0:7])
 }
+
+// The closing applies to each disjunct of a struct which embeds a
+// disjunction.
+embeddedDisjunction: {
+	#A: {a: 1}
+	#B: {b: 1}
+	v: __closeAll({(#A | #B)..., c: 2})
+	t1: v & {a: 1} @test(eq:todo, {a: 1, c: 2})
+	t2: v & {d: 3} @test(err:todo, code=eval, contains="field not allowed")
+}
 -- out/errors.txt --
 [eval] b.err.extra: field not allowed:
     ./in.cue:11:12
@@ -53,15 +63,21 @@ g: {
     ./in.cue:35:12
 [eval] g.err: error in call to __closeAll: argument must be a struct or list literal:
     ./in.cue:42:7
+[incomplete] embeddedDisjunction.v: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:50:5
+[incomplete] embeddedDisjunction.t1: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:50:5
+[incomplete] embeddedDisjunction.t2: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:50:5
 -- out/eval/stats --
 Leaks:  0
-Freed:  41
-Reused: 23
-Allocs: 18
+Freed:  72
+Reused: 48
+Allocs: 24
 Retain: 0
 
-Unifications: 35
-Conjuncts:    50
-Disjuncts:    0
+Unifications: 54
+Conjuncts:    90
+Disjuncts:    6
 
-NumCloseIDs: 8
+NumCloseIDs: 16

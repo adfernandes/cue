@@ -121,6 +121,14 @@ issue3580: {
 		b: x.a
 	}) @test(closed)
 }
+
+// The closing applies to each disjunct of a struct which embeds a
+// disjunction.
+embeddedDisjunction: {
+	v: close({({a: 1} | {b: 1})..., c: 2})
+	t1: v & {a: 1} @test(eq:todo, {a: 1, c: 2})
+	t2: v & {d: 3} @test(err:todo, code=eval, contains="field not allowed")
+}
 -- embed.cue --
 // The old embedding opened the embedded value along the paths the
 // enclosing literal declares itself. As cue fix rewrites it, the extended
@@ -179,21 +187,16 @@ nestedWithSelfReference: t2: {
 }
 -- out/eval/stats --
 Leaks:  0
-Freed:  273
-Reused: 234
-Allocs: 39
+Freed:  321
+Reused: 281
+Allocs: 40
 Retain: 0
 
-Unifications: 183
-Conjuncts:    298
-Disjuncts:    6
+Unifications: 209
+Conjuncts:    363
+Disjuncts:    12
 
-NumCloseIDs: 88
-
-ConjunctInfos:       239
-MaxConjunctInfos:    5
-MaxReqSets:          6
-MaxRedirect:         2
+NumCloseIDs: 47
 -- out/errors.txt --
 [eval] nestedEmbedded.strict.foo.allowed: field not allowed:
     ./embed.cue:22:7
@@ -211,6 +214,12 @@ MaxRedirect:         2
     ./embed.cue:54:10
 [eval] b.x: field not allowed:
     ./in.cue:5:9
+[incomplete] embeddedDisjunction.v: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:127:5
+[incomplete] embeddedDisjunction.t1: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:127:5
+[incomplete] embeddedDisjunction.t2: unresolved disjunction {c:2,a:1} | {c:2,b:1} (type struct):
+    ./in.cue:127:5
 -- out/diff-v2-v3.txt --
 Reordering
 Let differs.
