@@ -63,6 +63,15 @@ issue4043: {
 	B: >10
 	B: 1 | 2
 }
+
+// Disjuncts which share every position, here the results of one
+// expression, must each report their error: the selection which keeps
+// only errors contributing a position not seen yet dropped the fourth.
+// https://cuelang.org/issue/4477
+issue4477: {
+	x: 0
+	x: or([for i in [1, 2, 3, 4] {i * 1}])
+}
 -- issue3581.cue --
 // evalv3: tools/flow unexpected error when a flow task result field is used as
 // a list item; string interpolation in a list element caused a spurious error.
@@ -241,6 +250,19 @@ issue4022: full: {
   issue4043: {
     B: >10
     B: (1|2)
+  }
+  issue4477: {
+    x: 0
+    x: or([
+      for _, i in [
+        1,
+        2,
+        3,
+        4,
+      ] {
+        (〈1;i〉 * 1)
+      },
+    ])
   }
 }
 --- issue3576.cue

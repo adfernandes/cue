@@ -1,0 +1,21 @@
+# Every failing disjunct reports its own error, also when the disjuncts
+# share their positions, as the enum members the JSON Schema decoder
+# produces do.
+# https://cuelang.org/issue/4477
+
+# TODO: the error against "three" is dropped, and only the first enum
+# member carries the schema position.
+! exec cue vet data.json jsonschema: schema.json
+cmp stderr expect
+
+-- schema.json --
+{"$schema": "https://json-schema.org/draft/2020-12/schema", "enum": [1, 2, "three"]}
+-- data.json --
+0
+-- expect --
+2 errors in empty disjunction:
+conflicting values 1 and 0:
+    ./data.json:1:1
+    ./schema.json:1:62
+conflicting values 2 and 0:
+    ./data.json:1:1
