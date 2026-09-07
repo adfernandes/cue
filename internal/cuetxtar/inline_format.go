@@ -596,8 +596,9 @@ func (r *inlineRunner) runDebugCheckInline(t testing.TB, path cue.Path, val cue.
 	t.Helper()
 	name := pa.raw.Fields[0].Value() // preserves any :vN version suffix
 	if len(pa.raw.Fields) < 2 {
-		// Empty @test(debugCheck) — fill placeholder.
-		if cuetest.UpdateGoldenFiles() {
+		// Empty @test(debugCheck) — fill placeholder. A :todo directive states
+		// an output the evaluator does not produce yet, so never fill it in.
+		if cuetest.UpdateGoldenFiles() && !pa.isTodo {
 			actual := r.debugPrinterOutput(val)
 			r.enqueueInlineFill(pa, r.formatDebugAttr(name, actual, pa))
 		}
@@ -606,6 +607,18 @@ func (r *inlineRunner) runDebugCheckInline(t testing.TB, path cue.Path, val cue.
 	expected := pa.raw.Fields[1].Value()
 	actual := r.debugPrinterOutput(val)
 	match := normalizeLines(actual) == normalizeLines(expected)
+	// @test(debugCheck:todo, "...") — expected-to-fail form, as for eq and
+	// kind. The expected output is what the printer should produce once a
+	// known issue is fixed, so a mismatch is logged rather than reported, and
+	// the directive is never auto-updated to the current output.
+	if pa.isTodo {
+		if match {
+			t.Logf("WARNING: path %s: TODO debugCheck:todo now passes — consider upgrading to @test(debugCheck, ...)", path)
+		} else {
+			t.Logf("path %s: TODO debugCheck:todo still failing:\ngot:  %q\nwant: %q", path, actual, expected)
+		}
+		return
+	}
 	if match {
 		return
 	}

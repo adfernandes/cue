@@ -387,6 +387,8 @@ and the expected correct behavior:
 x: 42 @test(eq, 42, incorrect) @test(err:todo, p=1, code=eval)
 ```
 
+The `:todo` qualifier is available on `eq`, `err`, `kind` and `debugCheck`.
+
 ### `p=N` — fix priority
 
 ```cue
