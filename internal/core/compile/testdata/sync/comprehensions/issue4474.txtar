@@ -1,0 +1,213 @@
+# A comprehension body binds the previous element with a let, tests a
+# field of it in an if clause, and embeds the let in that clause's body.
+# Embedding prev copies the previous element's struct literal, including
+# its let, into the current element. That second instance of the same let
+# declaration is unified into the existing let arc, which the embedding
+# has already taken directly, so the previous iteration's value leaks into
+# the current element.
+# https://cuelang.org/issue/4474
+
+-- in.cue --
+list: [
+	{st: "A"},
+	for i in [0, 1] {
+		let prev = list[i]
+		if prev.st == "B" {prev}
+		st: "B"
+	},
+]
+
+struct: {
+	a: {st: "A"}
+	for k, p in {a: struct.a, b: struct.ax} {
+		("\(k)x"): {
+			let prev = p
+			if prev.st == "B" {prev}
+			st: "B"
+		}
+	}
+}
+
+pattern: {
+	prevKey: {x: "base", y: "x"}
+	chain: {
+		base: {st: "A"}
+		x: pc.x
+		y: pc.y
+	}
+	pc: {
+		x: _
+		y: _
+		[string]~(K,_): {
+			let prev = chain[prevKey[K]]
+			if prev.st == "B" {prev}
+			st: "B"
+		}
+	}
+}
+
+// Any use of prev in the element is affected once prev is also embedded,
+// as the embedded instance of the let is unified into the same arc.
+combined: [
+	{st: "A"},
+	for i in [0, 1] {
+		let prev = combined[i]
+		if prev.st == "B" {p: prev}
+		if combined[i].st == "B" {prev}
+		st: "B"
+	},
+]
+
+// These variants always worked: the let is not embedded, or the condition
+// and the embedding do not both go through the let.
+controls: {
+	byValue: [
+		{st: "A"},
+		for i in [0, 1] {
+			let prev = byValue[i]
+			if prev.st == "B" {p: prev}
+			st: "B"
+		},
+	]
+	directCond: [
+		{st: "A"},
+		for i in [0, 1] {
+			let prev = directCond[i]
+			if directCond[i].st == "B" {prev}
+			st: "B"
+		},
+	]
+	directEmbed: [
+		{st: "A"},
+		for i in [0, 1] {
+			let prev = directEmbed[i]
+			if prev.st == "B" {directEmbed[i]}
+			st: "B"
+		},
+	]
+}
+-- out/compile --
+--- in.cue
+{
+  list: [
+    {
+      st: "A"
+    },
+    for _, i in [
+      0,
+      1,
+    ] {
+      let prev#1 = 〈3;list〉[〈1;i〉]
+      if (〈0;let prev#1〉.st == "B") {
+        〈1;let prev#1〉
+      }
+      st: "B"
+    },
+  ]
+  struct: {
+    a: {
+      st: "A"
+    }
+    for k, p in {
+      a: 〈2;struct〉.a
+      b: 〈2;struct〉.ax
+    } {
+      "\(〈1;k〉)x": {
+        let prev#2multi = 〈2;p〉
+        if (〈0;let prev#2〉.st == "B") {
+          〈1;let prev#2〉
+        }
+        st: "B"
+      }
+    }
+  }
+  pattern: {
+    prevKey: {
+      x: "base"
+      y: "x"
+    }
+    chain: {
+      base: {
+        st: "A"
+      }
+      x: 〈1;pc〉.x
+      y: 〈1;pc〉.y
+    }
+    pc: {
+      x: _
+      y: _
+      [string]: {
+        let prev#3 = 〈2;chain〉[〈2;prevKey〉[〈1;-〉]]
+        if (〈0;let prev#3〉.st == "B") {
+          〈1;let prev#3〉
+        }
+        st: "B"
+      }
+    }
+  }
+  combined: [
+    {
+      st: "A"
+    },
+    for _, i in [
+      0,
+      1,
+    ] {
+      let prev#4 = 〈3;combined〉[〈1;i〉]
+      if (〈0;let prev#4〉.st == "B") {
+        p: 〈1;let prev#4〉
+      }
+      if (〈3;combined〉[〈1;i〉].st == "B") {
+        〈1;let prev#4〉
+      }
+      st: "B"
+    },
+  ]
+  controls: {
+    byValue: [
+      {
+        st: "A"
+      },
+      for _, i in [
+        0,
+        1,
+      ] {
+        let prev#5 = 〈3;byValue〉[〈1;i〉]
+        if (〈0;let prev#5〉.st == "B") {
+          p: 〈1;let prev#5〉
+        }
+        st: "B"
+      },
+    ]
+    directCond: [
+      {
+        st: "A"
+      },
+      for _, i in [
+        0,
+        1,
+      ] {
+        let prev#6 = 〈3;directCond〉[〈1;i〉]
+        if (〈3;directCond〉[〈1;i〉].st == "B") {
+          〈1;let prev#6〉
+        }
+        st: "B"
+      },
+    ]
+    directEmbed: [
+      {
+        st: "A"
+      },
+      for _, i in [
+        0,
+        1,
+      ] {
+        let prev#7 = 〈3;directEmbed〉[〈1;i〉]
+        if (〈0;let prev#7〉.st == "B") {
+          〈4;directEmbed〉[〈2;i〉]
+        }
+        st: "B"
+      },
+    ]
+  }
+}
