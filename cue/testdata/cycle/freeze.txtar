@@ -67,6 +67,24 @@ comprehension: t4: ok: {
 	@test(eq, {x: {y: {a: {}}}})
 }
 
+// A let in the body of a comprehension that iterates over the struct it
+// inserts into is inserted after the struct's field set was frozen. Let arcs
+// are invisible to the iteration, so adding one is fine.
+// https://cuelang.org/issue/4478
+comprehension: letInBody: ok: {
+	nodes: n1: index: 1
+	nodes: n2: index: 2
+	nodes: {
+		for name, value in nodes {
+			let derived = value.index + 10
+			(name): address: derived
+		}
+	}
+	@test(err, code=eval, path=nodes, incorrect,
+		contains="adding field %v not allowed as field set was already referenced", args=[derived], pos=[4:28])
+	@test(eq:todo, {nodes: {n1: {index: 1, address: 11}, n2: {index: 2, address: 12}}}, p=1)
+}
+
 comprehension: moreSpecific: ok: {
 	a: {
 		x: int
@@ -113,8 +131,10 @@ issue3178: {
     ./comprehension.cue:35:13
 comprehension.t3.err.a: adding field yq not allowed as field set was already referenced:
     ./comprehension.cue:35:13
+[eval] comprehension.letInBody.ok.nodes: adding field derived not allowed as field set was already referenced:
+    ./comprehension.cue:66:28
 [eval] comprehension.moreSpecific.err.a.x: adding field z not allowed as field set was already referenced:
-    ./comprehension.cue:73:9
+    ./comprehension.cue:91:9
 -- out/eval/stats --
 Leaks:  4
 Freed:  42

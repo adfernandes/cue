@@ -58,6 +58,21 @@ comprehension: t4: ok: {
 	}
 }
 
+// A let in the body of a comprehension that iterates over the struct it
+// inserts into is inserted after the struct's field set was frozen. Let arcs
+// are invisible to the iteration, so adding one is fine.
+// https://cuelang.org/issue/4478
+comprehension: letInBody: ok: {
+	nodes: n1: index: 1
+	nodes: n2: index: 2
+	nodes: {
+		for name, value in nodes {
+			let derived = value.index + 10
+			(name): address: derived
+		}
+	}
+}
+
 comprehension: moreSpecific: ok: {
 	a: {
 		x: int
@@ -172,6 +187,30 @@ issue3178: {
               y: {
                 a: {}
               }
+            }
+          }
+        }
+      }
+    }
+  }
+  comprehension: {
+    letInBody: {
+      ok: {
+        nodes: {
+          n1: {
+            index: 1
+          }
+        }
+        nodes: {
+          n2: {
+            index: 2
+          }
+        }
+        nodes: {
+          for name, value in 〈1;nodes〉 {
+            let derived#1multi = (〈1;value〉.index + 10)
+            〈1;name〉: {
+              address: 〈1;let derived#1〉
             }
           }
         }
