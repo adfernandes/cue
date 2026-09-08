@@ -3,6 +3,13 @@
 
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
+#
+# TODO(fix): the wrapperComp, compAdmitsNothing and compExtends cases record
+# today's rewrite. wrapperComp gets no comment although a wrapped struct is
+# evaluated on its own, so its guard never resolves (DV-012);
+# compAdmitsNothing spreads although the sibling declaration admits nothing
+# (DV-013); compExtends leaves the closing strict for the field a
+# comprehension supplies (DV-019).
 
 #no-coverage
 
@@ -865,6 +872,29 @@ nestedOpenRefPlain: {
 	t1: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
 }
 
+// A wrapped struct is evaluated on its own, so a comprehension guard which
+// depends on what the struct is unified with never resolves.
+wrapperComp: {
+	#A: {a: 1}
+	v: {#A, c: bool, if c {d: 1}}
+}
+
+// A declaration beside the comprehension which admits no fields of its
+// own does not widen the field: the comprehension value keeps closing it.
+compAdmitsNothing: {
+	#A: {a: 1}
+	s: {c: bool, f?: {}, if c {f: #A}}
+}
+
+// A comprehension body extends a closed path of an embedded value.
+compExtends: {
+	v: {
+		close({foo?: close({foo?: _})})
+		if true {
+			foo: allowed: 5
+		}
+	}
+}
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
     ./in.cue:13:11
@@ -1077,6 +1107,10 @@ nestedOpenRefPlain: {
     ./in.cue:837:11
 [eval] nestedOpenRefPlain.t1.foo.other: field not allowed:
     ./in.cue:851:16
+[incomplete] wrapperComp.v: incomplete bool: bool:
+    ./in.cue:858:13
+[incomplete] compAdmitsNothing.s: incomplete bool: bool:
+    ./in.cue:865:9
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -1925,4 +1959,28 @@ nestedOpenRefPlain: {
 	})
 
 	t1: v & {foo: other: 6} @test(err, code=eval, contains="field not allowed")
+}
+
+// A wrapped struct is evaluated on its own, so a comprehension guard which
+// depends on what the struct is unified with never resolves.
+wrapperComp: {
+	#A: {a: 1}
+	v:  __closeAll({#A..., c: bool, if c {d: 1}})
+}
+
+// A declaration beside the comprehension which admits no fields of its
+// own does not widen the field: the comprehension value keeps closing it.
+compAdmitsNothing: {
+	#A: {a: 1}
+	s:  {c: bool, f?: {}, if c {f: #A...}}
+}
+
+// A comprehension body extends a closed path of an embedded value.
+compExtends: {
+	v: close({
+		{foo?: close({foo?: _})}
+		if true {
+			foo: allowed: 5
+		}
+	})
 }
