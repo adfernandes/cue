@@ -83,7 +83,8 @@ package foo
 _repo: {}
 
 // Top-level definition embedding → opened with TODO.
-// TODO(cue-fix): top-level definition embedding opened; if this is intended as a schema, remove the '...'.
+// TODO(cue-fix): top-level definition embedding opened; if this is intended as
+// a schema, remove the '...'.
 #A...
 
 // Single definition embedding → use definition directly.
@@ -114,7 +115,8 @@ embeddedSel: {
 // Definition in comprehension → TODO.
 compDef: {
 	for v in _repo {
-		// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+		// TODO(cue-fix): the old semantics closed the enclosing struct when the
+		// comprehension fired; this is no longer the case.
 		#D...
 	}
 }
@@ -122,7 +124,8 @@ compDef: {
 // Non-def reference in comprehension → TODO.
 compRef: {
 	for v in _repo {
-		// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+		// TODO(cue-fix): the old semantics closed the enclosing struct when the
+		// comprehension fired; this is no longer the case.
 		v...
 	}
 }
@@ -131,11 +134,13 @@ compRef: {
 inList: {
 	steps: [
 		for v in _repo.checkoutCode {
-			// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+			// TODO(cue-fix): the old semantics closed the enclosing struct when the
+			// comprehension fired; this is no longer the case.
 			v...
 		},
 		for v in _repo.installGo {
-			// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+			// TODO(cue-fix): the old semantics closed the enclosing struct when the
+			// comprehension fired; this is no longer the case.
 			v...
 		},
 		{

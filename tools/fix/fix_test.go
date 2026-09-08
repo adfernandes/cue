@@ -484,7 +484,8 @@ inst: #A
 x: {
 	c: bool
 	if c {
-		// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+		// TODO(cue-fix): the old semantics closed the enclosing struct when the
+		// comprehension fired; this is no longer the case.
 		#A...
 	}
 }
@@ -492,7 +493,8 @@ x: {
 y: {
 	c: bool
 	if c {
-		// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+		// TODO(cue-fix): the old semantics closed the enclosing struct when the
+		// comprehension fired; this is no longer the case.
 		{a: 1}
 	}
 }
@@ -500,7 +502,8 @@ y: {
 z: {
 	c: bool
 	if c {
-		// TODO(cue-fix): the old semantics closed the enclosing struct when the comprehension fired; this is no longer the case.
+		// TODO(cue-fix): the old semantics closed the enclosing struct when the
+		// comprehension fired; this is no longer the case.
 		inst...
 		extra: 1
 	}

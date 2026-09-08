@@ -16,6 +16,7 @@ package fix
 
 import (
 	"slices"
+	"strings"
 
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/ast/astutil"
@@ -26,10 +27,21 @@ import (
 )
 
 func todoComment(msg string) *ast.CommentGroup {
-	return &ast.CommentGroup{
-		Doc:  true,
-		List: []*ast.Comment{{Text: "// TODO(cue-fix): " + msg}},
+	// Wrap the message across several comment lines so no line runs much
+	// past 80 columns. The indentation the formatter adds is not counted,
+	// so a deeply nested comment may still spill a little.
+	const width = 80
+	var list []*ast.Comment
+	line := "// TODO(cue-fix):"
+	for _, w := range strings.Fields(msg) {
+		if len(line)+1+len(w) > width {
+			list = append(list, &ast.Comment{Text: line})
+			line = "//"
+		}
+		line += " " + w
 	}
+	list = append(list, &ast.Comment{Text: line})
+	return &ast.CommentGroup{Doc: true, List: list}
 }
 
 // embedFlags tracks what kind of closing an embedding requires.
@@ -256,6 +268,10 @@ func fixExplicitOpen(f *ast.File) (*ast.File, bool) {
 				}
 
 				ast.SetRelPos(n, token.NoSpace)
+				if comp := compReferringToStruct(n); comp != nil {
+					ast.AddComment(comp, todoComment(
+						"a wrapper builtin evaluates its argument on its own, so a comprehension guard that depends on a field unified into the struct from elsewhere stays incomplete."))
+				}
 				var wrapper ast.Expr = n
 				switch {
 				case flags.def && !flags.forceReclose:
@@ -274,6 +290,33 @@ func fixExplicitOpen(f *ast.File) (*ast.File, bool) {
 		}
 		return true
 	}).(*ast.File), hasChanges
+}
+
+// compReferringToStruct returns a comprehension among the declarations of
+// s which refers to a field of s in one of its clauses, if any. A wrapper
+// builtin evaluates its argument on its own, so such a guard sees the field
+// without the conjuncts the struct is unified with, and does not resolve
+// when the field is concrete only through them.
+func compReferringToStruct(s *ast.StructLit) *ast.Comprehension {
+	for _, d := range s.Elts {
+		c, ok := d.(*ast.Comprehension)
+		if !ok {
+			continue
+		}
+		for _, cl := range c.Clauses {
+			found := false
+			ast.Walk(cl, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok && id.Scope == ast.Node(s) {
+					found = true
+				}
+				return !found
+			}, nil)
+			if found {
+				return c
+			}
+		}
+	}
+	return nil
 }
 
 // unparen returns expr with any enclosing parentheses removed.
@@ -417,12 +460,18 @@ func oldClosedCompFields(f *ast.File) map[*ast.Field]bool {
 					continue
 				}
 				// A declaration from another group is a conjunct of its
-				// own and widens the field; one from the same group is
-				// unified into this conjunct, so only an explicit
-				// ellipsis in it reopens the field.
+				// own and widens the field by the fields it declares, so
+				// one declaring none leaves the closing in place; one from
+				// the same group is unified into this conjunct, so only an
+				// explicit ellipsis in it reopens the field.
 				widened := slices.ContainsFunc(decls, func(other groupField) bool {
-					return other.field != gf.field &&
-						(other.group != gf.group || mayReopen(other.field.Value))
+					switch {
+					case other.field == gf.field:
+						return false
+					case other.group != gf.group:
+						return declaresFields(other.field.Value)
+					}
+					return mayReopen(other.field.Value)
 				})
 				if !widened {
 					closed[gf.field] = true
@@ -495,6 +544,22 @@ func oldClosedCompFields(f *ast.File) map[*ast.Field]bool {
 type groupField struct {
 	field *ast.Field
 	group int
+}
+
+// declaresFields reports whether expr, as another conjunct of a closed
+// field, may declare a field of its own and so widen what the field allows.
+// Only a struct literal with no declarations at all cannot.
+func declaresFields(expr ast.Expr) bool {
+	s, ok := expr.(*ast.StructLit)
+	if !ok {
+		return true
+	}
+	for _, d := range s.Elts {
+		if _, ok := d.(*ast.Attribute); !ok {
+			return true
+		}
+	}
+	return false
 }
 
 // mayReopen reports whether a value unified into a closed one may reopen it.
@@ -803,6 +868,7 @@ func openNestedClosing(lit *ast.StructLit) (changed bool) {
 	// embeds it, so the declarations of all of them opened the closedness
 	// of any value the struct embeds.
 	lits := embeddedLits(lit)
+	flagged := map[*ast.Comprehension]bool{}
 	for i := 1; i < len(lits); i++ {
 		// A literal's own declarations, and those of the literals it
 		// embeds in turn, never opened its closedness: only the struct
@@ -818,8 +884,37 @@ func openNestedClosing(lit *ast.StructLit) (changed bool) {
 		if widenFields(lits[i].lit, decls, false, false) {
 			changed = true
 		}
+		// A comprehension body declares its fields only when the
+		// comprehension fires, which the widening cannot express: the
+		// paths it extends are opened for good, with a comment saying so.
+		for _, d := range decls {
+			c, ok := d.(*ast.Comprehension)
+			if !ok {
+				continue
+			}
+			if widenFields(lits[i].lit, compBody(c), false, false) {
+				changed = true
+				if !flagged[c] {
+					flagged[c] = true
+					ast.AddComment(c, todoComment(
+						"the closed paths this comprehension extends are opened whether or not it fires; the old semantics opened them only when it fired."))
+				}
+			}
+		}
 	}
 	return changed
+}
+
+// compBody returns the declarations of the struct literal a comprehension
+// produces, looking through nested clauses, or nil for any other value.
+func compBody(c *ast.Comprehension) []ast.Decl {
+	switch v := c.Value.(type) {
+	case *ast.StructLit:
+		return v.Elts
+	case *ast.Comprehension:
+		return compBody(v)
+	}
+	return nil
 }
 
 // embeddedLit is one literal of an embedding tree in preorder, with the

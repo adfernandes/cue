@@ -3,13 +3,6 @@
 
 # Test __closeAll vs __reclose wrapper selection for various embedding patterns:
 # close() variants, conjunctions, disjunctions, and combinations with fields.
-#
-# TODO(fix): the wrapperComp, compAdmitsNothing and compExtends cases record
-# today's rewrite. wrapperComp gets no comment although a wrapped struct is
-# evaluated on its own, so its guard never resolves (DV-012);
-# compAdmitsNothing spreads although the sibling declaration admits nothing
-# (DV-013); compExtends leaves the closing strict for the field a
-# comprehension supplies (DV-019).
 
 #no-coverage
 
@@ -873,7 +866,8 @@ nestedOpenRefPlain: {
 }
 
 // A wrapped struct is evaluated on its own, so a comprehension guard which
-// depends on what the struct is unified with never resolves.
+// depends on what the struct is unified with never resolves; the rewrite
+// says so.
 wrapperComp: {
 	#A: {a: 1}
 	v: {#A, c: bool, if c {d: 1}}
@@ -884,9 +878,13 @@ wrapperComp: {
 compAdmitsNothing: {
 	#A: {a: 1}
 	s: {c: bool, f?: {}, if c {f: #A}}
+
+	out: s & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 }
 
-// A comprehension body extends a closed path of an embedded value.
+// A comprehension body extends a closed path of an embedded value: the path
+// is opened for that field whether or not the comprehension fires, with a
+// comment saying so.
 compExtends: {
 	v: {
 		close({foo?: close({foo?: _})})
@@ -894,6 +892,9 @@ compExtends: {
 			foo: allowed: 5
 		}
 	}
+
+	t1: v & {foo: allowed: 5} @test(eq, {foo: {allowed: 5, foo?: _}})
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
 }
 -- out/errors.txt --
 [eval] closeOnly.t1.c: field not allowed:
@@ -1108,9 +1109,13 @@ compExtends: {
 [eval] nestedOpenRefPlain.t1.foo.other: field not allowed:
     ./in.cue:851:16
 [incomplete] wrapperComp.v: incomplete bool: bool:
-    ./in.cue:858:13
+    ./in.cue:859:13
 [incomplete] compAdmitsNothing.s: incomplete bool: bool:
-    ./in.cue:865:9
+    ./in.cue:866:9
+[eval] compAdmitsNothing.out.f.b: field not allowed:
+    ./in.cue:868:25
+[eval] compExtends.t2.foo.other: field not allowed:
+    ./in.cue:883:16
 -- out/fixmod --
 --- cue.mod/module.cue
 module: "builtins.test"
@@ -1962,25 +1967,43 @@ nestedOpenRefPlain: {
 }
 
 // A wrapped struct is evaluated on its own, so a comprehension guard which
-// depends on what the struct is unified with never resolves.
+// depends on what the struct is unified with never resolves; the rewrite
+// says so.
 wrapperComp: {
 	#A: {a: 1}
-	v:  __closeAll({#A..., c: bool, if c {d: 1}})
+	v: __closeAll({
+		#A...
+		c: bool
+		// TODO(cue-fix): a wrapper builtin evaluates its argument on its own, so a
+		// comprehension guard that depends on a field unified into the struct from
+		// elsewhere stays incomplete.
+		if c {d: 1}
+	})
 }
 
 // A declaration beside the comprehension which admits no fields of its
 // own does not widen the field: the comprehension value keeps closing it.
 compAdmitsNothing: {
 	#A: {a: 1}
-	s:  {c: bool, f?: {}, if c {f: #A...}}
+	s:  {c: bool, f?: {}, if c {f: #A}}
+
+	out: s & {c: true, f: {b: 2}} @test(err, code=eval, contains="field not allowed")
 }
 
-// A comprehension body extends a closed path of an embedded value.
+// A comprehension body extends a closed path of an embedded value: the path
+// is opened for that field whether or not the comprehension fires, with a
+// comment saying so.
 compExtends: {
 	v: close({
-		{foo?: close({foo?: _})}
+		{foo?: close({foo?: _, allowed?: _})}
+
+		// TODO(cue-fix): the closed paths this comprehension extends are opened whether
+		// or not it fires; the old semantics opened them only when it fired.
 		if true {
 			foo: allowed: 5
 		}
 	})
+
+	t1: v & {foo: allowed: 5} @test(eq, {foo: {allowed: 5, foo?: _}})
+	t2: v & {foo: other: 6}   @test(err, code=eval, contains="field not allowed")
 }
