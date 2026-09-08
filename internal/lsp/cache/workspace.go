@@ -59,6 +59,12 @@ type Workspace struct {
 	modules map[protocol.DocumentURI]*Module
 	mappers map[*token.File]*protocol.Mapper
 
+	// deletedPkgs holds the packages deleted since
+	// [Workspace.reloadPackages] last marked their importers and
+	// embedders dirty. Every deletion, on any path, is recorded here
+	// by [Package.delete].
+	deletedPkgs []*Package
+
 	// stdlibModule is the sentinel module owning the standard library
 	// packages in use, loaded on demand. It is deliberately not a
 	// member of modules. See [newStdlibModule].
@@ -775,7 +781,10 @@ func (w *Workspace) reloadPackages() {
 			loadedPkgs = append(loadedPkgs, pkgs.All()...)
 		}
 
-		if len(loadedPkgs) == 0 {
+		// Nothing to do if nothing was dirty, unless a module failed
+		// to reload and was deleted along with its packages: their
+		// importers and embedders must then be dealt with below.
+		if len(loadedPkgs) == 0 && len(w.deletedPkgs) == 0 {
 			return
 		}
 
@@ -818,15 +827,17 @@ func (w *Workspace) reloadPackages() {
 			if _, loaded := processedPkgs[key]; loaded {
 				continue
 			}
-			pkgModPkg := &pkgModPkgPair{
-				modpkg: loadedPkg,
-			}
-			processedPkgs[key] = pkgModPkg
 
 			m := w.ensureModule(modRootURI + "/cue.mod/module.cue")
 			if err := m.ReloadModule(); err != nil {
+				// The module is bad, so no package can be created for
+				// it. Record the attempt so that it is not repeated for
+				// another appearance of the same package in loadedPkgs.
+				processedPkgs[key] = nil
 				continue
 			}
+			pkgModPkg := &pkgModPkgPair{modpkg: loadedPkg}
+			processedPkgs[key] = pkgModPkg
 
 			pkg, found := m.packages[ip]
 			if !found {
@@ -869,19 +880,14 @@ func (w *Workspace) reloadPackages() {
 			pkgModPkg.pkg = pkg
 		}
 
-		var deletedPkgs []*Package
-
 		// 2a. Now that all pkgs exist, update them all.
 		for key, pkgModPkg := range processedPkgs {
 			if pkgModPkg == nil {
 				continue
 			}
 			pkg, loadedPkg := pkgModPkg.pkg, pkgModPkg.modpkg
-			if pkg != nil {
-				if pkg.update(loadedPkg) == ErrBadPackage { // it's been deleted
-					deletedPkgs = append(deletedPkgs, pkg)
-					processedPkgs[key] = nil
-				}
+			if pkg.update(loadedPkg) == ErrBadPackage { // it's been deleted
+				processedPkgs[key] = nil
 			}
 		}
 
@@ -893,7 +899,6 @@ func (w *Workspace) reloadPackages() {
 					continue
 				}
 				pkg.delete()
-				deletedPkgs = append(deletedPkgs, pkg)
 				key := importPathModRootPair{
 					importPath: pkg.importPath,
 					modRootURI: m.rootURI,
@@ -918,10 +923,18 @@ func (w *Workspace) reloadPackages() {
 		// reloaded: the [Package.resetEval] mechanism is sufficient to
 		// clear out stale state. However, if a package is deleted, then
 		// we really must mark the immediate downstream packages as
-		// dirty and reload them so that we gain errors for now-faulty
-		// import specs, amongst other things.
+		// dirty and reload them, so that they no longer resolve their
+		// imports and embeds to the deleted package.
+		//
+		// Packages are deleted at several points, both within this
+		// loop and outside it (a module that fails to reload deletes
+		// all its packages), so every deletion is recorded in
+		// w.deletedPkgs, and all of them are dealt with here. This
+		// must happen after the still-dirty check above: a package
+		// marked dirty before that check would be mistaken for one
+		// that failed to load, and deleted.
 		repeatReload := false
-		for _, pkg := range deletedPkgs {
+		for _, pkg := range w.deletedPkgs {
 			for _, downstream := range pkg.importedBy {
 				// Standalone files import only standard library
 				// packages, which are never deleted, so every importer
@@ -934,6 +947,7 @@ func (w *Workspace) reloadPackages() {
 				repeatReload = true
 			}
 		}
+		w.deletedPkgs = nil
 
 		// A package loaded in this iteration may satisfy an import
 		// which previously failed to resolve. Any package holding
@@ -942,7 +956,7 @@ func (w *Workspace) reloadPackages() {
 		// pointing back at the failed importers, so we must search
 		// for them).
 		for _, pkgModPkg := range processedPkgs {
-			if pkgModPkg == nil || pkgModPkg.pkg == nil {
+			if pkgModPkg == nil {
 				continue
 			}
 			if w.markUnresolvedImportersDirty(pkgModPkg.pkg.importPath) {

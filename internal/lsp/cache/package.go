@@ -291,7 +291,9 @@ func (pkg *Package) evalNeighbours() iter.Seq[evalGraphMember] {
 	}
 }
 
-// delete removes this package from its module.
+// delete removes this package from its module. The deletion is
+// recorded in the workspace, for [Workspace.reloadPackages] to mark
+// the package's importers and embedders dirty.
 func (pkg *Package) delete() {
 	pkg.resetEval(true)
 
@@ -299,6 +301,7 @@ func (pkg *Package) delete() {
 	delete(m.packages, pkg.importPath)
 
 	w := m.workspace
+	w.deletedPkgs = append(w.deletedPkgs, pkg)
 	for fileUri := range pkg.files {
 		sfile := w.standalone.ensureFile(fileUri)
 		sfile.markFileDirty(fileUri)

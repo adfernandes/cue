@@ -50,9 +50,9 @@ language: version: "v0.16.0"
 // module, whose package is imported by a package in another module,
 // is deleted because its cue.mod/module.cue file becomes invalid, and
 // is later recreated because the file is fixed. The importing package
-// is not reloaded at either point: it keeps its link to the deleted
-// package, and definitions through the import fail even after the
-// module is recreated.
+// must be reloaded at both points: first so that its import no longer
+// resolves to the deleted package, then so that its import resolves
+// to the recreated package.
 func TestImportedModuleRecovery(t *testing.T) {
 	registryFS, err := txtar.FS(txtar.Parse([]byte(`
 -- _registry/example.com_foo_v0.0.1/cue.mod/module.cue --
@@ -125,19 +125,20 @@ w: v.y.z
 		)
 
 		// Now break the module file. The module and its package are
-		// deleted. The importing package is not reloaded.
+		// deleted, so the importing package must be reloaded: its
+		// import no longer resolves.
 		env.SetBufferContent(fooModFile, "this is not valid cue\n")
 		env.Await(
 			env.DoneWithChange(),
 			I.LogExactf(protocol.Debug, 1, false, "Module dir=%v module=example.com/foo@v0 Deleted", fooModDir),
 			I.LogExactf(protocol.Debug, 1, false, "Package dirs=[%v/x] importPath=example.com/foo/x@v0 Deleted", fooModDir),
-			I.LogExactf(protocol.Debug, 1, false, "Package dirs=[%v/a] importPath=example.com/bar/a@v0 Reloaded", rootURI),
+			I.LogExactf(protocol.Debug, 2, false, "Package dirs=[%v/a] importPath=example.com/bar/a@v0 Reloaded", rootURI),
 		)
 		qt.Assert(t, qt.HasLen(env.Definition(defLoc), 0))
 
 		// Fix the module file. The module and its package are
-		// recreated. The importing package is still not reloaded, so
-		// its import still does not resolve to the recreated package.
+		// recreated, so the importing package must be reloaded once
+		// more: its import resolves again.
 		env.SetBufferContent(fooModFile, `module: "example.com/foo@v0"
 language: version: "v0.11.0"
 `)
@@ -145,8 +146,8 @@ language: version: "v0.11.0"
 			env.DoneWithChange(),
 			I.LogExactf(protocol.Debug, 3, false, "Module dir=%v module=example.com/foo@v0 Reloaded", fooModDir),
 			I.LogExactf(protocol.Debug, 3, false, "Package dirs=[%v/x] importPath=example.com/foo/x@v0 Reloaded", fooModDir),
-			I.LogExactf(protocol.Debug, 1, false, "Package dirs=[%v/a] importPath=example.com/bar/a@v0 Reloaded", rootURI),
+			I.LogExactf(protocol.Debug, 3, false, "Package dirs=[%v/a] importPath=example.com/bar/a@v0 Reloaded", rootURI),
 		)
-		qt.Assert(t, qt.HasLen(env.Definition(defLoc), 0))
+		qt.Assert(t, qt.DeepEquals(env.Definition(defLoc), wantDefs))
 	})
 }
