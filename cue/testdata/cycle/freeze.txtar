@@ -80,9 +80,7 @@ comprehension: letInBody: ok: {
 			(name): address: derived
 		}
 	}
-	@test(err, code=eval, path=nodes, incorrect,
-		contains="adding field %v not allowed as field set was already referenced", args=[derived], pos=[4:28])
-	@test(eq:todo, {nodes: {n1: {index: 1, address: 11}, n2: {index: 2, address: 12}}}, p=1)
+	@test(eq, {nodes: {n1: {index: 1, address: 11}, n2: {index: 2, address: 12}}})
 }
 
 comprehension: moreSpecific: ok: {
@@ -131,10 +129,8 @@ issue3178: {
     ./comprehension.cue:35:13
 comprehension.t3.err.a: adding field yq not allowed as field set was already referenced:
     ./comprehension.cue:35:13
-[eval] comprehension.letInBody.ok.nodes: adding field derived not allowed as field set was already referenced:
-    ./comprehension.cue:66:28
 [eval] comprehension.moreSpecific.err.a.x: adding field z not allowed as field set was already referenced:
-    ./comprehension.cue:91:9
+    ./comprehension.cue:89:9
 -- out/eval/stats --
 Leaks:  4
 Freed:  42

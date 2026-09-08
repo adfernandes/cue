@@ -220,7 +220,12 @@ func (n *nodeContext) getArc(f Feature, mode ArcType) (arc *Vertex, isNew bool) 
 		anonymous: v.anonymous || v.Label.IsLet(),
 		Conjuncts: alloc.conjuncts[:0],
 	}
-	if n.scheduler.frozen&fieldSetKnown != 0 {
+	// A let arc is only reachable from references within its lexical scope,
+	// never through iteration or lookup of the enclosing struct, so adding
+	// one cannot change what a referrer of the frozen field set observed.
+	// Lets inside comprehension bodies are inserted when the body yields,
+	// after the source of a self-referencing comprehension has been frozen.
+	if n.scheduler.frozen&fieldSetKnown != 0 && !f.IsLet() {
 		b := n.ctx.NewErrf("adding field %v not allowed as field set was already referenced", f)
 		n.ctx.AddBottom(b)
 		// This may panic for list arithmetic. Safer to leave out for now.
