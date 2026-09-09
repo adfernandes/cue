@@ -161,10 +161,10 @@ structEmbed: cycle: {
 	ref1: ref1 + 1     @test(err, code=cycle, contains="cycle with field: ref1", pos=[0:8])
 	ref2: div(ref2, 2) @test(err, code=incomplete)
 
-	lit1: {lit1 + 1}          @test(err, code=eval, contains="invalid operands", pos=[0:9, 0:8, 0:16], incorrect) @test(err:todo, code=cycle, contains="cycle with field: lit1")
-	lit2: {div(lit2, 2)}      @test(err, code=eval, contains="cannot use", pos=[0:8], incorrect) @test(err:todo, code=incomplete)
-	lit3: {2 * div(lit3, 2)}  @test(err, code=eval, contains="cannot use", pos=[0:8], incorrect) @test(err:todo, code=incomplete)
-	lit4: {b?: int, lit4 + 1} @test(err, code=eval, contains="invalid operands", pos=[0:18, 0:8, 0:25], incorrect) @test(err:todo, code=cycle, contains="cycle with field: lit4")
+	lit1: {lit1 + 1}          @test(err, code=cycle, contains="cycle with field: lit1", pos=[0:9])
+	lit2: {div(lit2, 2)}      @test(err, code=incomplete)
+	lit3: {2 * div(lit3, 2)}  @test(err, code=incomplete)
+	lit4: {b?: int, lit4 + 1} @test(err, code=cycle, contains="cycle with field: lit4", pos=[0:18])
 	val:  {b?: int, 3}        @test(eq, 3)
 }
 
@@ -190,18 +190,12 @@ structEmbed: struct: {
 [cycle] structEmbed.cycle.ref1: cycle with field: ref1:
     ./selfnew.cue:11:8
 [incomplete] structEmbed.cycle.ref2: incomplete number in argument to div builtin: _
-[eval] structEmbed.cycle.lit1: invalid operands {} and 1 to '+' (type struct and int):
+[cycle] structEmbed.cycle.lit1: cycle with field: lit1:
     ./selfnew.cue:14:9
-    ./selfnew.cue:14:8
-    ./selfnew.cue:14:16
-[eval] structEmbed.cycle.lit2: cannot use {} (type struct) as int in argument 1 to div:
-    ./selfnew.cue:15:8
-[eval] structEmbed.cycle.lit3: cannot use {} (type struct) as int in argument 1 to div:
-    ./selfnew.cue:16:8
-[eval] structEmbed.cycle.lit4: invalid operands {b?:int} and 1 to '+' (type struct and int):
+[incomplete] structEmbed.cycle.lit2: incomplete number in argument to div builtin: _
+[incomplete] structEmbed.cycle.lit3: incomplete number in argument to div builtin: _
+[cycle] structEmbed.cycle.lit4: cycle with field: lit4:
     ./selfnew.cue:17:18
-    ./selfnew.cue:17:8
-    ./selfnew.cue:17:25
 [eval] structEmbed.struct.a: invalid operands {} and 1 to '+' (type struct and int):
     ./selfnew.cue:25:5
     ./selfnew.cue:24:5

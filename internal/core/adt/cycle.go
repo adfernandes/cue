@@ -800,10 +800,16 @@ func (c *CloseInfo) setOptional(n *nodeContext) {
 	}
 }
 
-// updateCyclicStatus looks for proof of non-cyclic conjuncts to override
-// a structural cycle.
+// updateCyclicStatus is [nodeContext.overrideCyclicConjuncts] for a conjunct
+// that gives the node a value of its own.
 func (n *nodeContext) updateCyclicStatus(c CloseInfo) {
 	n.hasFieldValue = true
+	n.overrideCyclicConjuncts(c)
+}
+
+// overrideCyclicConjuncts looks for proof of non-cyclic conjuncts to override
+// a structural cycle.
+func (n *nodeContext) overrideCyclicConjuncts(c CloseInfo) {
 	if !c.IsCyclic() {
 		n.hasNonCycle = true
 		for _, c := range n.cyclicConjuncts {

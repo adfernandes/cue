@@ -258,9 +258,9 @@ letSelfDynamic: {
 
 // A value alias on a scalar expression has no postfix form, so cue fix
 // rewrites it to a struct literal with a let-self binding. Evaluating the
-// definition on its own finalizes the literal to an empty struct before the
-// embedding completes, reporting a type error or even the error disjunct
-// instead of a reference cycle. See https://cuelang.org/issue/4479.
+// definition on its own used to finalize the literal to an empty struct
+// before the embedding completed, reporting a type error or even the error
+// disjunct instead of a reference cycle. See https://cuelang.org/issue/4479.
 issue4479: {
 	#Even: {let X = self, (2 * div(X, 2)) | error("\(X) is not even")}
 	even: [...#Even]

@@ -250,7 +250,7 @@ func exprHasResolver(x Expr) bool {
 func (n *nodeContext) scheduleStruct(env *Environment,
 	s *StructLit,
 	ci CloseInfo) {
-	n.updateCyclicStatus(ci)
+	n.overrideCyclicConjuncts(ci)
 	n.updateConjunctInfo(StructKind, ci, cHasStruct)
 
 	// NOTE: This is a crucial point in the code:
@@ -308,8 +308,7 @@ loop1:
 		switch x := d.(type) {
 		case *Field:
 			if x.Label.IsString() && x.ArcType == ArcMember {
-				n.aStruct = true
-				n.updateNodeType(StructKind, s, ci)
+				n.markStructLit(s, ci)
 			}
 			ci := n.ctx.subField(ci)
 			if x.ArcType == ArcOptional {
@@ -336,8 +335,7 @@ loop1:
 		case *DynamicField:
 			ci := n.ctx.subField(ci)
 			if x.ArcType == ArcMember {
-				n.aStruct = true
-				n.updateNodeType(StructKind, s, ci)
+				n.markStructLit(s, ci)
 			}
 			n.scheduleTask(handleDynamic, childEnv, x, ci)
 
@@ -360,9 +358,19 @@ loop1:
 		n.updateConjunctInfo(TopKind, ci, cHasEllipsis)
 	}
 	if !hasEmbed {
-		n.aStruct = true
-		n.updateNodeType(StructKind, s, ci)
+		n.markStructLit(s, ci)
 	}
+}
+
+// markStructLit records that struct literal s makes the node a struct: it has
+// a regular field, or no embedding that could make it a scalar. Such a literal
+// is a value of its own and so breaks a reference cycle through the node,
+// unlike one whose kind is whatever its embeddings yield, as in `a: {a + 1}`.
+// See [OpContext.evalStateCI].
+func (n *nodeContext) markStructLit(s *StructLit, ci CloseInfo) {
+	n.aStruct = true
+	n.hasFieldValue = true
+	n.updateNodeType(StructKind, s, ci)
 }
 
 // scheduleVertexConjuncts injects the conjuncst of src n. If src was not fully

@@ -7,9 +7,9 @@ structShorthand: {let X = self, b: 3, c: X.b} @test(eq, {b: 3, c: 3})
 fieldAndValue: foo~(X): {let Y = self, 3, #sum: X + Y} @test(eq, {3, #sum: 6})
 
 // A value alias on a scalar has no postfix form: the "let X = self" that
-// replaces it needs a struct to live in, so the operand is a struct rather
-// than the scalar, and the cycle surfaces as a type error instead.
-valueCycle: b: {let X = self, 3 + X} @test(err, code=eval, contains="invalid operands", pos=[0:31, 0:16])
+// replaces it needs a struct to live in. The struct literal has no value of
+// its own, so the reference is a cycle, as it was for the value alias.
+valueCycle: b: {let X = self, 3 + X} @test(err, code=cycle, contains="cycle with field: X", pos=[0:35])
 
 // Issue #1003
 listValueAlias: {let X = self, [1, 2, X[0]]} @test(eq, [1, 2, 1])
@@ -28,9 +28,8 @@ cycleErr: {
     ./err.cue:5:11
     ./err.cue:3:11
     ./err.cue:5:15
-[eval] valueCycle.b: invalid operands 3 and {let X#4=_|_(valueCycle.b.X: structural cycle)} to '+' (type int and struct):
-    ./in.cue:11:31
-    ./in.cue:11:16
+[cycle] valueCycle.b: cycle with field: X:
+    ./in.cue:11:35
 -- out/todo.txt --
 v2 does not include cycleErr (no @experiment(structcmp) support).
 v2 cycle error message: "[cycle] cycle error" vs v3 "cycle with field: X".

@@ -7,8 +7,8 @@ structShorthand: {let X = self, b: 3, c: X.b}
 fieldAndValue: foo~(X): {let Y = self, 3, #sum: X + Y}
 
 // A value alias on a scalar has no postfix form: the "let X = self" that
-// replaces it needs a struct to live in, so the operand is a struct rather
-// than the scalar, and the cycle surfaces as a type error instead.
+// replaces it needs a struct to live in. The struct literal has no value of
+// its own, so the reference is a cycle, as it was for the value alias.
 valueCycle: b: {let X = self, 3 + X}
 
 // Issue #1003

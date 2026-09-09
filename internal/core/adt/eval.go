@@ -169,8 +169,10 @@ func (n *nodeContext) validateValue(state vertexStatus) {
 		// embedding (the comprehension), and thus does not force it either.
 		// So the resulting kind is top, not struct.
 		// As an approximation, we at least mark the node as a struct if it has
-		// any regular fields.
-		markStruct = n.kind&StructKind != 0 && !n.hasTop
+		// any regular fields, and not before its embeddings have completed:
+		// marking it early lets a reference cycle through an embedding, as in
+		// `a: {div(a, 2)}`, resolve to an empty struct.
+		markStruct = n.kind&StructKind != 0 && !n.hasTop && allTasksFinished(n)
 		for _, a := range n.node.Arcs {
 			// TODO(spec): we generally allow optional fields alongside embedded
 			// scalars. We probably should not. Either way this is not entirely
@@ -398,10 +400,10 @@ type nodeContextState struct {
 	priority        layer.Priority // Priority corresponding to defaultMode
 	origPriority    layer.Priority // Priority of the original disjunct
 
-	// has a value filled out before the node splits into a disjunction. Aside
-	// from detecting a self-reference cycle when there is otherwise just an
-	// other error, this field is not needed. It greatly helps, however, to
-	// improve the error messages.
+	// hasFieldValue records that the node has a value of its own: a scalar,
+	// list, type, bound, or a struct literal that makes it a struct. A
+	// reference to the node from within its own conjuncts is a reference
+	// cycle until it has one; see [OpContext.evalStateCI].
 	hasFieldValue bool
 
 	// defaultAttemptInCycle indicates that a value relies on the default value
