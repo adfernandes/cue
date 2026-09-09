@@ -297,3 +297,51 @@ func writeFile(t *testing.T, fpath string, content string) {
 	err = os.WriteFile(fpath, []byte(content), 0o666)
 	qt.Assert(t, qt.IsNil(err))
 }
+
+func TestLoadFromFSWildcard(t *testing.T) {
+	// Issue https://cuelang.org/issue/4480: the "..." wildcard walks
+	// the [fs.FS] with fs.WalkDir, whose paths must be mapped back to
+	// the loader's absolute path scheme before matching.
+	// The files under cue.mod and the nested module must be skipped.
+	fsys, err := txtar.FS(txtar.Parse([]byte(`
+-- cue.mod/module.cue --
+module: "example.com/test@v0"
+language: version: "v0.12.0"
+-- x.cue --
+package test
+-- pkg/sub/x.cue --
+package sub
+-- cue.mod/pkg/other.org/y.cue --
+package y
+-- nested/cue.mod/module.cue --
+module: "example.com/nested@v0"
+language: version: "v0.12.0"
+-- nested/z.cue --
+package z
+`)))
+	qt.Assert(t, qt.IsNil(err))
+	for _, tc := range []struct {
+		dir  string
+		want []string
+	}{
+		{"", []string{"example.com/test@v0", "example.com/test/pkg/sub@v0"}},
+		{"/", []string{"example.com/test@v0", "example.com/test/pkg/sub@v0"}},
+		{"/pkg", []string{"example.com/test/pkg/sub@v0"}},
+	} {
+		t.Run(tc.dir, func(t *testing.T) {
+			cfg := &Config{FS: fsys, Dir: tc.dir}
+			// TODO: tc.want should be loaded. Instead the walk
+			// skips the root as a nested module, or panics when
+			// Dir is a subdirectory.
+			if tc.dir == "/pkg" {
+				qt.Assert(t, qt.PanicMatches(func() {
+					Instances([]string{"./..."}, cfg)
+				}, `Rel: can't make pkg relative to /pkg`))
+				return
+			}
+			insts := Instances([]string{"./..."}, cfg)
+			qt.Assert(t, qt.HasLen(insts, 1))
+			qt.Assert(t, qt.ErrorMatches(insts[0].Err, `.*matched no packages`))
+		})
+	}
+}
