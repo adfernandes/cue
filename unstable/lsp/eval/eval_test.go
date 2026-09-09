@@ -4845,6 +4845,155 @@ something: {
 		},
 
 		{
+			// self within an operand of an expression, and within a
+			// comprehension's clauses and body, refers to the innermost
+			// enclosing struct literal, exactly as a bare self does.
+			name: "Self_Expression",
+			archive: `-- a.cue --
+@experiment(aliasv2)
+x: {
+	a: 1
+	b: self.a + 1
+}
+c: self.x.a + 1
+y: {
+	items: {k: 1}
+	for k, v in self.items {
+		("n" + k): v + len(self.items)
+	}
+}
+`,
+			expectDefinitions: map[position][]position{
+				ln(4, 1, "self"): {ln(4, 1, "b")}, // wrong: should be x, the enclosing struct
+				ln(4, 1, "a"):    {},              // wrong: should be x's a
+
+				ln(6, 1, "self"): {ln(6, 1, "c")}, // wrong: should be the file's root, which has no key
+				ln(6, 1, "x"):    {},              // wrong: should be x
+				ln(6, 1, "a"):    {},              // wrong: should be x's a
+
+				ln(9, 1, "self"):  {ln(7, 1, "y")},
+				ln(9, 1, "items"): {ln(8, 1, "items")},
+
+				ln(10, 1, "k"):     {ln(9, 1, "k")},
+				ln(10, 1, "v"):     {ln(9, 1, "v")},
+				ln(10, 1, "self"):  {}, // wrong: should be y, the enclosing struct
+				ln(10, 1, "items"): {}, // wrong: should be y's items
+
+				ln(2, 1, "x"):     {self},
+				ln(3, 1, "a"):     {self},
+				ln(4, 1, "b"):     {self},
+				ln(6, 1, "c"):     {self},
+				ln(7, 1, "y"):     {self},
+				ln(8, 1, "items"): {self},
+				ln(8, 1, "k"):     {self},
+				ln(9, 1, "k"):     {self},
+				ln(9, 1, "v"):     {self},
+			},
+			expectCompletions: map[offsetRange]fieldEmbedCompletions{
+				or(20, 23): {f: []string{"c", "x", "y"}},
+				or(23, 27): {f: []string{"a", "b"}, e: []string{"c", "x", "y"}},
+				or(27, 29): {f: []string{"a", "b"}},
+				or1(29):    {e: []string{"a", "b", "c", "x", "y"}},
+				or1(31):    {e: []string{"a", "b", "c", "x", "y"}},
+				or1(32):    {f: []string{"a", "b"}, e: []string{"c", "x", "y"}},
+				or(33, 35): {f: []string{"a", "b"}},
+				or(35, 41): {e: []string{"a", "b", "c", "x", "y"}},
+				// wrong: or(41, 43) should offer x's members a and b after self.
+				or(43, 45): {e: []string{"a", "b", "c", "x", "y"}},
+				or1(46):    {e: []string{"a", "b", "c", "x", "y"}},
+				or1(47):    {f: []string{"a", "b"}, e: []string{"c", "x", "y"}},
+				or(49, 51): {f: []string{"c", "x", "y"}},
+				or(51, 57): {e: []string{"c", "x", "y"}}, // wrong: should extend to 59, offering the root's fields after self.
+				// wrong: or(59, 61) should offer x's members a and b after self.x.
+				or(61, 63):   {e: []string{"c", "x", "y"}},
+				or1(64):      {e: []string{"c", "x", "y"}},
+				or(65, 67):   {f: []string{"c", "x", "y"}},
+				or(67, 71):   {f: []string{"items"}, e: []string{"c", "x", "y"}},
+				or(71, 77):   {f: []string{"items"}},
+				or(77, 79):   {f: []string{"k"}, e: []string{"c", "items", "x", "y"}},
+				or(79, 81):   {f: []string{"k"}},
+				or1(81):      {e: []string{"c", "items", "k", "x", "y"}},
+				or1(83):      {e: []string{"c", "items", "k", "x", "y"}},
+				or(85, 90):   {f: []string{"items"}, e: []string{"c", "x", "y"}},
+				or1(92):      {e: []string{"c", "items", "x", "y"}},
+				or(95, 109):  {e: []string{"c", "items", "k", "x", "y"}},
+				or(109, 113): {f: []string{"items"}, e: []string{"c", "items", "k", "v", "x", "y"}},
+				or1(113):     {f: []string{"items"}},
+				or1(117):     {e: []string{"c", "items", "k", "v", "x", "y"}},
+				or(120, 122): {e: []string{"c", "items", "k", "v", "x", "y"}},
+				or(123, 137): {e: []string{"c", "items", "k", "v", "x", "y"}},
+				// wrong: or(137, 143) should offer y's field items after self.
+				or1(143):     {e: []string{"c", "items", "k", "v", "x", "y"}},
+				or(144, 146): {f: []string{"items"}, e: []string{"c", "items", "k", "v", "x", "y"}},
+				or1(147):     {f: []string{"items"}, e: []string{"c", "x", "y"}},
+			},
+		},
+
+		{
+			// The blank identifier binds nothing: neither part of a
+			// postfix alias nor a comprehension's key, so a _ elsewhere
+			// keeps meaning top rather than resolving to them.
+			name: "AliasV2_Blank",
+			archive: `-- a.cue --
+@experiment(aliasv2)
+a: [_]~(_, V): {
+	x: V.y
+	y: 5
+}
+a: b: _
+c: {for _, v in [1] {d: _}}
+`,
+			expectDefinitions: map[position][]position{
+				ln(2, 1, "_"): {ln(2, 2, "_")}, // wrong: the label's _ is top, not the blank alias
+				ln(2, 2, "_"): {self},          // wrong: the blank identifier declares nothing
+				ln(3, 1, "V"): {ln(2, 1, "V")},
+				ln(3, 1, "y"): {ln(4, 1, "y")},
+				ln(6, 1, "_"): {},
+				ln(7, 1, "_"): {self},          // wrong: the blank identifier declares nothing
+				ln(7, 2, "_"): {ln(7, 1, "_")}, // wrong: this _ is top, not the comprehension's blank key
+
+				ln(2, 1, "a"): {self, ln(6, 1, "a")},
+				ln(2, 1, "V"): {self},
+				ln(3, 1, "x"): {self},
+				ln(4, 1, "y"): {self},
+				ln(6, 1, "a"): {self, ln(2, 1, "a")},
+				ln(6, 1, "b"): {self},
+				ln(7, 1, "c"): {self},
+				ln(7, 1, "v"): {self},
+				ln(7, 1, "d"): {self},
+			},
+			expectCompletions: map[offsetRange]fieldEmbedCompletions{
+				or(20, 23): {f: []string{"a", "c"}},
+				or1(23):    {f: []string{"b"}, e: []string{"a", "c"}},
+				or1(24):    {f: []string{"b"}},
+				or(25, 27): {e: []string{"V", "_", "a", "c"}},                        // wrong: _ declares nothing
+				or(29, 31): {f: []string{"b"}},                                       // wrong: the blank alias is no declaration
+				or(32, 34): {e: []string{"V", "_", "a", "c"}},                        // wrong: _ declares nothing
+				or(35, 39): {f: []string{"x", "y"}, e: []string{"V", "_", "a", "c"}}, // wrong: _ declares nothing
+				or(39, 41): {f: []string{"x", "y"}},
+				or(41, 44): {e: []string{"V", "_", "a", "c", "x", "y"}}, // wrong: _ declares nothing
+				or(44, 46): {e: []string{"x", "y"}},
+				or1(46):    {f: []string{"x", "y"}, e: []string{"V", "_", "a", "c"}}, // wrong: _ declares nothing
+				or(47, 49): {f: []string{"x", "y"}},
+				or1(49):    {e: []string{"V", "_", "a", "c", "x", "y"}},              // wrong: _ declares nothing
+				or1(51):    {e: []string{"V", "_", "a", "c", "x", "y"}},              // wrong: _ declares nothing
+				or1(52):    {f: []string{"x", "y"}, e: []string{"V", "_", "a", "c"}}, // wrong: _ declares nothing
+				or(54, 56): {f: []string{"a", "c"}},
+				or1(56):    {f: []string{"b"}, e: []string{"a", "c"}},
+				or(57, 59): {f: []string{"b"}},
+				or(59, 62): {e: []string{"a", "b", "c"}},
+				or(62, 64): {f: []string{"a", "c"}},
+				or(64, 70): {f: []string{"d"}, e: []string{"a", "c"}},           // wrong: should extend to 73, over the blank key
+				or1(72):    {e: []string{"a", "c"}},                             // wrong: as above
+				or(75, 79): {e: []string{"_", "a", "c"}},                        // wrong: _ declares nothing
+				or(80, 82): {e: []string{"_", "a", "c"}},                        // wrong: _ declares nothing
+				or1(82):    {f: []string{"d"}, e: []string{"_", "a", "c", "v"}}, // wrong: _ declares nothing
+				or(83, 85): {f: []string{"d"}},
+				or(85, 88): {e: []string{"_", "a", "c", "d", "v"}}, // wrong: _ declares nothing
+			},
+		},
+
+		{
 			name: "Self_Simple",
 			archive: `-- a.cue --
 @experiment(aliasv2)
