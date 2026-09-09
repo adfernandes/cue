@@ -329,19 +329,13 @@ package z
 		{"/pkg", []string{"example.com/test/pkg/sub@v0"}},
 	} {
 		t.Run(tc.dir, func(t *testing.T) {
-			cfg := &Config{FS: fsys, Dir: tc.dir}
-			// TODO: tc.want should be loaded. Instead the walk
-			// skips the root as a nested module, or panics when
-			// Dir is a subdirectory.
-			if tc.dir == "/pkg" {
-				qt.Assert(t, qt.PanicMatches(func() {
-					Instances([]string{"./..."}, cfg)
-				}, `Rel: can't make pkg relative to /pkg`))
-				return
+			insts := Instances([]string{"./..."}, &Config{FS: fsys, Dir: tc.dir})
+			var got []string
+			for _, inst := range insts {
+				qt.Assert(t, qt.IsNil(inst.Err))
+				got = append(got, inst.ImportPath)
 			}
-			insts := Instances([]string{"./..."}, cfg)
-			qt.Assert(t, qt.HasLen(insts, 1))
-			qt.Assert(t, qt.ErrorMatches(insts[0].Err, `.*matched no packages`))
+			qt.Assert(t, qt.DeepEquals(got, tc.want))
 		})
 	}
 }
