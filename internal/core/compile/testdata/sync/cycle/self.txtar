@@ -126,6 +126,28 @@ issue4125: t1_self: {
 	let Root = self
 	a: Root.a
 }
+// A struct literal that only embeds an expression has no value of its own, so
+// a reference to the enclosing field from within it is a cycle, as for the
+// bare ref fields; both as an operand and as a call argument. Optional fields
+// and patterns give it no value either: its kind is that of the embedding.
+structEmbed: cycle: {
+	ref1: ref1 + 1
+	ref2: div(ref2, 2)
+
+	lit1: {lit1 + 1}
+	lit2: {div(lit2, 2)}
+	lit3: {2 * div(lit3, 2)}
+	lit4: {b?: int, lit4 + 1}
+	val:  {b?: int, 3}
+}
+
+// A struct literal with a regular field, or without embeddings, is a struct:
+// an operation on it from within an embedding is a type error, not a cycle.
+structEmbed: struct: {
+	a: {}
+	a: a + 1
+}
+
 -- out/compile --
 --- in.cue
 {
@@ -333,6 +355,35 @@ issue4125: t1_self: {
     t1_self: {
       let Root#1 = 〈1〉
       a: 〈0;let Root#1〉.a
+    }
+  }
+  structEmbed: {
+    cycle: {
+      ref1: (〈0;ref1〉 + 1)
+      ref2: div(〈0;ref2〉, 2)
+      lit1: {
+        (〈1;lit1〉 + 1)
+      }
+      lit2: {
+        div(〈1;lit2〉, 2)
+      }
+      lit3: {
+        (2 * div(〈1;lit3〉, 2))
+      }
+      lit4: {
+        b?: int
+        (〈1;lit4〉 + 1)
+      }
+      val: {
+        b?: int
+        3
+      }
+    }
+  }
+  structEmbed: {
+    struct: {
+      a: {}
+      a: (〈0;a〉 + 1)
     }
   }
 }

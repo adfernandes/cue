@@ -153,6 +153,29 @@ issue4125: t1_self: {
 	a: Root.a
 	@test(eq, {a: _})
 }
+// A struct literal that only embeds an expression has no value of its own, so
+// a reference to the enclosing field from within it is a cycle, as for the
+// bare ref fields; both as an operand and as a call argument. Optional fields
+// and patterns give it no value either: its kind is that of the embedding.
+structEmbed: cycle: {
+	ref1: ref1 + 1     @test(err, code=cycle, contains="cycle with field: ref1", pos=[0:8])
+	ref2: div(ref2, 2) @test(err, code=incomplete)
+
+	lit1: {lit1 + 1}          @test(err, code=eval, contains="invalid operands", pos=[0:9, 0:8, 0:16], incorrect) @test(err:todo, code=cycle, contains="cycle with field: lit1")
+	lit2: {div(lit2, 2)}      @test(err, code=eval, contains="cannot use", pos=[0:8], incorrect) @test(err:todo, code=incomplete)
+	lit3: {2 * div(lit3, 2)}  @test(err, code=eval, contains="cannot use", pos=[0:8], incorrect) @test(err:todo, code=incomplete)
+	lit4: {b?: int, lit4 + 1} @test(err, code=eval, contains="invalid operands", pos=[0:18, 0:8, 0:25], incorrect) @test(err:todo, code=cycle, contains="cycle with field: lit4")
+	val:  {b?: int, 3}        @test(eq, 3)
+}
+
+// A struct literal with a regular field, or without embeddings, is a struct:
+// an operation on it from within an embedding is a type error, not a cycle.
+structEmbed: struct: {
+	a: {}
+	a: a + 1
+	@test(err, code=eval, path=a, contains="invalid operands %s and %s", args=[{}, 1], pos=[2:5, 1:5, 2:9])
+}
+
 -- out/errors.txt --
 [eval] expr.error1.a: conflicting values 4 and 3:
     ./in.cue:4:5
@@ -164,6 +187,25 @@ issue4125: t1_self: {
     ./in.cue:15:5
 [structural_cycle] listConcat.error2.a: error in call to list.Concat: structural cycle:
     ./in.cue:20:5
+[cycle] structEmbed.cycle.ref1: cycle with field: ref1:
+    ./selfnew.cue:11:8
+[incomplete] structEmbed.cycle.ref2: incomplete number in argument to div builtin: _
+[eval] structEmbed.cycle.lit1: invalid operands {} and 1 to '+' (type struct and int):
+    ./selfnew.cue:14:9
+    ./selfnew.cue:14:8
+    ./selfnew.cue:14:16
+[eval] structEmbed.cycle.lit2: cannot use {} (type struct) as int in argument 1 to div:
+    ./selfnew.cue:15:8
+[eval] structEmbed.cycle.lit3: cannot use {} (type struct) as int in argument 1 to div:
+    ./selfnew.cue:16:8
+[eval] structEmbed.cycle.lit4: invalid operands {b?:int} and 1 to '+' (type struct and int):
+    ./selfnew.cue:17:18
+    ./selfnew.cue:17:8
+    ./selfnew.cue:17:25
+[eval] structEmbed.struct.a: invalid operands {} and 1 to '+' (type struct and int):
+    ./selfnew.cue:25:5
+    ./selfnew.cue:24:5
+    ./selfnew.cue:25:9
 -- out/todo.txt --
 listConcat.error1/error2.a: v2 shows list elements inside structural cycle error, v3 shows proper error message.
 selfEmbed.ok2.a and ok6.a: v2 expands a as independent struct, v3 uses structure sharing ~(x).

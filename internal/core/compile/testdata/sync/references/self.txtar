@@ -253,6 +253,25 @@ letSelfDynamic: {
 	out: c.container.options
 }
 
+-- issue4479.cue --
+@experiment(aliasv2)
+
+// A value alias on a scalar expression has no postfix form, so cue fix
+// rewrites it to a struct literal with a let-self binding. Evaluating the
+// definition on its own finalizes the literal to an empty struct before the
+// embedding completes, reporting a type error or even the error disjunct
+// instead of a reference cycle. See https://cuelang.org/issue/4479.
+issue4479: {
+	#Even: {let X = self, (2 * div(X, 2)) | error("\(X) is not even")}
+	even: [...#Even]
+	even: [42, 13]
+	even: [_, _]
+
+	#Half: {let X = self, 2 * div(X, 2)}
+	ok:  #Half & 42
+	bad: #Half & 13
+}
+
 -- experiment_test.cue --
 // Test self usage without experiment enabled (should fail)
 
@@ -370,14 +389,40 @@ a: {
     out: 〈0;c〉.container.options
   }
 }
+--- issue4479.cue
+{
+  issue4479: {
+    #Even: {
+      let X#2 = 〈1〉
+      ((2 * div(〈0;let X#2〉, 2))|error("\(〈0;let X#2〉) is not even"))
+    }
+    even: [
+      ...〈1;#Even〉,
+    ]
+    even: [
+      42,
+      13,
+    ]
+    even: [
+      _,
+      _,
+    ]
+    #Half: {
+      let X#3 = 〈1〉
+      (2 * div(〈0;let X#3〉, 2))
+    }
+    ok: (〈0;#Half〉 & 42)
+    bad: (〈0;#Half〉 & 13)
+  }
+}
 --- letselfinline.cue
 {
   letSelfInline: {
     S: {
-      let this#2 = 〈1〉
+      let this#4 = 〈1〉
       raw: string
-      data: 〈0;let this#2〉.raw
-      chk: 〈0;let this#2〉.data
+      data: 〈0;let this#4〉.raw
+      chk: 〈0;let this#4〉.data
     }
     res: (〈0;S〉 & {
       raw: "alice"
@@ -385,13 +430,13 @@ a: {
   }
   letSelfInlineConj: {
     #T: {
-      let this#3 = 〈1〉
+      let this#5 = 〈1〉
       raw: string
-      data: 〈0;let this#3〉.raw
+      data: 〈0;let this#5〉.raw
     }
     #T: {
-      let this#4 = 〈1〉
-      chk: 〈0;let this#4〉.data
+      let this#6 = 〈1〉
+      chk: 〈0;let this#6〉.data
     }
     res: (〈0;#T〉 & {
       raw: "alice"
@@ -455,14 +500,14 @@ a: {
 --- withlet.cue
 {
   withLet: {
-    let X#5 = 〈1〉
+    let X#7 = 〈1〉
     foo: 1
     bar: {
-      baz: 〈1;let X#5〉.foo
+      baz: 〈1;let X#7〉.foo
     }
   }
   withLetComprehension: {
-    let X#6 = 〈1〉
+    let X#8 = 〈1〉
     direct: "a"
     if true {
       viaIf: "b"
@@ -475,13 +520,13 @@ a: {
     try {
       viaTry: "d"
     }
-    seeDirect: 〈0;let X#6〉.direct
-    seeIf: 〈0;let X#6〉.viaIf
-    seeFor: 〈0;let X#6〉.viaFor
-    seeTry: 〈0;let X#6〉.viaTry
+    seeDirect: 〈0;let X#8〉.direct
+    seeIf: 〈0;let X#8〉.viaIf
+    seeFor: 〈0;let X#8〉.viaFor
+    seeTry: 〈0;let X#8〉.viaTry
   }
   withLetDynamicField: {
-    let X#7 = 〈1〉
+    let X#9 = 〈1〉
     h: {
       [string]: {
         c: len(〈1;(〈0;-〉)〉)
@@ -491,7 +536,7 @@ a: {
       a: _
     }
     g: _
-    for _, x in 〈0;let X#7〉.h {
+    for _, x in 〈0;let X#9〉.h {
       g: {
         "\({
           if true {
@@ -505,28 +550,28 @@ a: {
     }
   }
   withLetDynamicField: {
-    let Y#8 = 〈1〉
+    let Y#A = 〈1〉
     s: true
     x: {
-      if 〈1;let Y#8〉.s {
+      if 〈1;let Y#A〉.s {
         1
       }
-      if !〈1;let Y#8〉.s {
+      if !〈1;let Y#A〉.s {
         2
       }
     }
   }
   letSelfIterate: {
-    let X#9 = 〈1〉
+    let X#B = 〈1〉
     a: 3
     d: [
-      for k, _ in 〈1;let X#9〉 {
+      for k, _ in 〈1;let X#B〉 {
         〈1;k〉
       },
     ]
   }
   withLetDynamicFieldRef: {
-    let X#A = 〈1〉
+    let X#C = 〈1〉
     h: {
       [string]: {
         c: len(〈2;h〉.a)
@@ -536,7 +581,7 @@ a: {
       a: _
     }
     g: _
-    for _, x in 〈0;let X#A〉.h {
+    for _, x in 〈0;let X#C〉.h {
       g: {
         "\({
           if true {
@@ -550,13 +595,13 @@ a: {
     }
   }
   withLetDynamicFieldRef: {
-    let Y#B = 〈1〉
+    let Y#D = 〈1〉
     s: true
     x: {
-      if 〈1;let Y#B〉.s {
+      if 〈1;let Y#D〉.s {
         1
       }
-      if !〈1;let Y#B〉.s {
+      if !〈1;let Y#D〉.s {
         2
       }
     }

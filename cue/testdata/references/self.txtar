@@ -295,6 +295,25 @@ letSelfDynamic: {
 	out: c.container.options @test(eq, {mainnet: "x"})
 }
 
+-- issue4479.cue --
+@experiment(aliasv2)
+
+// A value alias on a scalar expression has no postfix form, so cue fix
+// rewrites it to a struct literal with a let-self binding. Evaluating the
+// definition on its own finalizes the literal to an empty struct before the
+// embedding completes, reporting a type error or even the error disjunct
+// instead of a reference cycle. See https://cuelang.org/issue/4479.
+issue4479: {
+	#Even: {let X = self, (2 * div(X, 2)) | error("\(X) is not even")} @test(err, code=eval, contains="is not even", pos=[0:42, 0:9], incorrect) @test(err:todo, code=incomplete, contains="is not even")
+	even: [...#Even]
+	even: [42, 13]
+	even: [_, _] @test(err, at="1", code=eval, contains="13 is not even", pos=[-3:42, -3:25, -2:12, -1:13])
+
+	#Half: {let X = self, 2 * div(X, 2)} @test(err, code=eval, contains="cannot use", pos=[0:9], incorrect) @test(err:todo, code=incomplete)
+	ok:  #Half & 42 @test(eq, 42)
+	bad: #Half & 13 @test(err, code=eval, contains="conflicting values %s and %s", args=[12, 13], pos=[-2:24, 0:7, 0:15])
+}
+
 -- out/evalalpha --
 Errors:
 listCheck.err.2: conflicting values "bar" and int (mismatched types string and int):
@@ -439,6 +458,20 @@ a: {
 [incomplete] letSelfDynamic.#Client.options: key value of dynamic field must be concrete, found string:
     ./issue4440.cue:14:13
     ./issue4440.cue:12:12
+[eval] issue4479.#Even: {let X#2=_|_(issue4479.#Even.X: structural cycle)} is not even:
+    ./issue4479.cue:9:42
+    ./issue4479.cue:9:9
+[eval] issue4479.even.1: 13 is not even:
+    ./issue4479.cue:9:42
+    ./issue4479.cue:9:25
+    ./issue4479.cue:10:12
+    ./issue4479.cue:11:13
+[eval] issue4479.#Half: cannot use {let X#3=_|_(issue4479.#Half.X: structural cycle)} (type struct) as int in argument 1 to div:
+    ./issue4479.cue:14:9
+[eval] issue4479.bad: conflicting values 12 and 13:
+    ./issue4479.cue:14:24
+    ./issue4479.cue:16:7
+    ./issue4479.cue:16:15
 [eval] listCheck.err.2: conflicting values "bar" and int (mismatched types string and int):
     ./list.cue:4:28
     ./list.cue:8:17
@@ -460,14 +493,14 @@ a: {
     ./validator.cue:18:12
     ./validator.cue:19:19
 -- out/eval/stats --
-Leaks:  3
-Freed:  172
-Reused: 134
-Allocs: 41
+Leaks:  5
+Freed:  196
+Reused: 157
+Allocs: 44
 Retain: 0
 
-Unifications: 166
-Conjuncts:    262
-Disjuncts:    0
+Unifications: 180
+Conjuncts:    301
+Disjuncts:    6
 
-NumCloseIDs: 82
+NumCloseIDs: 33
