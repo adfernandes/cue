@@ -2267,12 +2267,12 @@ func (f *frame) eval() {
 
 			stack := frameStack{f.newFrame(nil, nil, false)}
 
-			if key := node.Key; key != nil {
+			if key := node.Key; isNonBlank(key) {
 				keyFr := stack.peek().newBinding(key, nil)
 				keyFr.kind = DeclAlias
 				stack.push(key, keyFr)
 			}
-			if val := node.Value; val != nil {
+			if val := node.Value; isNonBlank(val) {
 				valFr := stack.peek().newBinding(val, nil)
 				valFr.kind = DeclAlias
 				stack.push(val, valFr)
@@ -2584,8 +2584,14 @@ func fieldNames(field *ast.Field) *fieldDeclExpr {
 	}
 
 	if alias := field.Alias; alias != nil {
-		result.valueAliasIdent = alias.Field
-		result.keyAliasIdent = alias.Label
+		// The blank identifier binds nothing: ~(_, V) declares only
+		// V, and ~(K, _) only K.
+		if isNonBlank(alias.Field) {
+			result.valueAliasIdent = alias.Field
+		}
+		if isNonBlank(alias.Label) {
+			result.keyAliasIdent = alias.Label
+		}
 	}
 
 	start, end := field.Label.Pos(), field.Label.End()
@@ -2598,6 +2604,12 @@ func fieldNames(field *ast.Field) *fieldDeclExpr {
 	result.end = end
 
 	return &result
+}
+
+// isNonBlank reports whether ident is present and is not the blank
+// identifier _, which binds nothing wherever it stands for a name.
+func isNonBlank(ident *ast.Ident) bool {
+	return ident != nil && ident.Name != "_"
 }
 
 // newBinding creates and returns a new [frame], and stores it under
@@ -2902,9 +2914,8 @@ func (f *frame) resolvePathRoot(name string, requireIdent bool) (*navigable, str
 				}
 			}
 			// Support for the Self experiment:
-			parentNav := frameOrig.navigable.parent
 			if name == "self" && frameOrig.fileEvaluator.File.Pos().Experiment().AliasV2 {
-				return parentNav, ""
+				return frameOrig.selfNavigable(), ""
 			}
 			// Finally, inspect the globals
 			if fNav.parent == nil {
@@ -2915,6 +2926,29 @@ func (f *frame) resolvePathRoot(name string, requireIdent bool) (*navigable, str
 		}
 	}
 	return nil, ""
+}
+
+// selfNavigable returns the navigable that self denotes for a
+// reference within this frame: that of the innermost struct or list
+// literal enclosing the reference, or the file's root when no literal
+// does. Given:
+//
+//	x: {
+//		a: 1
+//		b: self.a + 1
+//	}
+//
+// the reference is in an operand frame under b's frame, neither of
+// which holds a literal struct or list; x's value frame holds the
+// struct, so self denotes x.
+func (f *frame) selfNavigable() *navigable {
+	for ; f != nil; f = f.parent {
+		switch f.node.(type) {
+		case *ast.StructLit, *ast.ListLit, *ast.File:
+			return f.navigable
+		}
+	}
+	return nil
 }
 
 // docComments extracts the comments from the current frame.
