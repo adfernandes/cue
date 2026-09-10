@@ -72,3 +72,44 @@ func TestNilSource(t *testing.T) {
 		})
 	}
 }
+
+func TestNumBigInt(t *testing.T) {
+	// The evaluator keeps integers with a zero exponent, but an integer
+	// decimal need not have one, so BigInt must scale by it. See
+	// https://cuelang.org/issue/2649 and https://cuelang.org/issue/3787 for
+	// the two ways such values used to arise.
+	testCases := []struct {
+		decimal string
+		want    string
+	}{
+		{"8", "8"},
+		{"-8", "-8"},
+		{"8.0", "8"},
+		{"-8.0", "-8"},
+		{"80E-1", "8"},
+		{"1.0E+2", "100"},
+		{"1E+35", "100000000000000000000000000000000000"},
+		{"-1E+35", "-100000000000000000000000000000000000"},
+		{"0.0", "0"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.decimal, func(t *testing.T) {
+			n := &Num{K: IntKind}
+			if _, _, err := n.X.SetString(tc.decimal); err != nil {
+				t.Fatal(err)
+			}
+			if n.X.Exponent != 0 {
+				// TODO: BigInt panics on a non-zero exponent rather than
+				// scaling the coefficient by it.
+				defer func() {
+					if recover() == nil {
+						t.Error("BigInt() did not panic")
+					}
+				}()
+			}
+			if got := n.BigInt(nil).String(); got != tc.want {
+				t.Errorf("BigInt() = %v; want %v", got, tc.want)
+			}
+		})
+	}
+}
