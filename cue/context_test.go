@@ -17,6 +17,7 @@ package cue_test
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -141,6 +142,74 @@ bar: [
 	vs, err := cuecontext.New().BuildInstances([]*build.Instance{instance})
 	if err == nil {
 		t.Fatalf("BuildInstances() = %#v, wanted error", vs)
+	}
+}
+
+func mustRat(s string) *big.Rat {
+	r, ok := new(big.Rat).SetString(s)
+	if !ok {
+		panic("invalid rational: " + s)
+	}
+	return r
+}
+
+// TestEncodeBigRat covers that an integral [big.Rat] encodes as an integer
+// whose decimal carries no exponent. Getting that wrong makes [cue.Value.Int64]
+// report a value scaled by a power of ten and makes [cue.Value.Int] panic;
+// see https://cuelang.org/issue/2649.
+func TestEncodeBigRat(t *testing.T) {
+	ctx := cuecontext.New()
+	// A numerator of more than 34 digits does not fit the decimal context, and
+	// one of more than 19 does not fit an int64.
+	big35 := "100000000000000000000000000000000001"
+	testCases := []struct {
+		rat  *big.Rat
+		kind cue.Kind
+		out  string
+		i64  int64
+		// i64Err is what Int64 reports when out does not fit an int64.
+		i64Err string
+	}{
+		// TODO: an integral rational must encode as a plain integer, but the
+		// cases below carry a non-zero exponent, and Int64 reads the
+		// coefficient alone; Int panics on them.
+		{big.NewRat(8, 1), cue.IntKind, "8.0", 80, ""},
+		{big.NewRat(100, 1), cue.IntKind, "1.0e+2", 10, ""},
+		{big.NewRat(-4000, 100), cue.IntKind, "-40", -40, ""},
+		{big.NewRat(0, 5), cue.IntKind, "0", 0, ""},
+		{big.NewRat(39, 2), cue.FloatKind, "19.5", 0, ""},
+		{big.NewRat(-39, 2), cue.FloatKind, "-19.5", 0, ""},
+		{big.NewRat(1, 3), cue.FloatKind, "0.3333333333333333333333333333333333", 0, ""},
+		// TODO: these should encode as big35 and -big35, failing Int64 with
+		// "value was rounded down" and "value was rounded up", but the
+		// numerator is rounded to fit the decimal context.
+		{mustRat(big35 + "/1"), cue.IntKind, "1e+35", 1, ""},
+		{mustRat("-" + big35 + "/1"), cue.IntKind, "-1e+35", -1, ""},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.rat.RatString(), func(t *testing.T) {
+			v := ctx.Encode(tc.rat)
+			qt.Assert(t, qt.Equals(v.Kind(), tc.kind))
+			qt.Assert(t, qt.Equals(fmt.Sprint(v), tc.out))
+			if tc.kind != cue.IntKind {
+				return
+			}
+			i64, err := v.Int64()
+			if tc.i64Err == "" {
+				qt.Assert(t, qt.IsNil(err))
+			} else {
+				qt.Assert(t, qt.ErrorMatches(err, tc.i64Err))
+			}
+			qt.Assert(t, qt.Equals(i64, tc.i64))
+			if tc.out != tc.rat.RatString() {
+				// TODO: Int panics on an integer whose decimal carries an exponent.
+				qt.Assert(t, qt.PanicMatches(func() { v.Int(nil) }, "cue: exponent should always be nil.*"))
+				return
+			}
+			i, err := v.Int(nil)
+			qt.Assert(t, qt.IsNil(err))
+			qt.Assert(t, qt.Equals(i.String(), tc.out))
+		})
 	}
 }
 

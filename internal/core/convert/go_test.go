@@ -114,6 +114,10 @@ func TestConvert(t *testing.T) {
 	d35 := mkBigInt(35)
 	n36 := mkBigInt(-36)
 	f37 := big.NewFloat(37.0000)
+	r38 := big.NewRat(38, 1)
+	r39 := big.NewRat(39, 2)
+	r40 := big.NewRat(-4000, 100)
+	r41 := big.NewRat(100, 1)
 	testCases := []struct {
 		goVal interface{}
 		want  string
@@ -165,6 +169,16 @@ func TestConvert(t *testing.T) {
 		&d35, "(int){ 35 }",
 	}, {
 		&n36, "(int){ -36 }",
+	}, {
+		// TODO: an integral rational is an integer, so r38 and r41 should
+		// convert to 38 and 100, but the quotient carries an exponent.
+		r38, "(int){ 38.0 }",
+	}, {
+		r39, "(float){ 19.5 }",
+	}, {
+		r40, "(int){ -40 }",
+	}, {
+		r41, "(int){ 1.0E+2 }",
 	}, {
 		[]int{1, 2, 3, 4}, `(#list){
   0: (int){ 1 }
