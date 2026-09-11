@@ -11,9 +11,7 @@ import (
 	"tool/cli"
 )
 
-// _releaseTagPrefix is the prefix every release tag carries. Keep in
-// sync with the release workflow's tag pattern, which is a globbing
-// pattern rather than a regular expression.
+// _releaseTagPrefix is the prefix every release tag carries.
 _releaseTagPrefix: "v"
 
 command: release: {
@@ -21,8 +19,12 @@ command: release: {
 
 	let _env = env
 
-	let _githubRef = *env.GITHUB_REF | "refs/no_ref_kind/not_a_release" // filled when running in CI
-	let _githubRefName = path.Base(_githubRef)
+	// The release being built, named by whoever dispatched the
+	// release workflow. Empty tests a snapshot release instead: one
+	// built in full and published nowhere. The job does not run at
+	// the tag ref, so the environment it runs in says nothing about
+	// which release this is.
+	let _releaseVersion = *env.CUE_RELEASE_VERSION | ""
 
 	tempDir: file.MkdirTemp & {
 		path: string
@@ -60,24 +62,24 @@ command: release: {
 	let goreleaserCmd = [
 		"goreleaser", "release", "-f", "-", "--clean",
 
-		// Only run the full release when running on GitHub actions for a release tag.
+		// Only release for real when a release was named; otherwise
+		// test a snapshot release, which publishes nothing.
 		//
 		// TODO: Once there is a "goreleaser test" command,
 		// switch to that instead of our workaround via "goreleaser release --snapshot".
 		// See: https://github.com/goreleaser/goreleaser/issues/2355
-		if _githubRef !~ "refs/tags/\(_releaseTagPrefix).*" {
+		if !strings.HasPrefix(_releaseVersion, _releaseTagPrefix) {
 			"--snapshot"
 		},
 	]
 	let goreleaserConfigYAML = yaml.Marshal(config & {
-		#latest: _githubRefName == strings.TrimSpace(latestCUE.stdout)
+		#latest: _releaseVersion == latestCUEVersion
 	})
 
 	info: cli.Print & {
 		text: """
 			latest CUE version: \(latestCUEVersion)
-			git ref: \(_githubRef)
-			release name: \(_githubRefName)
+			release version: \(_releaseVersion)
 			goreleaser cmd: \(strings.Join(goreleaserCmd, " "))
 
 			goreleaser config yaml, indented for readability:
